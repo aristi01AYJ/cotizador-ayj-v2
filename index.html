@@ -160,6 +160,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 @keyframes spin{to{transform:rotate(360deg)}}
 @media print{body{display:none}}
 
+.filtros-panel{display:block} /* visible en PC */
+
 /* ── RESPONSIVE MÓVIL ───────────────────────────── */
 .mobile-tabs{display:none}
 
@@ -271,15 +273,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   .hist-table th:nth-child(4),.hist-table td:nth-child(4){display:none}
   .grupo-card,.bp-card{margin-bottom:8px}
   .sidebar-header{padding:6px 10px}
-  .sidebar-header strong{font-size:12px}
-  .sidebar-header p{display:none} /* ocultar subtítulo */
-  .search-wrap{margin-top:6px}
-  .search-wrap input{padding:5px 10px 5px 28px;font-size:13px}
+  .sidebar-header strong,.sidebar-header p{display:none}
+  .filtros-panel{display:none} /* oculto por defecto en móvil */
+  .filtros-panel.open{display:block}
+  .search-wrap{margin-top:0}
+  .search-wrap input{padding:5px 10px 5px 28px;font-size:14px}
   .filter-row{gap:4px;margin-top:4px}
-  .filter-row select{padding:4px 6px;font-size:12px}
-  .trm-bar{padding:5px 10px}
-  .trm-bar label{font-size:11px}
-  .trm-bar input{width:85px;padding:4px 6px;font-size:13px}
+  .filter-row select{padding:5px 6px;font-size:13px}
+  .trm-bar{padding:4px 10px}
+  .trm-bar label{font-size:10px}
+  .trm-bar input{width:75px;padding:3px 6px;font-size:13px}
   .trm-bar span{font-size:10px}
   .maq-list{padding:5px}
   .grupo-card{padding:0;margin-bottom:5px}
@@ -1268,6 +1271,16 @@ function getDescuento(){
   const base=parseFloat(document.getElementById('descInput').value)||0;
   const especial=document.getElementById('descEspecialChk').checked?3:0;
   return base+especial;
+}
+
+function toggleFiltrosMobil(){
+  const panel=document.getElementById('filtrosPanel');
+  const label=document.getElementById('filtrosLabel');
+  const btn=document.getElementById('btnFiltros');
+  const open=panel.classList.toggle('open');
+  label.textContent=open?'Cerrar':'Filtros';
+  btn.style.borderColor=open?'var(--green)':'var(--border)';
+  btn.style.color=open?'var(--green-dark)':'inherit';
 }
 
 function nuevaCotizacion(){
