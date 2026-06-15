@@ -166,80 +166,141 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .mobile-tabs{display:none}
 
 @media (max-width: 768px){
-  .mobile-tabs{
-    display:flex;flex-shrink:0;
-    background:#fff;border-bottom:1px solid var(--border);
-    position:sticky;top:0;z-index:100;
-  }
-  .mobile-tab{
-    flex:1;padding:10px 6px;text-align:center;font-size:12px;font-weight:500;
-    color:var(--text2);border:none;background:none;cursor:pointer;
-    border-bottom:2px solid transparent;font-family:inherit;
-  }
-  .mobile-tab.active{color:var(--green-dark);border-bottom-color:var(--green)}
-  .mobile-tab-badge{
-    display:inline-block;background:var(--green);color:#fff;
-    border-radius:20px;font-size:10px;padding:0 5px;margin-left:4px;
-    vertical-align:middle;min-width:16px;text-align:center;
-  }
+  /* ── LAYOUT PRINCIPAL ── */
+  body{height:100vh;overflow:hidden}
+  #appScreen{height:100vh;overflow:hidden}
+  .main{flex-direction:column;flex:1;overflow:hidden;height:calc(100vh - 96px)}
 
-  /* En móvil sidebar y content se apilan y se controlan con tabs */
-  .main{flex-direction:column;overflow:auto}
+  /* ── TOPBAR ── */
+  .topbar{padding:8px 12px;gap:6px;flex-shrink:0}
+  .topbar-logo img{height:22px}
+  .nav{display:none}
+  .topbar-right .btn-logout{display:inline-flex}
+
+  /* ── TABS MÓVIL ── */
+  .mobile-tabs{display:flex;flex-shrink:0}
+  .mobile-tab{font-size:12px;padding:8px 4px}
+
+  /* ── SIDEBAR (CATÁLOGO) ── */
   .sidebar{
-    width:100%;border-right:none;border-bottom:none;
-    height:calc(100vh - 96px);
-    overflow:hidden;
     display:none;
+    width:100%;border-right:none;
     flex-direction:column;
+    height:100%;
+    overflow:hidden;
   }
   .sidebar.mobile-active{display:flex}
-  .sidebar .maq-list{
+  .sidebar-header{padding:6px 10px;flex-shrink:0}
+  .sidebar-header strong,.sidebar-header p{display:none}
+  .filtros-panel{display:none}
+  .filtros-panel.open{display:block}
+  .trm-bar{padding:4px 10px;flex-shrink:0}
+  .trm-bar label{font-size:10px}
+  .trm-bar input{width:75px;font-size:13px;padding:3px 6px}
+  .trm-bar span{font-size:10px}
+  .maq-list{
     flex:1;
-    overflow-y:auto;
+    overflow-y:scroll;
     -webkit-overflow-scrolling:touch;
-    padding:5px;
+    padding:6px;
+    min-height:0;
   }
-  .content{display:none;flex-direction:column;height:calc(100vh - 96px);overflow:hidden}
+  .filter-row select{padding:5px 6px;font-size:13px}
+  .filter-row{gap:4px;margin-top:4px}
+
+  /* ── CARDS CATÁLOGO COMPACTAS ── */
+  .grupo-header{padding:8px 10px}
+  .grupo-name{font-size:12px}
+  .grupo-marca{font-size:10px;margin-top:1px}
+  .precio-usd{font-size:11px}
+  .precio-cop{font-size:9px}
+  .stock-row{margin-top:4px;gap:3px}
+  .stock-badge{font-size:9px;padding:1px 6px}
+  .grupo-actions{padding:0 8px 8px;gap:4px}
+  .btn-cat{padding:5px 6px;font-size:11px}
+  .bp-card{padding:8px 10px;margin-bottom:6px}
+  .bp-name{font-size:12px}
+  .bp-sub{font-size:10px}
+  .btn-add-bp{padding:5px;font-size:11px}
+  .section-label{font-size:9px;padding:5px 4px 2px}
+  .grupo-card{margin-bottom:6px}
+
+  /* ── CONTENT (CARRITO) ── */
+  .content{
+    display:none;
+    width:100%;
+    flex-direction:column;
+    height:100%;
+    overflow:hidden;
+  }
   .content.mobile-active{display:flex}
-  .content .cot-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .content .footer{flex-shrink:0}
-  .content .content-top{flex-shrink:0}
-  #historialView.mobile-active,#clientesView.mobile-active{display:flex}
-
-  /* Cuando el historial o clientes están activos */
-  .main.vista-historial #historialView{display:flex!important;flex:1;overflow-y:auto}
-  .main.vista-clientes #clientesView{display:flex!important;flex:1;overflow-y:auto}
-
-  /* Footer siempre visible en móvil cuando carrito está activo */
-  .footer{
-    position:sticky;bottom:0;z-index:50;
-    border-top:2px solid var(--border);
-    box-shadow:0 -4px 12px rgba(0,0,0,0.08);
+  .content-top{
+    flex-shrink:0;
+    padding:8px 10px;
+    gap:6px;
+    overflow-y:auto;
+    max-height:180px;
+    -webkit-overflow-scrolling:touch;
   }
-  .totales{width:100%;flex-wrap:wrap;gap:8px;margin-left:0;justify-content:space-between}
-  .total-val.big{font-size:15px}
-  .total-val.sub2,.total-val.big2{font-size:10px}
-  .content-top{padding:10px 12px;gap:8px;flex-wrap:wrap}
-  .field-group{width:calc(50% - 4px);min-width:0}
+  .field-group{width:calc(50% - 3px);min-width:0}
   .field-group input,.field-group select{min-width:0;width:100%;font-size:14px}
-  .oferta-badge{margin-left:auto;font-size:11px;padding:4px 10px}
-  .cot-area{padding:10px;overflow-y:auto;flex:1}
-  .items-table{font-size:12px}
-  .items-table th:nth-child(4),.items-table td:nth-child(4){display:none} /* ocultar COP */
-  .items-table th:nth-child(5),.items-table td:nth-child(5){display:none}
-  .footer{padding:10px 12px;gap:6px;flex-wrap:wrap}
+  .oferta-badge{font-size:11px;padding:4px 10px;margin-left:auto}
+  .cot-area{
+    flex:1;
+    overflow-y:scroll;
+    -webkit-overflow-scrolling:touch;
+    padding:8px;
+    min-height:0;
+  }
+  .footer{
+    flex-shrink:0;
+    padding:8px 10px;
+    gap:6px;
+    border-top:2px solid var(--border);
+    background:#fff;
+  }
   .footer .field-group{width:calc(50% - 3px)}
-  .btn-primary,.btn-sec{padding:9px 12px;font-size:12px}
-  #clientesView,#historialView{padding:10px}
-  .cli-table th:nth-child(3),.cli-table td:nth-child(3),
-  .cli-table th:nth-child(5),.cli-table td:nth-child(5){display:none}
+  .totales{margin-left:0;width:100%;gap:8px;flex-wrap:wrap;justify-content:space-between}
+  .total-val.big{font-size:14px}
+  .total-val.sub2,.total-val.big2{font-size:10px}
+  .btn-primary{padding:9px 14px;font-size:12px}
+  .btn-sec{padding:8px 10px;font-size:12px}
+
+  /* ── HISTORIAL Y CLIENTES ── */
+  #historialView{
+    display:none;
+    height:100%;
+    overflow-y:scroll;
+    -webkit-overflow-scrolling:touch;
+    padding:10px;
+    flex-direction:column;
+  }
+  #historialView.mobile-active{display:flex}
+  #clientesView{
+    display:none;
+    height:100%;
+    overflow-y:scroll;
+    -webkit-overflow-scrolling:touch;
+    padding:10px;
+    flex-direction:column;
+  }
+  #clientesView.mobile-active{display:flex}
+  .hist-table{font-size:11px}
   .hist-table th:nth-child(2),.hist-table td:nth-child(2),
   .hist-table th:nth-child(4),.hist-table td:nth-child(4){display:none}
-  .topbar{padding:8px 12px;gap:6px}
-  .topbar-logo img{height:22px}
-  .nav{display:none} /* las tabs reemplazan el nav en móvil */
-  .topbar-right .user-chip{font-size:11px;padding:3px 8px}
-  #modalCliente > div,#modalCondPago > div,#modalEntrega > div{width:95vw!important;padding:20px 14px!important}
+  .cli-table{font-size:11px}
+  .cli-table th:nth-child(3),.cli-table td:nth-child(3),
+  .cli-table th:nth-child(5),.cli-table td:nth-child(5){display:none}
+
+  /* ── TABLA ITEMS CARRITO ── */
+  .items-table{font-size:11px}
+  .items-table th:nth-child(4),.items-table td:nth-child(4){display:none}
+  .items-table th:nth-child(5),.items-table td:nth-child(5){display:none}
+
+  /* ── MODALES ── */
+  #modalCliente > div,#modalCondPago > div,#modalEntrega > div{
+    width:95vw!important;padding:18px 14px!important;max-height:90vh;overflow-y:auto
+  }
 }
 
 @media (max-width: 480px){
