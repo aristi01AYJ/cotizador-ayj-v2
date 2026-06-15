@@ -161,6 +161,86 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 @media print{body{display:none}}
 
 /* ── RESPONSIVE MÓVIL ───────────────────────────── */
+.mobile-tabs{display:none}
+
+@media (max-width: 768px){
+  .mobile-tabs{
+    display:flex;flex-shrink:0;
+    background:#fff;border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:100;
+  }
+  .mobile-tab{
+    flex:1;padding:10px 6px;text-align:center;font-size:12px;font-weight:500;
+    color:var(--text2);border:none;background:none;cursor:pointer;
+    border-bottom:2px solid transparent;font-family:inherit;
+  }
+  .mobile-tab.active{color:var(--green-dark);border-bottom-color:var(--green)}
+  .mobile-tab-badge{
+    display:inline-block;background:var(--green);color:#fff;
+    border-radius:20px;font-size:10px;padding:0 5px;margin-left:4px;
+    vertical-align:middle;min-width:16px;text-align:center;
+  }
+
+  /* En móvil sidebar y content se apilan y se controlan con tabs */
+  .main{flex-direction:column;overflow:auto}
+  .sidebar{
+    width:100%;border-right:none;border-bottom:1px solid var(--border);
+    max-height:none;overflow:visible;
+    display:none; /* oculto por defecto, tabs lo controlan */
+  }
+  .sidebar.mobile-active{display:flex}
+  .content{display:none}
+  .content.mobile-active{display:flex}
+  #historialView.mobile-active,#clientesView.mobile-active{display:flex}
+
+  /* Cuando el historial o clientes están activos */
+  .main.vista-historial #historialView{display:flex!important;flex:1;overflow-y:auto}
+  .main.vista-clientes #clientesView{display:flex!important;flex:1;overflow-y:auto}
+
+  /* Footer siempre visible en móvil cuando carrito está activo */
+  .footer{
+    position:sticky;bottom:0;z-index:50;
+    border-top:2px solid var(--border);
+    box-shadow:0 -4px 12px rgba(0,0,0,0.08);
+  }
+  .totales{width:100%;flex-wrap:wrap;gap:8px;margin-left:0;justify-content:space-between}
+  .total-val.big{font-size:15px}
+  .total-val.sub2,.total-val.big2{font-size:10px}
+  .content-top{padding:10px 12px;gap:8px;flex-wrap:wrap}
+  .field-group{width:calc(50% - 4px);min-width:0}
+  .field-group input,.field-group select{min-width:0;width:100%;font-size:14px}
+  .oferta-badge{margin-left:auto;font-size:11px;padding:4px 10px}
+  .cot-area{padding:10px;overflow-y:auto;flex:1}
+  .items-table{font-size:12px}
+  .items-table th:nth-child(4),.items-table td:nth-child(4){display:none} /* ocultar COP */
+  .items-table th:nth-child(5),.items-table td:nth-child(5){display:none}
+  .footer{padding:10px 12px;gap:6px;flex-wrap:wrap}
+  .footer .field-group{width:calc(50% - 3px)}
+  .btn-primary,.btn-sec{padding:9px 12px;font-size:12px}
+  #clientesView,#historialView{padding:10px}
+  .cli-table th:nth-child(3),.cli-table td:nth-child(3),
+  .cli-table th:nth-child(5),.cli-table td:nth-child(5){display:none}
+  .hist-table th:nth-child(2),.hist-table td:nth-child(2),
+  .hist-table th:nth-child(4),.hist-table td:nth-child(4){display:none}
+  .topbar{padding:8px 12px;gap:6px}
+  .topbar-logo img{height:22px}
+  .nav{display:none} /* las tabs reemplazan el nav en móvil */
+  .topbar-right .user-chip{font-size:11px;padding:3px 8px}
+  #modalCliente > div,#modalCondPago > div,#modalEntrega > div{width:95vw!important;padding:20px 14px!important}
+}
+
+@media (max-width: 480px){
+  .field-group{width:100%}
+  .footer .field-group{width:calc(50% - 3px)}
+  .items-table th:nth-child(3),.items-table td:nth-child(3){display:none}
+  .mobile-tab{font-size:11px;padding:9px 4px}
+}
+
+@media (hover:none) and (pointer:coarse){
+  .btn-cat,.btn-add-bp,.btn-cli-usar{padding:9px 10px;font-size:13px}
+  input[type="number"],input[type="text"],select{font-size:16px!important}
+  .grupo-card,.bp-card{margin-bottom:10px}
+}
 @media (max-width: 768px){
   .main{flex-direction:column}
   .sidebar{width:100%;height:auto;max-height:50vh;border-right:none;border-bottom:1px solid var(--border)}
@@ -242,6 +322,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
       <span class="user-chip" id="userChip">—</span>
       <button class="btn-logout" onclick="logout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
     </div>
+  </div>
+  <!-- TABS MÓVIL -->
+  <div class="mobile-tabs" id="mobileTabs">
+    <button class="mobile-tab active" onclick="mobileTab('catalogo',this)">
+      <i class="ti ti-package" style="font-size:14px;vertical-align:-1px"></i> Catálogo
+    </button>
+    <button class="mobile-tab" onclick="mobileTab('carrito',this)">
+      <i class="ti ti-shopping-cart" style="font-size:14px;vertical-align:-1px"></i> Carrito
+      <span class="mobile-tab-badge" id="carritoCount" style="display:none">0</span>
+    </button>
+    <button class="mobile-tab" onclick="mobileTab('clientes',this)">
+      <i class="ti ti-users" style="font-size:14px;vertical-align:-1px"></i> Clientes
+    </button>
+    <button class="mobile-tab" onclick="mobileTab('historial',this)">
+      <i class="ti ti-history" style="font-size:14px;vertical-align:-1px"></i> Historial
+    </button>
   </div>
   <div class="main">
     <div class="sidebar">
@@ -1064,6 +1160,7 @@ function toggleBP(id){
 }
 
 function renderCarrito(){
+  actualizarBadgeCarrito();
   const empty=document.getElementById('emptyState'),wrap=document.getElementById('itemsWrap'),tbody=document.getElementById('itemsBody');
   if(!carrito.length){empty.style.display='block';wrap.style.display='none';return;}
   empty.style.display='none';wrap.style.display='block';tbody.innerHTML='';
@@ -1241,6 +1338,7 @@ async function guardarCotizacion(){
       }catch(e){console.warn('No se pudo actualizar LinkPDF:',e.message);}
     }
     await generarNumOferta();
+  if(esMobil()){document.querySelector('.sidebar').classList.add('mobile-active');}
   }catch(e){showToast('Error: '+e.message,'error');}
   finally{btn.disabled=false;btn.innerHTML='<i class="ti ti-device-floppy"></i> Guardar y PDF';}
 }
@@ -1551,6 +1649,52 @@ function duplicarOferta(cliente, itemsData){
   renderCarrito(); calcTotales(); renderCatalogo();
   switchView('nueva');
   showToast('Oferta cargada en carrito — '+cliente,'success');
+}
+
+function esMobil(){return window.innerWidth<=768;}
+
+function mobileTab(tab, btn){
+  // Actualizar botones activos
+  document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+
+  const sidebar=document.querySelector('.sidebar');
+  const content=document.getElementById('nuevaView');
+
+  if(tab==='catalogo'){
+    sidebar.classList.add('mobile-active');
+    content.classList.remove('mobile-active');
+    document.getElementById('historialView').style.display='none';
+    document.getElementById('clientesView').style.display='none';
+  } else if(tab==='carrito'){
+    sidebar.classList.remove('mobile-active');
+    content.classList.add('mobile-active');
+    document.getElementById('historialView').style.display='none';
+    document.getElementById('clientesView').style.display='none';
+  } else if(tab==='clientes'){
+    sidebar.classList.remove('mobile-active');
+    content.classList.remove('mobile-active');
+    document.getElementById('historialView').style.display='none';
+    document.getElementById('clientesView').style.display='flex';
+    cargarClientes();
+  } else if(tab==='historial'){
+    sidebar.classList.remove('mobile-active');
+    content.classList.remove('mobile-active');
+    document.getElementById('clientesView').style.display='none';
+    document.getElementById('historialView').style.display='flex';
+    cargarHistorial();
+  }
+}
+
+function actualizarBadgeCarrito(){
+  const badge=document.getElementById('carritoCount');
+  if(!badge) return;
+  if(carrito.length>0){
+    badge.style.display='inline-block';
+    badge.textContent=carrito.length;
+  } else {
+    badge.style.display='none';
+  }
 }
 
 function switchView(v){
