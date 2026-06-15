@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizador AYJ Maquinaria</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1D9E75;--green-dark:#0F6E56;--green-light:#E1F5EE;
+  --blue:#378ADD;--blue-light:#E6F1FB;--blue-dark:#185FA5;
+  --amber:#854F0B;--amber-light:#FAEEDA;
+  --red:#A32D2D;--red-light:#FCEBEB;
+  --border:#e2e2e2;--bg:#f8f8f6;
+  --text:#1a1a1a;--text2:#666;--text3:#999;
+  --radius:8px;--radius-lg:12px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:var(--text);background:var(--bg);height:100vh;display:flex;flex-direction:column}
+#loginScreen{display:flex;align-items:center;justify-content:center;flex:1}
+.login-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:40px 48px;text-align:center;max-width:380px;width:90%}
+.login-logo{font-size:22px;font-weight:600;margin-bottom:6px}.login-logo span{color:var(--green)}
+.login-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+.btn-login{width:100%;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-login:hover{background:var(--green-dark)}
+.login-note{font-size:11px;color:var(--text3);margin-top:16px}
+#appScreen{display:none;flex-direction:column;height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);background:#fff;flex-shrink:0}
+.topbar-logo{font-size:15px;font-weight:600}.topbar-logo span{color:var(--green)}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.user-chip{font-size:12px;color:var(--text2);background:var(--bg);padding:4px 10px;border-radius:20px;border:1px solid var(--border)}
+.btn-logout{background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 8px;border-radius:var(--radius)}
+.btn-logout:hover{color:var(--red)}
+.nav{display:flex;gap:4px}
+.nav button{background:none;border:none;padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text2);font-family:inherit}
+.nav button.active{background:var(--bg);color:var(--text);font-weight:500}
+.nav button:hover:not(.active){background:var(--bg)}
+.main{display:flex;flex:1;overflow:hidden}
+.sidebar{width:300px;border-right:1px solid var(--border);background:#fff;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sidebar-header{padding:12px 14px;border-bottom:1px solid var(--border)}
+.sidebar-header strong{font-size:13px}
+.sidebar-header p{font-size:11px;color:var(--text2);margin-top:2px}
+.search-wrap{position:relative;margin-top:8px}
+.search-wrap input{width:100%;padding:7px 10px 7px 30px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:13px;font-family:inherit}
+.search-wrap i{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px}
+.filter-row{display:flex;gap:6px;margin-top:6px}
+.filter-row select{flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:12px;font-family:inherit}
+.trm-bar{padding:8px 14px;border-bottom:1px solid var(--border);background:#f0f9f5;display:flex;align-items:center;gap:8px}
+.trm-bar label{font-size:11px;color:var(--green-dark);font-weight:500;white-space:nowrap}
+.trm-bar input{width:110px;padding:5px 8px;border:1px solid #9FE1CB;border-radius:var(--radius);font-size:13px;font-family:inherit;background:#fff;text-align:right}
+.trm-bar span{font-size:11px;color:var(--text2)}
+.maq-list{flex:1;overflow-y:auto;padding:8px}
+.loading-list{text-align:center;padding:30px;color:var(--text3);font-size:13px}
+.section-label{font-size:10px;font-weight:600;letter-spacing:0.8px;color:var(--text3);padding:8px 6px 4px;text-transform:uppercase;display:flex;align-items:center;gap:4px}
+.grupo-card{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:#fff;overflow:hidden}
+.grupo-card.en-carrito{border-color:var(--green);background:#fafffe}
+.grupo-header{padding:10px 12px}
+.grupo-top{display:flex;justify-content:space-between;align-items:flex-start}
+.grupo-name{font-size:13px;font-weight:500;line-height:1.3}
+.grupo-marca{font-size:11px;color:var(--text2);margin-top:2px}
+.grupo-precio{text-align:right;flex-shrink:0;margin-left:8px}
+.precio-usd{font-size:12px;font-weight:600;color:var(--green-dark)}
+.precio-cop{font-size:10px;color:var(--text2);margin-top:1px}
+.stock-row{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+.stock-badge{font-size:10px;padding:2px 8px;border-radius:20px;display:flex;align-items:center;gap:3px}
+.stock-badge.stock{background:var(--green-light);color:var(--green-dark)}
+.stock-badge.importacion{background:var(--blue-light);color:var(--blue-dark)}
+.grupo-actions{padding:0 10px 10px;display:flex;gap:5px}
+.btn-cat{flex:1;padding:5px 6px;border-radius:var(--radius);font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:3px}
+.btn-cat.add-stock{border:1px solid var(--green);color:var(--green-dark);background:none}
+.btn-cat.add-stock:hover{background:var(--green-light)}
+.btn-cat.add-import{border:1px solid var(--blue);color:var(--blue-dark);background:none}
+.btn-cat.add-import:hover{background:var(--blue-light)}
+.btn-cat.remove{border:1px solid #e24b4a;color:var(--red);background:none}
+.btn-cat.remove:hover{background:var(--red-light)}
+.bp-card{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:#fff;padding:10px 12px}
+.bp-card.en-carrito{border-color:var(--green);background:#fafffe}
+.bp-top{display:flex;justify-content:space-between;align-items:flex-start}
+.bp-name{font-size:13px;font-weight:500;line-height:1.3}
+.bp-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.bp-badge{font-size:10px;padding:2px 8px;border-radius:20px;background:var(--amber-light);color:var(--amber);margin-top:6px;display:inline-block}
+.btn-add-bp{margin-top:8px;width:100%;padding:5px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);font-size:12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px}
+.btn-add-bp:hover{background:var(--green-light)}
+.btn-add-bp.remove{border-color:#e24b4a;color:var(--red)}
+.btn-add-bp.remove:hover{background:var(--red-light)}
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.content-top{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#fff;flex-shrink:0}
+.field-group{display:flex;flex-direction:column;gap:3px}
+.field-group label{font-size:11px;color:var(--text2);font-weight:500}
+.field-group input,.field-group select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;background:#fff;min-width:130px}
+.oferta-badge{margin-left:auto;align-self:center;background:var(--green-light);color:var(--green-dark);font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;white-space:nowrap}
+.cot-area{flex:1;overflow-y:auto;padding:16px;background:var(--bg)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
+.empty-state i{font-size:40px;display:block;margin-bottom:12px}
+.items-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.items-table{width:100%;border-collapse:collapse}
+.items-table th{font-size:11px;color:var(--text2);font-weight:500;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg)}
+.items-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top}
+.items-table tr:last-child td{border-bottom:none}
+.item-name{font-weight:500;line-height:1.3}
+.item-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.item-tipo-badge{font-size:10px;padding:1px 7px;border-radius:20px;display:inline-block;margin-top:4px}
+.item-tipo-badge.stock{background:var(--green-light);color:var(--green-dark)}
+.item-tipo-badge.importacion{background:var(--blue-light);color:var(--blue-dark)}
+.item-tipo-badge.pedido{background:var(--amber-light);color:var(--amber)}
+.desc-input{width:100%;border:none;background:none;font-size:12px;color:var(--text2);font-family:inherit;padding:2px 0;outline:none;margin-top:4px}
+.price-cell{text-align:right;white-space:nowrap}
+.price-usd-item{font-size:13px;font-weight:500}
+.price-cop-item{font-size:11px;color:var(--text2);margin-top:2px}
+.price-edit{width:100px;border:1px solid var(--border);border-radius:var(--radius);padding:3px 6px;text-align:right;font-size:12px;font-family:inherit;margin-top:4px;display:block;margin-left:auto}
+.btn-remove{background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:2px 6px;border-radius:4px}
+.btn-remove:hover{color:var(--red);background:var(--red-light)}
+.btn-pdf{background:none;border:none;cursor:pointer;color:var(--red);font-size:15px;padding:2px 4px;border-radius:4px;text-decoration:none;display:inline-flex;align-items:center}
+.btn-pdf:hover{background:var(--red-light)}
+.footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:#fff;flex-wrap:wrap;flex-shrink:0}
+.totales{margin-left:auto;display:flex;gap:16px;align-items:center}
+.total-item{display:flex;flex-direction:column;align-items:flex-end}
+.total-label{font-size:10px;color:var(--text2)}
+.total-val{font-size:13px;font-weight:500}
+.total-val.sub2{font-size:11px;color:var(--text2)}
+.total-val.big{font-size:18px;color:var(--green-dark);font-weight:600}
+.total-val.big2{font-size:11px;color:var(--text2)}
+.btn-primary{padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--radius);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.btn-primary:hover{background:var(--green-dark)}
+.btn-primary:disabled{background:#ccc;cursor:not-allowed}
+.btn-sec{padding:8px 14px;background:none;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px}
+.btn-sec:hover{background:var(--bg)}
+#historialView{display:none;flex:1;overflow-y:auto;padding:20px;background:var(--bg)}
+.cli-table{width:100%;border-collapse:collapse;background:#fff;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)}
+.cli-table th{font-size:11px;color:var(--text2);font-weight:600;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg);text-transform:uppercase;letter-spacing:0.4px}
+.cli-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.cli-table tr:last-child td{border-bottom:none}
+.cli-table tr:hover td{background:#fafffe}
+.btn-cli-usar{padding:4px 12px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn-cli-usar:hover{background:var(--green-light)}
+.hist-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:10px}
+.hist-top{display:flex;justify-content:space-between;align-items:center}
+.hist-num{font-weight:600;color:var(--green-dark);font-size:14px}
+.hist-fecha{font-size:12px;color:var(--text3)}
+.hist-body{margin-top:10px;display:flex;gap:20px;flex-wrap:wrap;align-items:center}
+.hist-field{font-size:12px;color:var(--text2)}
+.hist-field strong{color:var(--text);display:block;font-size:13px}
+.hist-totales{margin-left:auto;text-align:right}
+.hist-total-usd{font-size:13px;font-weight:600;color:var(--green-dark)}
+.hist-total-cop{font-size:11px;color:var(--text2)}
+.hist-table{width:100%;border-collapse:collapse;background:#fff;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)}
+.hist-table th{font-size:11px;color:var(--text2);font-weight:600;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg);text-transform:uppercase;letter-spacing:0.4px;cursor:pointer;user-select:none;white-space:nowrap}
+.hist-table th:hover{background:#eee}
+.hist-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.hist-table tr:last-child td{border-bottom:none}
+.hist-table tr:hover td{background:#fafffe}
+.hist-table .num{font-weight:600;color:var(--green-dark)}
+.hist-table .total{font-weight:600;text-align:right}
+.hist-table .sub-total{font-size:11px;color:var(--text2);text-align:right}
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:13px;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1}.toast.success{background:var(--green-dark)}.toast.error{background:var(--red)}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+.spinner.dark{border-color:rgba(0,0,0,0.12);border-top-color:var(--green)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media print{body{display:none}}
+
+/* ── RESPONSIVE MÓVIL ───────────────────────────── */
+@media (max-width: 768px){
+  .main{flex-direction:column}
+  .sidebar{width:100%;height:auto;max-height:50vh;border-right:none;border-bottom:1px solid var(--border)}
+  .content{min-height:0}
+  .topbar{padding:8px 12px;flex-wrap:wrap;gap:6px}
+  .topbar-logo img{height:22px}
+  .nav button{padding:5px 10px;font-size:12px}
+  .topbar-right{display:none}
+  .content-top{padding:10px 12px;gap:8px}
+  .field-group input,.field-group select{min-width:0;width:100%}
+  .field-group{width:calc(50% - 4px)}
+  .oferta-badge{font-size:12px;padding:5px 10px}
+  #ofertaNum{font-size:12px}
+  .cot-area{padding:10px}
+  .items-table th:nth-child(4),.items-table th:nth-child(5),
+  .items-table td:nth-child(4),.items-table td:nth-child(5){display:none}
+  .footer{padding:10px 12px;gap:8px;flex-wrap:wrap}
+  .footer .field-group{width:calc(50% - 4px)}
+  .totales{width:100%;flex-direction:row;flex-wrap:wrap;gap:10px;margin-left:0;justify-content:flex-end}
+  .total-val.big{font-size:16px}
+  .btn-primary,.btn-sec{padding:8px 12px;font-size:12px}
+  #clientesView,#historialView{padding:12px}
+  .cli-table{font-size:12px}
+  .cli-table th:nth-child(3),.cli-table td:nth-child(3),
+  .cli-table th:nth-child(5),.cli-table td:nth-child(5){display:none}
+  .hist-table th:nth-child(2),.hist-table td:nth-child(2),
+  .hist-table th:nth-child(4),.hist-table td:nth-child(4){display:none}
+  .grupo-card,.bp-card{margin-bottom:8px}
+  .sidebar-header{padding:10px 12px}
+  .trm-bar{padding:6px 12px}
+  .trm-bar input{width:90px}
+  .maq-list{padding:6px}
+  #historialView .content-top,.historialView .content-top{flex-direction:column}
+  [id="hFiltDesde"],[id="hFiltHasta"]{width:100%}
+  .modal-inner{width:95vw!important;padding:20px!important}
+  #modalCliente > div, #modalCondPago > div, #modalEntrega > div{width:95vw!important;padding:20px 16px!important}
+}
+
+@media (max-width: 480px){
+  .field-group{width:100%}
+  .footer .field-group{width:100%}
+  .totales{flex-direction:column;align-items:flex-end}
+  .nav button{padding:4px 8px;font-size:11px}
+  .items-table th:nth-child(3),.items-table td:nth-child(3){display:none}
+}
+
+/* Touch improvements */
+@media (hover:none) and (pointer:coarse){
+  .btn-cat,.btn-add-bp,.btn-cli-usar{padding:8px 10px;font-size:12px}
+  .grupo-card{margin-bottom:10px}
+  .nav button{min-height:36px}
+  input[type="number"],input[type="text"],select{font-size:16px!important} /* evitar zoom en iOS */
+}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">AYJ <span>Cotizador</span></div>
+    <p class="login-sub">Inicia sesión con tu cuenta Microsoft de AYJ para acceder al catálogo.</p>
+    <button class="btn-login" onclick="login()">
+      <svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg>
+      Iniciar sesión con Microsoft
+    </button>
+    <p class="login-note">Solo cuentas @ayjcsp — datos en SharePoint de AYJ</p>
+  </div>
+</div>
+
+<div id="appScreen">
+  <div class="topbar">
+    <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;"><span style="font-size:13px;color:var(--text2);font-weight:400;">Cotizador</span></div>
+    <div class="nav">
+      <button class="active" id="navNueva" onclick="switchView('nueva')">Nueva oferta</button>
+      <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
+      <button id="navHistorial" onclick="switchView('historial')">Historial</button>
+    </div>
+    <div class="topbar-right">
+      <span class="user-chip" id="userChip">—</span>
+      <button class="btn-logout" onclick="logout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <strong>Catálogo · TODAS_2025</strong>
+        <p id="catalogoCount">Cargando...</p>
+        <div class="search-wrap">
+          <i class="ti ti-search"></i>
+          <input type="text" id="searchInput" placeholder="Buscar nombre, marca, tipología..." oninput="renderCatalogo()">
+        </div>
+        <div class="filter-row">
+          <select id="filtroMarca" onchange="renderCatalogo()"><option value="">Todas las marcas</option></select>
+          <select id="filtroTipo" onchange="renderCatalogo()">
+            <option value="">Todos</option>
+            <option value="disponible">Disponibles</option>
+            <option value="pedido">Bajo Pedido</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <select id="filtroTipologia" onchange="renderCatalogo()"><option value="">Todas las tipologías</option></select>
+        </div>
+      </div>
+      <div class="trm-bar">
+        <label><i class="ti ti-currency-dollar" style="font-size:13px;vertical-align:-1px"></i> TRM</label>
+        <input type="number" id="trmInput" value="3650" step="10" oninput="onTrmChange()">
+        <span id="trmLabel">$ 4.200 COP/USD</span>
+      </div>
+      <div class="maq-list" id="maqList">
+        <div class="loading-list"><span class="spinner dark"></span> Cargando catálogo...</div>
+      </div>
+    </div>
+    <div class="content" id="nuevaView">
+      <div class="content-top">
+        <div class="field-group">
+          <label>Cliente</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="clienteInput" placeholder="Buscar cliente..." list="clientesList" style="min-width:160px" oninput="filtrarClienteInput(this.value)">
+            <datalist id="clientesList"></datalist>
+            <button onclick="abrirModalCliente()" title="Nuevo cliente" style="padding:6px 10px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);cursor:pointer;font-size:13px;white-space:nowrap"><i class="ti ti-user-plus"></i></button>
+          </div>
+          <div id="clienteInfo" style="font-size:11px;color:var(--text2);margin-top:3px;display:none"></div>
+        </div>
+        <div class="field-group">
+          <label>Vendedor</label>
+          <div id="vendedorChip" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:#f0f9f5;color:var(--green-dark);font-weight:500;min-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+        </div>
+        <div class="field-group">
+          <label>Condición de pago</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="condPagoSel" onchange="onCondPagoChange(this.value)" style="min-width:200px">
+              <option value="100% Anticipado">100% Anticipado</option>
+              <option value="50% Anticipo / 50% Antes de entrega">50% Anticipo / 50% Antes de entrega</option>
+              <option value="30% Anticipo / 70% Antes de entrega" selected>30% Anticipo / 70% Antes de entrega</option>
+              <option value="30% Anticipo / 40% Máquina lista / 30% Puerto">30% / 40% Máquina lista / 30% Puerto</option>
+              <option value="__custom__">✏️ Personalizar...</option>
+            </select>
+            <div id="condPagoLabel" style="font-size:11px;color:var(--text2);display:none"></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Garantía</label>
+          <select id="garantiaSel">
+            <option value="12m">12 meses o 2.000 horas</option>
+            <option value="24m">24 meses o 4.000 horas</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Validez oferta</label>
+          <select id="validezSel">
+            <option>15 días</option>
+            <option>30 días</option>
+            <option>45 días</option>
+            <option>60 días</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Tiempo de entrega</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="entregaSel" onchange="onEntregaChange(this.value)" style="min-width:180px">
+              <option value="Inmediato Salvo venta">Inmediato Salvo venta</option>
+              <option value="30 días">30 días</option>
+              <option value="60 días">60 días</option>
+              <option value="90 días">90 días</option>
+              <option value="120 días">120 días</option>
+              <option value="__custom_entrega__">✏️ Personalizar...</option>
+            </select>
+          </div>
+          <div id="entregaLabel" style="font-size:11px;color:var(--text2);margin-top:3px;display:none"></div>
+        </div>
+        <div class="field-group">
+          <label>Observaciones</label>
+          <input type="text" id="obsInput" placeholder="Notas para el cliente..." style="min-width:160px">
+        </div>
+        <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <div class="oferta-badge" id="ofertaNum">COT-2026-001</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:10px;color:var(--text2);white-space:nowrap">ID Synergy</label>
+            <input type="text" id="idSynergyInput" placeholder="Opcional..." maxlength="20"
+              style="width:100px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit;text-align:center"
+              oninput="actualizarNumOferta()">
+          </div>
+        </div>
+      </div>
+      <div class="cot-area">
+        <div class="empty-state" id="emptyState">
+          <i class="ti ti-shopping-cart"></i>
+          <p style="font-weight:500;margin-bottom:6px;font-size:15px">Carrito vacío</p>
+          <p style="font-size:12px">Selecciona máquinas del catálogo para agregarlas al carrito</p>
+        </div>
+        <div class="items-wrap" id="itemsWrap" style="display:none">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width:28px">#</th>
+                <th>Máquina</th>
+                <th style="width:110px">Tipología</th>
+                <th style="width:70px;text-align:center">Docs</th>
+                <th style="width:130px;text-align:right">USD</th>
+                <th style="width:130px;text-align:right">COP</th>
+                <th style="width:30px"></th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="footer">
+        <div class="field-group">
+          <label>Descuento (%)</label>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <input type="number" id="descInput" value="0" min="0" max="20" style="width:60px"
+              oninput="validarDescuento(this)">
+            <span style="font-size:11px;color:var(--text2)">máx 20%</span>
+            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;margin-left:4px;">
+              <input type="checkbox" id="descEspecialChk" onchange="toggleDescEspecial(this.checked)" style="cursor:pointer">
+              <span id="descEspecialLabel" style="color:var(--text2)">+3% especial</span>
+            </label>
+            <span id="descTotalBadge" style="display:none;font-size:10px;padding:2px 7px;border-radius:20px;background:var(--amber-light);color:var(--amber);font-weight:600"></span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Flete nacional (COP)</label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="fleteVal" value="0" min="0" style="width:120px" oninput="calcTotales()">
+            <span id="fleteUSDLabel" style="font-size:11px;color:var(--text2);white-space:nowrap"></span>
+          </div>
+        </div>
+        <div class="totales">
+          <div class="total-item">
+            <span class="total-label">Subtotal</span>
+            <span class="total-val" id="tSubUSD">USD 0</span>
+            <span class="total-val sub2" id="tSubCOP">COP 0</span>
+          </div>
+          <div class="total-item">
+            <span class="total-label">Descuento</span>
+            <span class="total-val" id="tDescUSD" style="color:#e24b4a">-USD 0</span>
+            <span class="total-val sub2" id="tDescCOP" style="color:#e24b4a">-COP 0</span>
+          </div>
+          <div class="total-item">
+            <span class="total-label">IVA 19%</span>
+            <span class="total-val" id="tIVAUSD" style="color:#666">USD 0</span>
+            <span class="total-val sub2" id="tIVACOP" style="color:#666">COP 0</span>
+          </div>
+          <div class="total-item">
+            <span class="total-label">Flete nacional</span>
+            <span class="total-val" id="tFleteCOP" style="color:#666">COP 0</span>
+            <span class="total-val sub2" id="tFleteUSD" style="color:#999"></span>
+          </div>
+          <div class="total-item">
+            <span class="total-label">Total oferta</span>
+            <span class="total-val big" id="tTotalUSD">USD 0</span>
+            <span class="total-val big2" id="tTotalCOP">COP 0</span>
+          </div>
+          <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
+          <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
+        </div>
+      </div>
+    </div>
+    <div id="historialView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
+        <strong style="font-size:15px;align-self:center">Historial de ofertas</strong>
+        <div class="field-group">
+          <label>Cliente</label>
+          <input type="text" id="hFiltCliente" placeholder="Filtrar cliente..." oninput="filtrarHistorial()" style="min-width:140px">
+        </div>
+        <div class="field-group">
+          <label>Vendedor</label>
+          <input type="text" id="hFiltVendedor" placeholder="Filtrar vendedor..." oninput="filtrarHistorial()" style="min-width:130px">
+        </div>
+        <div class="field-group">
+          <label>Estado</label>
+          <select id="hFiltEstado" onchange="filtrarHistorial()" style="min-width:110px">
+            <option value="">Todos</option>
+            <option>Enviada</option>
+            <option>Aprobada</option>
+            <option>Rechazada</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Desde</label>
+          <input type="date" id="hFiltDesde" onchange="filtrarHistorial()" style="min-width:130px">
+        </div>
+        <div class="field-group">
+          <label>Hasta</label>
+          <input type="date" id="hFiltHasta" onchange="filtrarHistorial()" style="min-width:130px">
+        </div>
+        <button class="btn-sec" style="margin-left:auto" onclick="cargarHistorial()"><i class="ti ti-refresh"></i></button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
+        <div id="historialBody"></div>
+      </div>
+    </div>
+
+    <div id="clientesView" style="display:none;flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <strong style="font-size:15px">Clientes</strong>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="position:relative">
+            <i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px"></i>
+            <input type="text" id="clientesBuscador" placeholder="Buscar cliente..." oninput="renderTablaClientes()" style="padding:7px 10px 7px 30px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:220px;font-family:inherit">
+          </div>
+          <button class="btn-primary" onclick="abrirModalCliente()"><i class="ti ti-user-plus"></i> Nuevo Cliente</button>
+          <button class="btn-sec" onclick="cargarClientes(true)"><i class="ti ti-refresh"></i></button>
+        </div>
+      </div>
+      <div id="clientesTablaWrap">
+        <div class="loading-list"><span class="spinner dark"></span> Cargando...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TIEMPO DE ENTREGA PERSONALIZADO -->
+<div id="modalEntrega" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px 32px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="font-size:15px">Tiempo de Entrega Personalizado</strong>
+      <button onclick="cerrarModalEntrega()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">×</button>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Describe el tiempo de entrega para esta oferta.</p>
+    <div class="field-group" style="margin-bottom:16px">
+      <label>Tiempo de entrega</label>
+      <input type="text" id="entregaCustomInput" placeholder="Ej: 45 días hábiles desde anticipo..." 
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-sec" onclick="cerrarModalEntrega()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEntregaPersonalizada()"><i class="ti ti-check"></i> Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONDICIÓN PERSONALIZADA -->
+<div id="modalCondPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px 32px;width:520px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="font-size:15px">Condición de Pago Personalizada</strong>
+      <button onclick="cerrarModalCondPago()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">×</button>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Define hasta 4 cuotas. Los porcentajes deben sumar 100%.</p>
+    <div id="condCuotasWrap"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <button onclick="agregarCuotaPersonalizada()" id="btnAgregarCuota" class="btn-sec" style="font-size:12px;padding:5px 12px"><i class="ti ti-plus"></i> Agregar cuota</button>
+      <span id="condPctTotal" style="font-size:13px;font-weight:600;color:var(--text2)">Total: 0%</span>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="btn-sec" onclick="cerrarModalCondPago()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarCondPersonalizada()"><i class="ti ti-check"></i> Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO CLIENTE -->
+<div id="modalCliente" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px 32px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <strong style="font-size:15px" id="modalClienteTitulo">Nuevo Cliente</strong>
+      <button onclick="cerrarModalCliente()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field-group" style="grid-column:1/-1">
+        <label>Razón Social *</label>
+        <input type="text" id="mc_titulo" placeholder="Nombre de la empresa..." style="width:100%">
+      </div>
+      <div class="field-group">
+        <label>Contacto (Nombre)</label>
+        <input type="text" id="mc_nombre" placeholder="Nombre del contacto...">
+      </div>
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="mc_email" placeholder="correo@empresa.com">
+      </div>
+      <div class="field-group">
+        <label>Teléfono</label>
+        <input type="text" id="mc_telefono" placeholder="3001234567">
+      </div>
+      <div class="field-group">
+        <label>Ciudad</label>
+        <input type="text" id="mc_ciudad" placeholder="Bogotá">
+      </div>
+      <div class="field-group">
+        <label>País</label>
+        <input type="text" id="mc_pais" value="Colombia">
+      </div>
+      <div class="field-group" style="grid-column:1/-1">
+        <label>NIT / RUT</label>
+        <input type="text" id="mc_nit" placeholder="860.079.605-6">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="btn-sec" onclick="cerrarModalCliente()">Cancelar</button>
+      <button class="btn-primary" id="btnGuardarCliente" onclick="guardarCliente()"><i class="ti ti-check"></i> Guardar Cliente</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CLIENT_ID='b6bd7a6e-4cb6-405f-addf-e1b0ae4ee7ce';
+const TENANT_ID='c03f8e40-2600-4b72-bd82-3d604e8a9aac';
+const SP_HOST='ayjcsp.sharepoint.com';
+const SP_SITE='comercial';
+
+const msalConfig={auth:{clientId:CLIENT_ID,authority:`https://login.microsoftonline.com/${TENANT_ID}`,redirectUri:window.location.origin+window.location.pathname},cache:{cacheLocation:'localStorage',storeAuthStateInCookie:true}};
+const loginRequest={scopes:['Sites.ReadWrite.All','User.Read']};
+let msalInstance,siteId,listIdMaquinas,listIdClientes,listIdCotizaciones;
+let rawMaquinas=[],grupos=[],bajosPedido=[],carrito=[],cotNum=1,trm=4200;
+let currentUserName='';
+
+// ── TIEMPO DE ENTREGA PERSONALIZADO ──────────────────
+let entregaPersonalizada='';
+
+function onEntregaChange(val){
+  if(val==='__custom_entrega__'){
+    document.getElementById('entregaCustomInput').value='';
+    document.getElementById('modalEntrega').style.display='flex';
+    setTimeout(()=>document.getElementById('entregaCustomInput').focus(),100);
+  } else {
+    entregaPersonalizada='';
+    document.getElementById('entregaLabel').style.display='none';
+  }
+}
+function cerrarModalEntrega(){
+  document.getElementById('modalEntrega').style.display='none';
+  if(!entregaPersonalizada) document.getElementById('entregaSel').value='Inmediato Salvo venta';
+}
+function guardarEntregaPersonalizada(){
+  const val=document.getElementById('entregaCustomInput').value.trim();
+  if(!val){showToast('Ingresa el tiempo de entrega','error');return;}
+  entregaPersonalizada=val;
+  document.getElementById('entregaLabel').style.display='block';
+  document.getElementById('entregaLabel').textContent=val;
+  document.getElementById('modalEntrega').style.display='none';
+  showToast('✓ Tiempo de entrega aplicado','success');
+}
+function getEntrega(){
+  const sel=document.getElementById('entregaSel').value;
+  if(sel==='__custom_entrega__') return entregaPersonalizada||'A convenir';
+  return sel;
+}
+
+// ── CONDICIÓN DE PAGO PERSONALIZADA ──────────────────
+let condCuotas=[]; // [{concepto, pct}]
+let condPersonalizada=''; // texto final
+
+function onCondPagoChange(val){
+  if(val==='__custom__'){
+    // Abrir modal con cuotas iniciales
+    condCuotas=[
+      {concepto:'Anticipo',pct:30},
+      {concepto:'Antes de entrega',pct:70}
+    ];
+    abrirModalCondPago();
+  } else {
+    condPersonalizada='';
+    document.getElementById('condPagoLabel').style.display='none';
+  }
+}
+
+function abrirModalCondPago(){
+  document.getElementById('modalCondPago').style.display='flex';
+  renderCuotas();
+}
+function cerrarModalCondPago(){
+  document.getElementById('modalCondPago').style.display='none';
+  // Si no guardó, volver a la opción anterior
+  if(!condPersonalizada){
+    document.getElementById('condPagoSel').value='30% Anticipo / 70% Antes de entrega';
+  }
+}
+
+function renderCuotas(){
+  const wrap=document.getElementById('condCuotasWrap');
+  wrap.innerHTML='';
+  condCuotas.forEach((c,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:8px;';
+    row.innerHTML=`
+      <span style="font-size:12px;color:var(--text2);width:16px;text-align:right">${i+1}.</span>
+      <input type="text" value="${c.concepto}" placeholder="Concepto (ej. Anticipo)" 
+        style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit"
+        onchange="condCuotas[${i}].concepto=this.value">
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" value="${c.pct}" min="1" max="100" 
+          style="width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;text-align:right"
+          oninput="condCuotas[${i}].pct=parseFloat(this.value)||0;actualizarTotalPct()">
+        <span style="font-size:13px;color:var(--text2)">%</span>
+      </div>
+      ${condCuotas.length>1?`<button onclick="eliminarCuota(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:2px 4px;border-radius:4px" title="Eliminar"><i class="ti ti-x"></i></button>`:'<div style="width:26px"></div>'}
+    `;
+    wrap.appendChild(row);
+  });
+  actualizarTotalPct();
+  document.getElementById('btnAgregarCuota').style.display=condCuotas.length>=4?'none':'flex';
+}
+
+function agregarCuotaPersonalizada(){
+  if(condCuotas.length>=4) return;
+  condCuotas.push({concepto:'',pct:0});
+  renderCuotas();
+}
+
+function eliminarCuota(i){
+  condCuotas.splice(i,1);
+  renderCuotas();
+}
+
+function actualizarTotalPct(){
+  const total=condCuotas.reduce((s,c)=>s+(parseFloat(c.pct)||0),0);
+  const el=document.getElementById('condPctTotal');
+  el.textContent='Total: '+Math.round(total*10)/10+'%';
+  el.style.color=Math.abs(total-100)<0.1?'var(--green-dark)':'var(--red)';
+}
+
+function guardarCondPersonalizada(){
+  const total=condCuotas.reduce((s,c)=>s+(parseFloat(c.pct)||0),0);
+  if(Math.abs(total-100)>0.5){
+    showToast('Los porcentajes deben sumar 100% (actual: '+Math.round(total)+'%)','error');
+    return;
+  }
+  if(condCuotas.some(c=>!c.concepto.trim())){
+    showToast('Todos los conceptos deben tener nombre','error');
+    return;
+  }
+  // Generar texto de la condición
+  condPersonalizada=condCuotas.map(c=>c.pct+'% '+c.concepto).join(' / ');
+  document.getElementById('condPagoLabel').style.display='block';
+  document.getElementById('condPagoLabel').textContent=condPersonalizada;
+  document.getElementById('modalCondPago').style.display='none';
+  showToast('✓ Condición personalizada aplicada','success');
+}
+
+function getCondPago(){
+  const sel=document.getElementById('condPagoSel').value;
+  if(sel==='__custom__') return condPersonalizada||'Personalizada';
+  return sel;
+}
+
+function tablaPagos(condPago, cuotas, totalUSD, fmtUSD, fmtCOP){
+  // cuotas: array [{concepto, pct}] si es personalizada, sino null
+  let items=[];
+  if(cuotas&&cuotas.length){
+    items=cuotas.map(c=>({label:c.concepto+' ('+c.pct+'%)',pct:c.pct/100}));
+  } else {
+    const match50=condPago.match(/50.*50/i);
+    const match30_70=condPago.match(/30.*70/i);
+    const match100=condPago.match(/100/i);
+    const match304030=condPago.match(/30.*40.*30/i);
+    if(match304030) items=[
+      {label:'Anticipo (30%)',pct:0.3},
+      {label:'Máquina lista (40%)',pct:0.4},
+      {label:'Llegada a puerto (30%)',pct:0.3}
+    ];
+    else if(match50) items=[{label:'Anticipo (50%)',pct:0.5},{label:'Antes de entrega (50%)',pct:0.5}];
+    else if(match30_70) items=[{label:'Anticipo (30%)',pct:0.3},{label:'Antes de entrega (70%)',pct:0.7}];
+    else if(match100) items=[{label:'Pago total (100%)',pct:1.0}];
+    else return '';
+  }
+
+  const rows=items.map(c=>'<tr>'
+    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;">'+c.label+'</td>'
+    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">'+fmtUSD(totalUSD*c.pct)+'</td>'
+    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;color:#666;">'+fmtCOP(totalUSD*c.pct)+'</td>'
+    +'</tr>'
+  ).join('');
+
+  return '<div style="margin-top:16px;border-radius:8px;overflow:hidden;border:1px solid #d8e0c0;">'
+    +'<div style="background:#575756;color:#fff;padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Resumen de Pagos — '+condPago+'</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    +'<thead><tr style="background:#f5f7f0;">'
+    +'<th style="padding:6px 12px;text-align:left;font-size:10px;color:#575756;font-weight:600;">Concepto</th>'
+    +'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">USD</th>'
+    +'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">COP (ref.)</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'<tfoot><tr style="background:#f5f7f0;">'
+    +'<td style="padding:6px 12px;font-weight:700;font-size:11px;color:#575756;">TOTAL</td>'
+    +'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtUSD(totalUSD)+'</td>'
+    +'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtCOP(totalUSD)+'</td>'
+    +'</tr></tfoot>'
+    +'</table></div>';
+}
+
+// OLD tablaPagos removed
+function _oldTablaPagos_REMOVED(condPago, totalUSD, totalCOP, fmtUSD, fmtCOP){
+  // Parsear porcentajes de la condición
+  const partes=[];
+  const match30_70=condPago.match(/30.*70/i);
+  const match50_50=condPago.match(/50.*50/i);
+  const match100=condPago.match(/100%/i);
+  const match60=condPago.match(/cr.dito.*60|60.*d.as/i);
+
+  let cuotas=[];
+  if(match50_50){
+    cuotas=[{label:'Anticipo (50%)',pct:0.5},{label:'Contra entrega (50%)',pct:0.5}];
+  } else if(match30_70){
+    cuotas=[{label:'Anticipo (30%)',pct:0.3},{label:'Contra entrega (70%)',pct:0.7}];
+  } else if(match100){
+    cuotas=[{label:'Pago total (100%)',pct:1.0}];
+  } else if(match60){
+    cuotas=[{label:'Crédito a 60 días (100%)',pct:1.0}];
+  } else {
+    return '';
+  }
+
+  const rows=cuotas.map(c=>'<tr>'
+    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;">'+c.label+'</td>'
+    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">'+fmtUSD(totalUSD*c.pct)+'</td>'
+    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;color:#666;">'+fmtCOP(totalUSD*c.pct)+'</td>'
+    +'</tr>'
+  ).join('');
+
+  return '<div style="margin-top:16px;border-radius:8px;overflow:hidden;border:1px solid #d8e0c0;">'
+    +'<div style="background:#575756;color:#fff;padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Resumen de Pagos — '+condPago+'</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    +'<thead><tr style="background:#f5f7f0;">'
+    +'<th style="padding:6px 12px;text-align:left;font-size:10px;color:#575756;font-weight:600;">Concepto</th>'
+    +'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">USD</th>'
+    +'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">COP (ref.)</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'<tfoot><tr style="background:#f5f7f0;">'
+    +'<td style="padding:6px 12px;font-weight:700;font-size:11px;color:#575756;">TOTAL</td>'
+    +'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtUSD(totalUSD)+'</td>'
+    +'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtCOP(totalUSD)+'</td>'
+    +'</tr></tfoot>'
+    +'</table></div>';
+}
+function emailVendedor(nombre){
+  const mapa={
+    'Elkin Vera':'evera@ayj.com.co',
+    'Wilson Valencia':'w.valencia@ayj.com.co',
+    'Arnulfo Villadiego':'a.villadiego@ayj.com.co',
+    'Jorge Salamanca':'j.salamanca@ayj.com.co',
+    'Jorge Pulido':'j.pulido@ayj.com.co',
+    'Adolfo Aristizábal':'adolfojose@ayj.com.co',
+  };
+  // Buscar por nombre parcial
+  const key=Object.keys(mapa).find(k=>nombre&&nombre.toLowerCase().includes(k.split(' ')[0].toLowerCase()));
+  return key?mapa[key]:'';
+}
+async function initMsal(){
+  msalInstance=new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+  const resp=await msalInstance.handleRedirectPromise();
+  if(resp){showApp(resp.account);return;}
+  const accounts=msalInstance.getAllAccounts();
+  if(accounts.length>0){try{await msalInstance.acquireTokenSilent({...loginRequest,account:accounts[0]});showApp(accounts[0]);}catch(e){}}
+}
+async function login(){await msalInstance.loginRedirect(loginRequest);}
+function logout(){msalInstance.logoutRedirect();}
+async function getToken(){
+  const accounts=msalInstance.getAllAccounts();
+  if(!accounts.length)return null;
+  try{const r=await msalInstance.acquireTokenSilent({...loginRequest,account:accounts[0]});return r.accessToken;}
+  catch(e){await msalInstance.acquireTokenRedirect(loginRequest);return null;}
+}
+async function graphGet(url){
+  const token=await getToken();
+  const r=await fetch('https://graph.microsoft.com/v1.0'+url,{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok)throw new Error('Graph '+r.status);
+  return r.json();
+}
+async function graphPost(url,body){
+  const token=await getToken();
+  const r=await fetch('https://graph.microsoft.com/v1.0'+url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){const t=await r.text();throw new Error('POST '+r.status+': '+t);}
+  return r.json();
+}
+async function graphGetAll(url){
+  let results=[],nextUrl='https://graph.microsoft.com/v1.0'+url;
+  while(nextUrl){
+    const token=await getToken();
+    const r=await fetch(nextUrl,{headers:{Authorization:'Bearer '+token}});
+    if(!r.ok)throw new Error('Graph '+r.status);
+    const data=await r.json();
+    results=results.concat(data.value||[]);
+    nextUrl=data['@odata.nextLink']||null;
+  }
+  return results;
+}
+
+async function showApp(account){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appScreen').style.display='flex';
+  currentUserName=account.name||account.username||'';
+  // Nombre limpio para mostrar
+  const displayName=currentUserName.split('@')[0].replace(/\./g,' ');
+  document.getElementById('userChip').textContent=currentUserName;
+  document.getElementById('vendedorChip').textContent=currentUserName;
+  await resolverSite();
+  await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM()]);
+  generarNumOferta();
+}
+
+async function resolverSite(){
+  try{
+    const site=await graphGet(`/sites/${SP_HOST}:/sites/${SP_SITE}`);
+    siteId=site.id;
+    const lists=await graphGet(`/sites/${siteId}/lists?$select=id,displayName`);
+    lists.value.forEach(l=>{
+      const n=l.displayName.toLowerCase();
+      if(n.includes('todas_2025'))listIdMaquinas=l.id;
+      else if(n.includes('cliente'))listIdClientes=l.id;
+      else if(n.includes('cotizaci'))listIdCotizaciones=l.id;
+    });
+  }catch(e){showToast('Error conectando SharePoint: '+e.message,'error');}
+}
+
+function mapItem(i){
+  const f=i.fields;
+  let tarifa=0;
+  const tarifaRaw=f.TARIFA||f.TARIFA_SUGERIDO||0;
+      if(tarifaRaw){const clean=String(tarifaRaw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');tarifa=parseFloat(clean)||0;}
+  const _ft=f.Ficha_x0020_Tecnica||f.FichaTecnica||f.Ficha_Tecnica||null;
+  const fichaTecnica=_ft?(typeof _ft==='object'?(_ft.Url||''):String(_ft).trim()):'';
+  return{
+    id:i.id,title:(f.Title||'').trim(),modelo:(f.Modelo||'').trim(),marca:(f.Marca||f.Marca0||f.MO||'').trim(),
+    tipologia:(f.Tipologia||'').trim(),estadoDisp:(f.ESTADO_||'').trim().toUpperCase(),
+    estadoStock:(f.ESTADO||'').trim(),tarifa,
+    ubicacion:(f.Ubicaci_x00f3_n||f.Ubicacion||'').trim(),
+    descripcion:(f.Descripci_x00f3_n||f.Descripcion||f.Descripci_n||'').trim(),
+    fichaTecnica,
+    ytVideo:(()=>{const v=f.YTvideo||f.YTVideo||f.Ytvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
+    observaciones:(f.Observaciones||'').trim(),
+  };
+}
+
+async function cargarMaquinas(){
+  if(!siteId||!listIdMaquinas){document.getElementById('maqList').innerHTML='<div class="loading-list">Lista no encontrada</div>';return;}
+  try{
+    // Primero detectar nombres internos de columnas clave
+    let marcaField='Marca', tipologiaField='Tipologia';
+    try{
+      const cols=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns?$select=name,displayName`);
+      cols.value.forEach(c=>{
+        const dn=c.displayName.toLowerCase();
+        if(dn==='marca') marcaField=c.name;
+        if(dn==='tipologia'||dn==='tipología') tipologiaField=c.name;
+      });
+    }catch(e){}
+
+    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$select=id,fields&$top=200`);
+    rawMaquinas=todos.map(i=>{
+      const f=i.fields;
+
+      let tarifa=0;
+      const tarifaRaw=f.TARIFA||f.TARIFA_SUGERIDO||0;
+      if(tarifaRaw){const clean=String(tarifaRaw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');tarifa=parseFloat(clean)||0;}
+      const _ft=f.Ficha_x0020_Tecnica||f.FichaTecnica||f.Ficha_Tecnica||null;
+      const fichaTecnica=_ft?(typeof _ft==='object'?(_ft.Url||''):String(_ft).trim()):'';
+      return{
+        id:i.id,
+        title:(f.Title||'').trim(),
+        modelo:(f.Modelo||'').trim(),
+        marca:(f[marcaField]||f.Marca||f.Marca0||f.MO||'').trim(),
+        tipologia:(f[tipologiaField]||f.Tipologia||'').trim(),
+        estadoDisp:(f.ESTADO_||'').trim().toUpperCase(),
+        estadoStock:(f.ESTADO||'').trim(),
+        tarifa,
+        ubicacion:(f.Ubicaci_x00f3_n||f.Ubicacion||'').trim(),
+        descripcion:(f.Descripci_x00f3_n||f.Descripcion||f.Descripci_n||'').trim(),
+        fichaTecnica,
+        ytVideo:(()=>{const v=f.YTvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
+        observaciones:(f.Observaciones||'').trim(),
+      };
+    }).filter(m=>m.estadoDisp==='DISPONIBLE'||m.estadoDisp==='BAJO PEDIDO');
+    const marcas=[...new Set(rawMaquinas.map(m=>m.marca).filter(Boolean))].sort();
+    const sel=document.getElementById('filtroMarca');
+    sel.innerHTML='<option value="">Todas las marcas</option>';
+    marcas.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;sel.appendChild(o);});
+    const tipologias=[...new Set(rawMaquinas.map(m=>m.tipologia).filter(Boolean))].sort();
+    const selT=document.getElementById('filtroTipologia');
+    selT.innerHTML='<option value="">Todas las tipologías</option>';
+    tipologias.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;selT.appendChild(o);});
+    procesarCatalogo();
+    document.getElementById('catalogoCount').textContent=`${grupos.length} productos · ${bajosPedido.length} bajo pedido`;
+    renderCatalogo();
+  }catch(e){document.getElementById('maqList').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
+}
+
+function procesarCatalogo(){
+  const disponibles=rawMaquinas.filter(m=>m.estadoDisp==='DISPONIBLE');
+  bajosPedido=rawMaquinas.filter(m=>m.estadoDisp==='BAJO PEDIDO');
+  const mapa={};
+  disponibles.forEach(m=>{
+    const key=m.title.toLowerCase().trim();
+    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0};
+    if(m.ytVideo&&!mapa[key].ytVideo)mapa[key].ytVideo=m.ytVideo;
+    const st=m.estadoStock.toLowerCase();
+    if(st.includes('importa'))mapa[key].importCount++;else mapa[key].stockCount++;
+    if(m.fichaTecnica&&!mapa[key].fichaTecnica)mapa[key].fichaTecnica=m.fichaTecnica;
+  });
+  grupos=Object.values(mapa).sort((a,b)=>a.title.localeCompare(b.title));
+}
+
+async function cargarTRM(){
+  try{
+    // API pública del Banco de la República de Colombia
+    const hoy=new Date();
+    const dd=String(hoy.getDate()).padStart(2,'0');
+    const mm=String(hoy.getMonth()+1).padStart(2,'0');
+    const yyyy=hoy.getFullYear();
+    const fecha=`${yyyy}-${mm}-${dd}`;
+    const url=`https://www.datos.gov.co/resource/32sa-8pi3.json?vigenciadesde=${fecha}&vigenciahasta=${fecha}`;
+    const r=await fetch(url);
+    if(r.ok){
+      const data=await r.json();
+      if(data.length>0&&data[0].valor){
+        const trmHoy=Math.round(parseFloat(data[0].valor));
+        trm=trmHoy;
+        document.getElementById('trmInput').value=trmHoy;
+        document.getElementById('trmLabel').textContent='$ '+trmHoy.toLocaleString('es-CO')+' COP/USD · Banco República';
+        return;
+      }
+    }
+  }catch(e){}
+  // Si falla la API, mantener el valor por defecto
+  trm=parseFloat(document.getElementById('trmInput').value)||3650;
+  document.getElementById('trmLabel').textContent='$ '+Math.round(trm).toLocaleString('es-CO')+' COP/USD';
+}
+
+function onTrmChange(){
+  trm=parseFloat(document.getElementById('trmInput').value)||1;
+  document.getElementById('trmLabel').textContent='$ '+Math.round(trm).toLocaleString('es-CO')+' COP/USD';
+  renderCatalogo();calcTotales();renderCarrito();
+}
+
+function renderCatalogo(){
+  const q=document.getElementById('searchInput').value.toLowerCase().trim();
+  const marca=document.getElementById('filtroMarca').value;
+  const tipo=document.getElementById('filtroTipo').value;
+  const tipologia=document.getElementById('filtroTipologia').value;
+  const el=document.getElementById('maqList');
+  el.innerHTML='';
+  if(tipo!=='pedido'){
+    let gF=grupos;
+    if(q)gF=gF.filter(g=>g.title.toLowerCase().includes(q)||g.marca.toLowerCase().includes(q)||(g.tipologia||'').toLowerCase().includes(q)||(g.modelo||'').toLowerCase().includes(q));
+    if(marca)gF=gF.filter(g=>g.marca===marca);
+    if(tipologia)gF=gF.filter(g=>g.tipologia===tipologia);
+    if(gF.length){
+      const lbl=document.createElement('div');lbl.className='section-label';
+      lbl.innerHTML=`<i class="ti ti-package" style="font-size:11px"></i> Disponibles (${gF.length})`;
+      el.appendChild(lbl);gF.forEach(g=>el.appendChild(buildGrupoCard(g)));
+    }
+  }
+  if(tipo!=='disponible'){
+    let bF=bajosPedido;
+    if(q)bF=bF.filter(m=>m.title.toLowerCase().includes(q)||m.marca.toLowerCase().includes(q));
+    if(marca)bF=bF.filter(m=>m.marca===marca);
+    if(tipologia)bF=bF.filter(m=>m.tipologia===tipologia);
+    const seen=new Set();bF=bF.filter(m=>{if(seen.has(m.title.toLowerCase()))return false;seen.add(m.title.toLowerCase());return true;});
+    if(bF.length){
+      const lbl=document.createElement('div');lbl.className='section-label';lbl.style.marginTop='10px';
+      lbl.innerHTML=`<i class="ti ti-truck" style="font-size:11px"></i> Bajo Pedido (${bF.length})`;
+      el.appendChild(lbl);bF.forEach(m=>el.appendChild(buildBpCard(m)));
+    }
+  }
+  if(!el.querySelector('.grupo-card')&&!el.querySelector('.bp-card'))el.innerHTML='<div class="loading-list">Sin resultados</div>';
+}
+
+function fmtUSD(n){return 'USD '+Math.round(n).toLocaleString('es-CO');}
+function fmtCOP(n){return 'COP '+Math.round(n*trm).toLocaleString('es-CO');}
+
+function buildGrupoCard(g){
+  const inStock=carrito.some(i=>i.grupoKey===g.key&&i.tipo==='stock');
+  const inImport=carrito.some(i=>i.grupoKey===g.key&&i.tipo==='importacion');
+  const div=document.createElement('div');
+  div.className='grupo-card'+(inStock||inImport?' en-carrito':'');
+  const acciones=[];
+  if(g.stockCount>0){if(inStock)acciones.push(`<button class="btn-cat remove" onclick="quitarGrupo('${g.key}','stock')"><i class="ti ti-x"></i> Quitar del Carrito</button>`);
+    else acciones.push(`<button class="btn-cat add-stock" onclick="agregarGrupo('${g.key.replace(/'/g,"\\'")}','stock')"><i class="ti ti-shopping-cart"></i> Agregar al Carrito</button>`);}
+  if(g.importCount>0){if(inImport)acciones.push(`<button class="btn-cat remove" onclick="quitarGrupo('${g.key}','importacion')"><i class="ti ti-x"></i> Quitar del Carrito</button>`);
+    else acciones.push(`<button class="btn-cat add-import" onclick="agregarGrupo('${g.key.replace(/'/g,"\\'")}','importacion')"><i class="ti ti-shopping-cart"></i> + Importación</button>`);}
+  div.innerHTML=`<div class="grupo-header"><div class="grupo-top"><div style="min-width:0"><div class="grupo-name">${g.title}</div><div class="grupo-marca">${g.marca}${g.modelo?' · '+g.modelo:''}${g.tipologia?' · '+g.tipologia:''}</div></div><div class="grupo-precio"><div style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:4px;">${g.fichaTecnica?`<a href="${g.fichaTecnica}" target="_blank" style="color:var(--red);font-size:15px;" title="Ver ficha técnica"><i class="ti ti-file-type-pdf"></i></a>`:''}${g.ytVideo?`<a href="${g.ytVideo}" target="_blank" style="color:#FF0000;font-size:15px;" title="Ver video"><i class="ti ti-brand-youtube"></i></a>`:''}</div><div class="precio-usd">${fmtUSD(g.tarifa)}</div><div class="precio-cop">${fmtCOP(g.tarifa)}</div></div></div><div class="stock-row">${g.stockCount>0?`<span class="stock-badge stock"><i class="ti ti-check" style="font-size:10px"></i> En Stock: ${g.stockCount}</span>`:''}${g.importCount>0?`<span class="stock-badge importacion"><i class="ti ti-ship" style="font-size:10px"></i> En Importación: ${g.importCount}</span>`:''}</div></div>${acciones.length?`<div class="grupo-actions">${acciones.join('')}</div>`:''}`;
+  return div;
+}
+
+function buildBpCard(m){
+  const inCart=carrito.some(i=>i.id===m.id);
+  const div=document.createElement('div');div.className='bp-card'+(inCart?' en-carrito':'');
+  div.innerHTML=`<div class="bp-top"><div style="min-width:0"><div class="bp-name">${m.title}</div><div class="bp-sub">${m.marca}${m.modelo?' · '+m.modelo:''}${m.tipologia?' · '+m.tipologia:''}</div><span class="bp-badge">Bajo Pedido</span></div><div class="grupo-precio"><div class="precio-usd">${fmtUSD(m.tarifa)}</div><div class="precio-cop">${fmtCOP(m.tarifa)}</div></div></div><button class="btn-add-bp ${inCart?'remove':''}" onclick="toggleBP('${m.id}')"><i class="ti ti-${inCart?'x':'shopping-cart'}"></i> ${inCart?'Eliminar del Carrito':'Agregar al Carrito'}</button>`;
+  return div;
+}
+
+function agregarGrupo(key,tipo){
+  const g=grupos.find(x=>x.key===key);
+  if(!g||carrito.some(i=>i.grupoKey===key&&i.tipo===tipo))return;
+  const cant=tipo==='stock'?g.stockCount:g.importCount;
+  carrito.push({id:'g_'+key+'_'+tipo,grupoKey:key,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo,tipologia:g.tipologia||'',tarifa:g.tarifa,descripcion:g.descripcion,fichaTecnica:g.fichaTecnica,ytVideo:g.ytVideo||'',cantidad:cant});
+  renderCarrito();renderCatalogo();calcTotales();showToast('Agregado: '+g.title,'success');
+}
+function quitarGrupo(key,tipo){carrito=carrito.filter(i=>!(i.grupoKey===key&&i.tipo===tipo));renderCarrito();renderCatalogo();calcTotales();}
+function toggleBP(id){
+  const idx=carrito.findIndex(i=>i.id===id);
+  if(idx>=0)carrito.splice(idx,1);
+  else{const m=bajosPedido.find(x=>x.id===id);if(!m)return;carrito.push({id:m.id,grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia||'',tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',cantidad:1});showToast('Agregado: '+m.title,'success');}
+  renderCarrito();renderCatalogo();calcTotales();
+}
+
+function renderCarrito(){
+  const empty=document.getElementById('emptyState'),wrap=document.getElementById('itemsWrap'),tbody=document.getElementById('itemsBody');
+  if(!carrito.length){empty.style.display='block';wrap.style.display='none';return;}
+  empty.style.display='none';wrap.style.display='block';tbody.innerHTML='';
+  carrito.forEach((item,i)=>{
+    const tipoLabel=item.tipo==='stock'?'En Stock':item.tipo==='importacion'?'En Importación':'Bajo Pedido';
+    const tipoClass=item.tipo==='stock'?'stock':item.tipo==='importacion'?'importacion':'pedido';
+    const pdfCell=item.fichaTecnica?`<a class="btn-pdf" href="${item.fichaTecnica}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--red);white-space:nowrap;"><i class="ti ti-file-type-pdf" style="font-size:14px"></i> Ver Ficha Técnica</a>`:'';
+    const ytCell=item.ytVideo?`<a class="btn-pdf" href="${item.ytVideo}" target="_blank" title="Ver video en YouTube" style="color:#FF0000"><i class="ti ti-brand-youtube"></i></a>`:'';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="color:var(--text3);font-size:12px">${i+1}</td><td><div class="item-name">${item.nombre}</div><div class="item-sub">${item.marca}${item.modelo?' · '+item.modelo:''}</div><span class="item-tipo-badge ${tipoClass}">${tipoLabel}${item.cantidad>1?' · '+item.cantidad+' uds':''}</span></td><td style="vertical-align:middle"><span class="item-tipo-badge" style="background:var(--bg);color:var(--text2)">${item.tipologia||'—'}</span></td><td style="text-align:center;vertical-align:middle">${pdfCell}${ytCell}</td><td class="price-cell"><div class="price-usd-item" id="pusd_${i}">${fmtUSD(item.tarifa)}</div></td><td class="price-cell"><div class="price-usd-item" id="pcop_${i}">${fmtCOP(item.tarifa)}</div></td><td><button class="btn-remove" onclick="removerItem(${i})"><i class="ti ti-x"></i></button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+function removerItem(i){carrito.splice(i,1);renderCarrito();calcTotales();renderCatalogo();}
+
+function calcTotales(){
+  const desc=getDescuento();
+  const descEspecial=document.getElementById('descEspecialChk').checked;
+  const fleteCOP=parseFloat(document.getElementById('fleteVal').value)||0;
+  const ivaPct=19;
+  const subUSD=carrito.reduce((s,i)=>s+i.tarifa,0);
+  const descUSD=subUSD*desc/100;
+  const baseUSD=subUSD-descUSD;
+  const ivaUSD=baseUSD*ivaPct/100;
+  const totalUSD=baseUSD+ivaUSD;
+  const totalCOP=Math.round(totalUSD*trm)+fleteCOP;
+  document.getElementById('tSubUSD').textContent=fmtUSD(subUSD);
+  document.getElementById('tSubCOP').textContent=fmtCOP(subUSD);
+  document.getElementById('tDescUSD').textContent='-'+fmtUSD(descUSD);
+  document.getElementById('tDescCOP').textContent='-'+fmtCOP(descUSD);
+  document.getElementById('tIVAUSD').textContent=fmtUSD(ivaUSD);
+  document.getElementById('tIVACOP').textContent=fmtCOP(ivaUSD);
+  document.getElementById('tFleteCOP').textContent='COP '+Math.round(fleteCOP).toLocaleString('es-CO');
+  const fleteUSD=trm>0?fleteCOP/trm:0;
+  const fleteLabel=document.getElementById('fleteUSDLabel');
+  if(fleteLabel) fleteLabel.textContent=fleteCOP>0?'≈ USD '+Math.round(fleteUSD).toLocaleString('es-CO'):'';
+  const tFleteUSD=document.getElementById('tFleteUSD');
+  if(tFleteUSD) tFleteUSD.textContent=fleteCOP>0?'≈ USD '+Math.round(fleteUSD).toLocaleString('es-CO'):'';
+  document.getElementById('tTotalUSD').textContent=fmtUSD(totalUSD);
+  document.getElementById('tTotalCOP').textContent='COP '+totalCOP.toLocaleString('es-CO');
+}
+
+// ── DESCUENTO ──────────────────────────────────────────
+function validarDescuento(input){
+  let val=parseFloat(input.value)||0;
+  if(val>20){val=20;input.value=20;}
+  if(val<0){val=0;input.value=0;}
+  actualizarDescBadge();
+  calcTotales();
+}
+
+function toggleDescEspecial(checked){
+  const label=document.getElementById('descEspecialLabel');
+  if(checked){
+    label.style.color='var(--amber)';
+    label.style.fontWeight='600';
+    showToast('✓ Descuento especial +3% habilitado','success');
+  } else {
+    label.style.color='var(--text2)';
+    label.style.fontWeight='400';
+  }
+  actualizarDescBadge();
+  calcTotales();
+}
+
+function actualizarDescBadge(){
+  const base=parseFloat(document.getElementById('descInput').value)||0;
+  const especial=document.getElementById('descEspecialChk').checked?3:0;
+  const total=base+especial;
+  const badge=document.getElementById('descTotalBadge');
+  if(especial>0){
+    badge.style.display='inline-block';
+    badge.textContent='Total: '+total+'%';
+  } else {
+    badge.style.display='none';
+  }
+}
+
+function getDescuento(){
+  const base=parseFloat(document.getElementById('descInput').value)||0;
+  const especial=document.getElementById('descEspecialChk').checked?3:0;
+  return base+especial;
+}
+
+function nuevaCotizacion(){
+  if(carrito.length>0 && !confirm('¿Iniciar una nueva cotización? Se limpiará el carrito actual.')) return;
+  carrito=[];
+  ['clienteInput','obsInput','idSynergyInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('descInput').value='0';
+  document.getElementById('descEspecialChk').checked=false;
+  toggleDescEspecial(false);
+  document.getElementById('fleteVal').value='0';
+  renderCarrito();calcTotales();renderCatalogo();generarNumOferta();
+}
+
+
+async function generarNumOferta(){
+  if(!siteId||!listIdCotizaciones){document.getElementById('ofertaNum').textContent='COT-2026-001';return;}
+  try{
+    const data=await graphGet(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
+    let maxNum=0;
+    data.value.forEach(i=>{
+      const n=i.fields?.ID_SYNERGY||'';
+      const match=String(n).match(/(\d+)$/);
+      if(match) maxNum=Math.max(maxNum,parseInt(match[1]));
+    });
+    cotNum=maxNum+1;
+  }catch(e){cotNum=1;}
+  document.getElementById('ofertaNum').textContent='COT-2026-'+String(cotNum).padStart(3,'0');
+}
+
+async function guardarCotizacion(){
+  const cliente=document.getElementById('clienteInput').value.trim();
+  const vendedor=currentUserName;
+  const condPago=getCondPago();
+  const cuotasPago=document.getElementById('condPagoSel').value==='__custom__'?[...condCuotas]:null;
+  const validez=document.getElementById('validezSel').value;
+  const entrega=getEntrega();
+  const garantia=document.getElementById('garantiaSel').value==='24m'?'24 meses o 4.000 horas':'12 meses o 2.000 horas';
+  const obs=document.getElementById('obsInput').value.trim();
+  const desc=getDescuento();
+  const descEspecial=document.getElementById('descEspecialChk').checked;
+  const fleteCOP=parseFloat(document.getElementById('fleteVal').value)||0;
+  const ivaPct=19;
+  if(!cliente){showToast('Ingresa el cliente','error');return;}
+  if(!carrito.length){showToast('El carrito está vacío','error');return;}
+  if(!listIdCotizaciones){showToast('Lista Cotizaciones no encontrada','error');return;}
+  const subUSD=carrito.reduce((s,i)=>s+i.tarifa,0);
+  const descUSD=subUSD*desc/100;
+  const baseUSD=subUSD-descUSD;
+  const ivaUSD=baseUSD*ivaPct/100;
+  const totalUSD=baseUSD+ivaUSD;
+  const totalCOP=Math.round(totalUSD*trm)+fleteCOP;
+  const numOferta=document.getElementById('ofertaNum').textContent;
+  const idSynergy=(document.getElementById('idSynergyInput')?.value||'').trim();
+  const btn=document.getElementById('btnGuardar');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Guardando...';
+  try{
+
+    const fields={
+      Title:numOferta,
+      ID_SYNERGY:numOferta,
+      IDSynergy:idSynergy||'',
+      Cliente:cliente||'Sin cliente',
+      GranTotal:Math.round(totalUSD*100)/100,
+      Estado:'Enviada',
+      Vendedor:vendedor||currentUserName||'Sin vendedor',
+      TRM:trm,
+      Descuento:desc,
+      Flete:fleteCOP,
+      Garantia:garantia,
+      CondicionPago:condPago,
+      Validez:validez,
+      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa}))),
+    };
+    const itemCreado=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields});
+    const itemId=itemCreado?.id||null;
+    showToast('✓ Oferta '+numOferta+' guardada','success');
+    const clienteInfo=clientesData.find(c=>c.titulo.toLowerCase()===cliente.toLowerCase())||{};
+    // Generar HTML, subir a SharePoint, luego abrir con link
+    const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,obs,desc,descEspecial,ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,trm,items:[...carrito]},true);
+    const linkPDF=await guardarHTMLEnSharePoint(numOferta, htmlSinLink);
+    const htmlFinal=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,obs,desc,descEspecial,ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,trm,items:[...carrito],linkSharePoint:linkPDF},true);
+    const pdfWin=window.open('','_blank','width=960,height=860');
+    if(pdfWin){pdfWin.document.write(htmlFinal);pdfWin.document.close();}
+    // Actualizar LinkPDF en la lista
+    if(itemId&&linkPDF){
+      try{
+        const token=await getToken();
+        await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
+          method:'PATCH',
+          headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({LinkPDF:linkPDF})
+        });
+      }catch(e){console.warn('No se pudo actualizar LinkPDF:',e.message);}
+    }
+    await generarNumOferta();
+  }catch(e){showToast('Error: '+e.message,'error');}
+  finally{btn.disabled=false;btn.innerHTML='<i class="ti ti-device-floppy"></i> Guardar y PDF';}
+}
+
+function generarPDF(d, soloRetornar=false){
+  const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
+  const fUSD=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
+  const fCOP=n=>'COP '+Math.round((n||0)*d.trm).toLocaleString('es-CO');
+  const fTRM=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
+  const garantiaTexto=d.garantia||'12 meses o 2.000 horas';
+  const cli=d.clienteInfo||{};
+
+  const filas=d.items.map((item,idx)=>{
+    const tipoLabel=item.tipo==='stock'?'En Stock':item.tipo==='importacion'?'En Importación':'Bajo Pedido';
+    const tipoBg=item.tipo==='stock'?'#eaf2d7':item.tipo==='importacion'?'#e8eef7':'#faeeda';
+    const tipoColor=item.tipo==='stock'?'#4a6a0a':item.tipo==='importacion'?'#2a4a7a':'#854F0B';
+    return '<tr>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;font-size:11px;color:#999;text-align:center;">'+(idx+1)+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;">'
+      +'<div style="font-weight:700;font-size:13px;color:#2a2a2a;">'+item.nombre+'</div>'
+      +(item.marca||item.modelo?'<div style="font-size:11px;color:#777;margin-top:2px;">'+(item.marca||'')+(item.modelo?' · '+item.modelo:'')+'</div>':'')
+      +(item.descripcion?'<div style="font-size:11px;color:#999;margin-top:3px;">'+item.descripcion+'</div>':'')
+    +(item.fichaTecnica?'<a href="'+item.fichaTecnica+'" target="_blank" style="font-size:10px;color:#c0392b;text-decoration:none;display:inline-flex;align-items:center;gap:3px;margin-top:4px;">📄 Ver Ficha Técnica</a>':'')
+    +(item.ytVideo?'<div style="margin-top:3px;"><a href="'+item.ytVideo+'" target="_blank" style="font-size:10px;color:#FF0000;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">▶ Ver video del equipo en YouTube</a></div>':'')
+      +'<span style="font-size:10px;padding:1px 8px;border-radius:20px;background:'+tipoBg+';color:'+tipoColor+';display:inline-block;margin-top:4px;font-weight:500;">'+tipoLabel+(item.cantidad>1?' · '+item.cantidad+' uds':'')+'</span>'
+      +'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;white-space:nowrap;vertical-align:top;">'
+      +'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(item.tarifa||0)+'</div>'
+      +'<div style="font-size:11px;color:#999;margin-top:3px;">'+fCOP(item.tarifa||0)+'</div>'
+      +'</td>'
+      +'</tr>';
+  }).join('');
+
+  const condiciones=''
+    +'<div style="page-break-before:always;padding-top:20px;">'
+    +'<table style="width:100%;margin-bottom:16px;border-bottom:3px solid #80A61B;padding-bottom:12px;">'
+    +'<tr>'
+    +'<td style="vertical-align:middle;width:50%"><img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png" alt="AYJ" style="height:36px;width:auto;"></td>'
+    +'<td style="text-align:right;vertical-align:middle;font-size:10px;color:#999;">'
+    +'<strong style="color:#575756;font-size:11px;">'+d.numOferta+'</strong>'+(d.idSynergy?'<br><span style="color:#80A61B;font-size:10px;font-weight:600;">Synergy: '+d.idSynergy+'</span>':'')+'<br>'+d.cliente+'<br>'
+    +'Condiciones Comerciales'
+    +'</td></tr></table>'
+    +'<div style="background:#f9f9f7;border-radius:8px;border:1px solid #e0e0dc;padding:16px 20px;margin-bottom:14px;">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:11px;">'
+    +'<tr><td style="padding:6px 0;color:#575756;width:150px;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Tiempo de entrega</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>'+(d.entrega||'Inmediato Salvo venta')+'</strong> — Tiempos estimados, pueden variar por fabricación, logística portuaria o transporte. Se informará oportunamente cualquier cambio.</td></tr>'
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Entrega</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;">En bodega del cliente sobre plataforma de camión, incluido montaje, puesta en marcha y entrenamiento. Costos de descargue y puesta en sitio no incluidos.</td></tr>'
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Moneda / TRM</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;">Ofertas en USD se liquidarán a la TRM negociada con la mesa de dinero del VENDEDOR el día en que giran los recursos. <strong>TRM de referencia: '+fTRM(d.trm)+' COP/USD.</strong></td></tr>'
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Condición de pago</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>'+d.condPago+'.</strong> Una vez aceptada la oferta y recibidos los anticipos, el COMPRADOR podrá desistir dentro de los 10 días calendario siguientes, perdiendo el 30% del valor total a título de sanción.</td></tr>'
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Garantía</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>'+garantiaTexto+'</strong>, considerando un turno de 8 horas, la condición que se cumpla primero. Cubre defectos de fabricación; excluye desgaste normal, mantenimiento deficiente o negligencia.</td></tr>'
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Instalación</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;">Personal especializado AYJ con colaboración del COMPRADOR. Si en 15 días desde la entrega física no se puede instalar por causas del COMPRADOR, se da por entregado y se pagan los saldos.</td></tr>'
+
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;">Validez oferta</td><td style="padding:6px 0;color:#444;padding-left:12px;"><strong>'+d.validez+'</strong> a partir de la fecha de emisión.</td></tr>'
+    +'</table></div>'
+    +'<div style="background:#fff;border-radius:8px;border:1px solid #e0e0dc;padding:14px 20px;margin-bottom:14px;">'
+    +'<div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Exclusiones</div>'
+    +'<div style="font-size:11px;color:#555;line-height:1.8;">'
+    +'· Equipo para descargue (montacargas, grúas, andamios)<br>'
+    +'· Adecuaciones locativas · Conexiones eléctricas, de agua y neumáticas<br>'
+    +'· Obras civiles · Sistema de aire comprimido no especificado<br>'
+    +'· Herramientas de mantenimiento no especificadas<br>'
+    +'· Licencias de software y redes de datos<br>'
+    +'· Todo lo que no figure expresamente en esta oferta'
+    +'</div></div>'
+    +'<div style="background:#fff;border-radius:8px;border:1px solid #e0e0dc;padding:14px 20px;font-size:10px;color:#777;line-height:1.7;">'
+    +'<strong style="color:#575756;">Aspectos Legales:</strong> Autorizamos a Aristizábal y Jinete S.A.S. para uso comercial de los datos suministrados, bajo Ley 1581 de 2012. '
+    +'Consultas: info@ayj.com.co · 601-2688600. El COMPRADOR garantiza que los recursos provienen de actividades lícitas. '
+    +'Discrepancias se dirimen en Bogotá D.C., Colombia.'
+    +'</div></div>';
+
+  const descBase=d.descBase||d.desc||0;
+  const tieneEspecial=d.descEspecial||false;
+  const descRow=(d.desc||0)>0
+    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">Descuento ('+(d.desc||0)+'%)'+(d.descEspecial?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FAEEDA;color:#854F0B;">incl. 3% especial</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span></td></tr>'
+    :'';
+  const fleteUSDpdf=d.trm>0?(d.fleteCOP||0)/d.trm:0;
+  const fleteRow=(d.fleteCOP||0)>0
+    ?'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">Flete nacional</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;"><div style="font-size:12px;font-weight:500;">COP '+Math.round(d.fleteCOP||0).toLocaleString('es-CO')+'</div><div style="font-size:10px;color:#999;">≈ '+fUSD(fleteUSDpdf)+'</div></td></tr>'
+    :'';
+
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+    +'<title>'+d.numOferta+' - '+d.cliente+'</title>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Segoe UI",Arial,sans-serif;font-size:13px;color:#2a2a2a;background:#fff;padding:32px 40px;max-width:880px;margin:0 auto}'
+    +'@media print{body{padding:0}.no-print{display:none!important}@page{margin:12mm 14mm;size:A4}}'
+    +'</style></head><body>'
+
+    +'<div class="no-print" style="background:#575756;color:#fff;padding:10px 20px;margin:-32px -40px 24px;display:flex;align-items:center;gap:12px;">'
+    +'<span style="flex:1;font-size:13px;font-weight:500;">📄 Oferta '+d.numOferta+' · '+d.cliente+'</span>'
+    +(d.linkSharePoint?'<a href="'+d.linkSharePoint+'" target="_blank" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none;">🔗 Ver en SharePoint</a>':'')
+    +'<button onclick="window.print()" style="background:#80A61B;color:#fff;border:none;padding:8px 22px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">⬇ Guardar como PDF</button>'
+    +'<button onclick="window.close()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">✕ Cerrar</button>'
+    +'</div>'
+
+    +'<table style="width:100%;margin-bottom:20px;border-bottom:3px solid #80A61B;padding-bottom:18px;">'
+    +'<tr>'
+    +'<td style="vertical-align:middle;width:50%">'
+    +'<img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png" alt="AYJ Maquinaria" style="width:100%;max-width:480px;height:auto;display:block;margin-bottom:8px;">'
+    +'<div style="font-size:10px;color:#aaa;line-height:1.7;">Aristizábal y Jinete S.A.S. · NIT: 860.079.605-6<br>'
+    +'BOG: Cra 40 No. 17A-44 · MED: Cl 29C No. 54A-18<br>'
+    +'Tel: 313.391.67.95 · info@ayj.com.co · www.ayj.com.co</div>'
+    +'</td>'
+    +'<td style="text-align:right;vertical-align:middle;width:50%">'
+    +'<div style="display:inline-block;border:2px solid #80A61B;border-radius:10px;padding:14px 22px;text-align:right;">'
+    +'<div style="font-size:10px;color:#80A61B;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Oferta Comercial</div>'
+    +'<div style="font-size:24px;font-weight:900;color:#575756;margin:4px 0;">'+d.numOferta+'</div>'
+    +(d.idSynergy?'<div style="font-size:11px;color:#80A61B;font-weight:600;margin-top:2px;">Synergy: '+d.idSynergy+'</div>':'')
+    +'<div style="font-size:11px;color:#777;">Fecha: <strong>'+fecha+'</strong></div>'
+    +'<div style="font-size:11px;color:#777;margin-top:2px;">Válida por: <strong>'+d.validez+'</strong></div>'
+    +'</div></td></tr></table>'
+
+    +'<table style="width:100%;margin-bottom:20px;border-collapse:collapse;">'
+    +'<tr>'
+    +'<td style="width:55%;padding:14px 18px;background:#f5f7f0;border-radius:8px 0 0 8px;border:1px solid #d8e0c0;border-right:none;vertical-align:top;">'
+    +'<div style="font-size:9px;font-weight:700;color:#80A61B;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Cliente</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#575756;">'+d.cliente+'</div>'
+    +(cli.nombre?'<div style="font-size:12px;color:#555;margin-top:4px;"><strong>Contacto:</strong> '+cli.nombre+'</div>':'')
+    +((cli.ciudad||cli.pais)?'<div style="font-size:11px;color:#777;margin-top:2px;">'+(cli.ciudad||'')+(cli.ciudad&&cli.pais?', ':'')+( cli.pais||'')+'</div>':'')
+    +(cli.email?'<div style="font-size:11px;color:#777;margin-top:1px;">'+cli.email+'</div>':'')
+    +'</td>'
+    +'<td style="width:45%;padding:14px 18px;background:#f2f2f0;border-radius:0 8px 8px 0;border:1px solid #ddd;vertical-align:top;">'
+    +'<div style="font-size:9px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Asesor Comercial</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#575756;">'+d.vendedor+'</div>'
+    +'<div style="font-size:11px;color:#575756;margin-top:3px;font-weight:600;">AYJ Maquinaria · Aristizábal y Jinete S.A.S.</div>'
+    +(emailVendedor(d.vendedor)?'<div style="font-size:11px;color:#777;margin-top:2px;"><a href="mailto:'+emailVendedor(d.vendedor)+'" style="color:#80A61B;text-decoration:none;">'+emailVendedor(d.vendedor)+'</a></div>':'')
+    +'<div style="font-size:11px;color:#777;margin-top:1px;">Tel: 313.391.67.95</div>'
+    +'</td></tr></table>'
+
+    +'<table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid #ddd;">'
+    +'<thead><tr style="background:#575756;color:#fff;">'
+    +'<th style="padding:10px 8px;text-align:center;font-size:10px;font-weight:600;width:28px;">#</th>'
+    +'<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Descripción del Equipo</th>'
+    +'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:150px;text-transform:uppercase;letter-spacing:0.5px;">Precio</th>'
+    +'</tr></thead>'
+    +'<tbody>'+filas+'</tbody></table>'
+
+    +'<table style="width:100%;margin-top:14px;">'
+    +'<tr>'
+    +'<td style="width:52%;vertical-align:top;">'
+    +(d.obs?'<div style="padding:12px 16px;background:#fefce8;border-left:3px solid #80A61B;border-radius:0 6px 6px 0;font-size:11px;color:#555;"><strong>Observaciones:</strong> '+d.obs+'</div>':'')
+    +tablaPagos(d.condPago,d.cuotasPago||null,d.totalUSD,fUSD,fCOP)
+    +'</td>'
+    +'<td style="width:48%;padding-left:16px;vertical-align:top;">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">Subtotal</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'+fUSD(d.subUSD)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.subUSD)+'</span></td></tr>'
+    +descRow
+    +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">IVA 19%</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'+fUSD(d.ivaUSD||0)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.ivaUSD||0)+'</span></td></tr>'
+    +fleteRow
+    +'<tr style="background:#80A61B;">'
+    +'<td style="padding:12px 10px;font-weight:700;font-size:13px;color:#fff;">TOTAL OFERTA</td>'
+    +'<td style="padding:12px 10px;text-align:right;">'
+    +'<div style="font-weight:800;font-size:16px;color:#fff;">'+fUSD(d.totalUSD||0)+'</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:2px;font-weight:600;">COP '+Math.round(d.totalCOP||0).toLocaleString('es-CO')+'</div>'
+    +'<div style="font-size:9px;color:rgba(255,255,255,0.65);margin-top:2px;">TRM ref: '+fTRM(d.trm||0)+' COP/USD</div>'
+    +'</td></tr></table></td></tr></table>'
+
+    +'<div style="margin-top:32px;display:flex;gap:40px;padding-top:16px;border-top:1px solid #e0e0dc;">'
+    +'<div style="flex:1;">'
+    +'<div style="border-top:2px solid #575756;padding-top:8px;margin-top:32px;">'
+    +'<div style="font-size:12px;font-weight:700;color:#575756;">'+d.vendedor+'</div>'
+    +'<div style="font-size:10px;color:#888;margin-top:2px;">Asesor Comercial · AYJ Maquinaria S.A.S.</div>'
+    +'</div></div>'
+    +'<div style="flex:1;">'
+    +'<div style="border-top:2px solid #575756;padding-top:8px;margin-top:32px;">'
+    +'<div style="font-size:12px;font-weight:700;color:#575756;">'+d.cliente+'</div>'
+    +'<div style="font-size:10px;color:#888;margin-top:2px;">Firma de aceptación · Fecha: _______________</div>'
+    +'</div></div></div>'
+
+    +'<div style="margin-top:24px;border-top:3px solid #80A61B;padding-top:10px;">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:9px;color:#666;">'
+    +'<tr>'
+    +'<td style="padding:0 12px 0 0;border-right:1px solid #ddd;vertical-align:top;"><strong style="color:#575756;">Sede Bogotá</strong><br>Carrera 40 No. 17A - 44<br>Tel: 601.805.18.00<br><a href="mailto:info@ayj.com.co" style="color:#80A61B;text-decoration:none;">info@ayj.com.co</a></td>'
+    +'<td style="padding:0 12px;border-right:1px solid #ddd;vertical-align:top;"><strong style="color:#575756;">Sede Medellín</strong><br>Calle 29C No. 54A – 18<br>Tel: 604.332.2487<br><a href="mailto:medellin@ayj.com.co" style="color:#80A61B;text-decoration:none;">medellin@ayj.com.co</a></td>'
+    +'<td style="padding:0 12px;border-right:1px solid #ddd;vertical-align:top;"><strong style="color:#575756;">CAT</strong><br>Centro de Asistencia Técnica<br>Tel: 313.391.67.95<br><a href="mailto:cat@ayj.com.co" style="color:#80A61B;text-decoration:none;">cat@ayj.com.co</a></td>'
+    +'<td style="padding:0 0 0 12px;vertical-align:top;text-align:right;"><a href="https://www.ayj.com.co" target="_blank" style="color:#80A61B;text-decoration:none;font-weight:700;font-size:10px;">www.ayj.com.co</a><br><span style="color:#aaa;font-size:8px;">Lunes a viernes 7:30–12:30 / 13:30–17:00</span>'+(d.idSynergy?'<br><span style="color:#575756;font-size:9px;font-weight:700;">Synergy: '+d.idSynergy+'</span>':'')+'</td>'
+    +'</tr></table></div>'
+
+    +condiciones
+    +'</body></html>';
+
+  if(soloRetornar) return html;
+  const win=window.open('','_blank','width=960,height=860');
+  if(win){win.document.write(html);win.document.close();}
+  return html;
+}
+
+async function guardarHTMLEnSharePoint(numOferta, htmlContent){
+  try{
+    const anio=new Date().getFullYear();
+    const nombreArchivo=numOferta.replace(/[^a-zA-Z0-9\-_]/g,'-');
+    const ruta=`/sites/${siteId}/drive/root:/General/MODELO%20OFERTAS/COTIZADOR/${anio}/${nombreArchivo}.html:/content`;
+    const token=await getToken();
+    const r=await fetch(`https://graph.microsoft.com/v1.0${ruta}`,{
+      method:'PUT',
+      headers:{Authorization:'Bearer '+token,'Content-Type':'text/html;charset=utf-8'},
+      body:htmlContent
+    });
+    if(r.ok){
+      const data=await r.json();
+      // Construir URL directa para abrir el HTML en SharePoint
+      const linkPDF=data.webUrl||'';
+      showToast('✓ HTML guardado en SharePoint','success');
+      console.log('LinkPDF guardado:', linkPDF);
+      return linkPDF;
+    } else {
+      const err=await r.text();
+      console.warn('Error guardando HTML:', r.status, err);
+      showToast('⚠ Oferta guardada en lista pero HTML falló ('+r.status+')','error');
+      return '';
+    }
+  }catch(e){
+    console.warn('No se pudo guardar HTML:', e.message);
+    return '';
+  }
+}
+
+
+let historialData=[];
+
+async function cargarHistorial(){
+  if(!siteId||!listIdCotizaciones){document.getElementById('historialBody').innerHTML='<div class="loading-list">Lista no disponible</div>';return;}
+  document.getElementById('historialBody').innerHTML='<div class="loading-list"><span class="spinner dark"></span> Cargando...</div>';
+  try{
+    const data=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$orderby=id desc&$top=200`);
+    historialData=data.map(i=>{
+      const f=i.fields;
+      const fechaRaw=f.Fecha_x005f_Cotizacion||f.FechaCotizacion||i.createdDateTime||null;
+      return{
+        num:f.ID_SYNERGY||f.Title||'—',
+        cliente:f.Cliente||'—',
+        vendedor:f.Vendedor||'—',
+        estado:f.Estado||'—',
+        total:Math.round(f.GranTotal||0),
+        fecha:fechaRaw?new Date(fechaRaw):null,
+        fechaStr:fechaRaw?new Date(fechaRaw).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—',
+        items:f.Items?JSON.parse(f.Items||'[]'):[],
+        linkPDF:f.LinkPDF||'',
+      };
+    });
+    filtrarHistorial();
+  }catch(e){document.getElementById('historialBody').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
+}
+
+function filtrarHistorial(){
+  const qCli=(document.getElementById('hFiltCliente')?.value||'').toLowerCase();
+  const qVen=(document.getElementById('hFiltVendedor')?.value||'').toLowerCase();
+  const qEst=document.getElementById('hFiltEstado')?.value||'';
+  const desde=document.getElementById('hFiltDesde')?.value?new Date(document.getElementById('hFiltDesde').value):null;
+  const hasta=document.getElementById('hFiltHasta')?.value?new Date(document.getElementById('hFiltHasta').value+'T23:59:59'):null;
+
+  const lista=historialData.filter(r=>{
+    if(qCli&&!r.cliente.toLowerCase().includes(qCli)) return false;
+    if(qVen&&!r.vendedor.toLowerCase().includes(qVen)) return false;
+    if(qEst&&r.estado!==qEst) return false;
+    if(desde&&r.fecha&&r.fecha<desde) return false;
+    if(hasta&&r.fecha&&r.fecha>hasta) return false;
+    return true;
+  });
+
+  const wrap=document.getElementById('historialBody');
+  if(!lista.length){wrap.innerHTML='<div class="loading-list">Sin resultados</div>';return;}
+
+  const totalFiltrado=lista.reduce((s,r)=>s+r.total,0);
+
+  wrap.innerHTML='<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">'
+    +lista.length+' oferta'+(lista.length!==1?'s':'')+' · Total: <strong>USD '+totalFiltrado.toLocaleString('es-CO')+'</strong></div>'
+    +'<table class="hist-table"><thead><tr>'
+    +'<th>N° Oferta</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Estado</th><th style="text-align:right">Total USD</th><th style="text-align:center">Acciones</th>'
+    +'</tr></thead><tbody>'
+    +lista.map((r,i)=>{
+      const estadoBg=r.estado==='Aprobada'?'var(--green-light)':r.estado==='Rechazada'?'var(--red-light)':'var(--amber-light)';
+      const estadoColor=r.estado==='Aprobada'?'var(--green-dark)':r.estado==='Rechazada'?'var(--red)':'var(--amber)';
+      return '<tr>'
+        +'<td class="num">'+r.num+'</td>'
+        +'<td style="white-space:nowrap;color:var(--text2);font-size:12px">'+r.fechaStr+'</td>'
+        +'<td><strong>'+r.cliente+'</strong></td>'
+        +'<td style="font-size:12px">'+r.vendedor+'</td>'
+        +'<td><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+estadoBg+';color:'+estadoColor+'">'+r.estado+'</span></td>'
+        +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
+        +'<td style="text-align:center">'
+        +(r.linkPDF?'<a href="'+r.linkPDF+'" target="_blank" class="btn-cli-usar" style="border-color:var(--red);color:var(--red);text-decoration:none;" title="Ver oferta"><i class="ti ti-file-type-pdf"></i></a> ':'' )
+        +(r.items.length?'<button class="btn-cli-usar" onclick=\'duplicarOferta('+JSON.stringify(r.cliente)+','+JSON.stringify(r.items)+')\' title="Duplicar en carrito"><i class="ti ti-copy"></i></button>':'' )
+        +'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table>';
+}
+
+
+function duplicarOferta(cliente, itemsData){
+  if(carrito.length>0 && !confirm('¿Cargar esta oferta? Se reemplazará el carrito actual.')) return;
+  // Cargar cliente
+  document.getElementById('clienteInput').value=cliente;
+  filtrarClienteInput(cliente);
+  // Reconstruir carrito desde los items guardados
+  carrito=[];
+  itemsData.forEach(item=>{
+    // Buscar en catálogo para obtener datos completos
+    const enCat=rawMaquinas.find(m=>m.title===item.nombre);
+    carrito.push({
+      id:'dup_'+Math.random().toString(36).substr(2,6),
+      grupoKey:null, tipo:item.tipo||'stock',
+      nombre:item.nombre, marca:enCat?.marca||'', modelo:enCat?.modelo||'',
+      tarifa:item.tarifaUSD||item.tarifa||0,
+      descripcion:enCat?.descripcion||'',
+      fichaTecnica:enCat?.fichaTecnica||'',
+      cantidad:item.cantidad||1
+    });
+  });
+  renderCarrito(); calcTotales(); renderCatalogo();
+  switchView('nueva');
+  showToast('Oferta cargada en carrito — '+cliente,'success');
+}
+
+function switchView(v){
+  document.getElementById('nuevaView').style.display=v==='nueva'?'flex':'none';
+  document.getElementById('historialView').style.display=v==='historial'?'flex':'none';
+  document.getElementById('clientesView').style.display=v==='clientes'?'flex':'none';
+  ['navNueva','navHistorial','navClientes'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
+  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes'};
+  if(navMap[v])document.getElementById(navMap[v]).className='active';
+  if(v==='historial')cargarHistorial();
+  if(v==='clientes')renderTablaClientes();
+}
+
+// ── MÓDULO CLIENTES ──────────────────────────────────
+let clientesData=[];
+
+async function cargarClientes(forzar=false){
+  if(!siteId||!listIdClientes)return;
+  if(clientesData.length>0&&!forzar){poblarDatalist();renderTablaClientes();return;}
+  try{
+    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdClientes}/items?expand=fields&$select=fields&$top=500`);
+    clientesData=todos.map(i=>{
+      const f=i.fields;
+      return{
+        id:i.id,
+        titulo:(f.Title||'').trim(),
+        nombre:(f.Nombre||'').trim(),
+        empresa:(f.Empresa||'').trim(),
+        email:(f.Email||'').trim(),
+        telefono:(f.Telefono||f.Tel_x00e9_fono||'').trim(),
+        ciudad:(f.Ciudad||'').trim(),
+        pais:(f.Pais||f.Pa_x00ed_s||'Colombia').trim(),
+        nit:(f['NIT/RUT']||f.NIT_x002f_RUT||f.NIT||'').trim(),
+        asesor:(f.Asesor||'').trim(),
+      };
+    }).filter(c=>c.titulo);
+    poblarDatalist();
+    renderTablaClientes();
+  }catch(e){
+    showToast('Error clientes: '+e.message,'error');
+    const w=document.getElementById('clientesTablaWrap');
+    if(w)w.innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;
+  }
+}
+
+function poblarDatalist(){
+  const dl=document.getElementById('clientesList');
+  dl.innerHTML='';
+  clientesData.forEach(c=>{const o=document.createElement('option');o.value=c.titulo;dl.appendChild(o);});
+}
+
+function filtrarClienteInput(val){
+  const match=clientesData.find(c=>c.titulo.toLowerCase()===val.toLowerCase());
+  const info=document.getElementById('clienteInfo');
+  if(match&&val){
+    info.style.display='block';
+    info.textContent=[match.nombre,match.ciudad,match.telefono].filter(Boolean).join(' · ');
+  } else { info.style.display='none'; }
+}
+
+function renderTablaClientes(){
+  const q=(document.getElementById('clientesBuscador')?.value||'').toLowerCase();
+  const lista=q?clientesData.filter(c=>
+    c.titulo.toLowerCase().includes(q)||c.nombre.toLowerCase().includes(q)||
+    c.ciudad.toLowerCase().includes(q)||c.email.toLowerCase().includes(q)
+  ):clientesData;
+  const wrap=document.getElementById('clientesTablaWrap');
+  if(!wrap)return;
+  if(!lista.length){wrap.innerHTML='<div class="loading-list">Sin clientes que coincidan</div>';return;}
+  wrap.innerHTML=`<table class="cli-table">
+    <thead><tr><th>Razón Social</th><th>Contacto</th><th>Email</th><th>Teléfono</th><th>Ciudad</th><th>NIT/RUT</th><th></th></tr></thead>
+    <tbody>${lista.map(c=>`<tr>
+      <td><strong>${c.titulo}</strong></td>
+      <td>${c.nombre||'—'}</td>
+      <td style="font-size:12px">${c.email||'—'}</td>
+      <td style="font-size:12px">${c.telefono||'—'}</td>
+      <td>${c.ciudad||'—'}</td>
+      <td style="font-size:12px">${c.nit||'—'}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn-cli-usar" onclick="usarCliente(${JSON.stringify(c.titulo)},${JSON.stringify(c.nombre)},${JSON.stringify(c.ciudad)},${JSON.stringify(c.telefono)})">
+            <i class="ti ti-arrow-right"></i> Usar
+          </button>
+          <button class="btn-cli-usar" style="border-color:var(--blue);color:var(--blue-dark)" onclick="editarCliente(${JSON.stringify(c)})">
+            <i class="ti ti-pencil"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function usarCliente(titulo,nombre,ciudad,telefono){
+  document.getElementById('clienteInput').value=titulo;
+  const info=document.getElementById('clienteInfo');
+  info.style.display='block';
+  info.textContent=[nombre,ciudad,telefono].filter(Boolean).join(' · ');
+  switchView('nueva');
+  showToast('Cliente cargado: '+titulo,'success');
+}
+
+let clienteEditandoId=null;
+function abrirModalCliente(){
+  clienteEditandoId=null;
+  ['mc_titulo','mc_nombre','mc_email','mc_telefono','mc_ciudad','mc_nit'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('mc_pais').value='Colombia';
+  document.getElementById('modalClienteTitulo').textContent='Nuevo Cliente';
+  document.getElementById('btnGuardarCliente').innerHTML='<i class="ti ti-check"></i> Guardar Cliente';
+  document.getElementById('modalCliente').style.display='flex';
+}
+function editarCliente(c){
+  clienteEditandoId=c.id;
+  document.getElementById('mc_titulo').value=c.titulo||'';
+  document.getElementById('mc_nombre').value=c.nombre||'';
+  document.getElementById('mc_email').value=c.email||'';
+  document.getElementById('mc_telefono').value=c.telefono||'';
+  document.getElementById('mc_ciudad').value=c.ciudad||'';
+  document.getElementById('mc_pais').value=c.pais||'Colombia';
+  document.getElementById('mc_nit').value=c.nit||'';
+  document.getElementById('modalClienteTitulo').textContent='Editar Cliente';
+  document.getElementById('btnGuardarCliente').innerHTML='<i class="ti ti-check"></i> Actualizar Cliente';
+  document.getElementById('modalCliente').style.display='flex';
+}
+function cerrarModalCliente(){document.getElementById('modalCliente').style.display='none';}
+
+async function guardarCliente(){
+  const titulo=document.getElementById('mc_titulo').value.trim();
+  if(!titulo){showToast('La razón social es obligatoria','error');return;}
+  if(!listIdClientes){showToast('Lista Clientes no encontrada','error');return;}
+
+  // Verificar duplicado solo en modo nuevo
+  if(!clienteEditandoId){
+    const existe=clientesData.find(c=>c.titulo.toLowerCase()===titulo.toLowerCase());
+    if(existe){
+      const usar=confirm(`Ya existe un cliente con ese nombre:\n"${existe.titulo}"\n\n¿Deseas usarlo en la oferta actual en lugar de crear uno nuevo?`);
+      if(usar){cerrarModalCliente();usarCliente(existe.titulo,existe.nombre,existe.ciudad,existe.telefono);}
+      return;
+    }
+  }
+
+  const btn=document.getElementById('btnGuardarCliente');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Guardando...';
+  const fields={
+    Title:titulo,
+    Nombre:document.getElementById('mc_nombre').value.trim(),
+    Email:document.getElementById('mc_email').value.trim(),
+    Telefono:document.getElementById('mc_telefono').value.trim(),
+    Ciudad:document.getElementById('mc_ciudad').value.trim(),
+    Pais:document.getElementById('mc_pais').value.trim(),
+    Asesor:currentUserName,
+  };
+  try{
+    if(clienteEditandoId){
+      // PATCH — actualizar existente
+      const token=await getToken();
+      await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdClientes}/items/${clienteEditandoId}/fields`,{
+        method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(fields)
+      });
+      showToast('✓ Cliente actualizado','success');
+    } else {
+      await graphPost(`/sites/${siteId}/lists/${listIdClientes}/items`,{fields});
+      showToast('✓ Cliente guardado: '+titulo,'success');
+    }
+    cerrarModalCliente();
+    await cargarClientes(true);
+    if(!clienteEditandoId) usarCliente(titulo,fields.Nombre,fields.Ciudad,fields.Telefono);
+  }catch(e){showToast('Error: '+e.message,'error');}
+  finally{btn.disabled=false;btn.innerHTML='<i class="ti ti-check"></i> Guardar Cliente';}
+}
+
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3000);
+}
+initMsal();
+</script>
+</body></html>
