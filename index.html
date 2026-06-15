@@ -186,14 +186,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   /* En móvil sidebar y content se apilan y se controlan con tabs */
   .main{flex-direction:column;overflow:auto}
   .sidebar{
-    width:100%;border-right:none;border-bottom:1px solid var(--border);
-    max-height:none;overflow:visible;
-    height:calc(100vh - 110px); /* altura completa menos topbar y tabs */
+    width:100%;border-right:none;border-bottom:none;
+    height:calc(100vh - 96px);
+    overflow:hidden;
     display:none;
+    flex-direction:column;
   }
   .sidebar.mobile-active{display:flex}
-  .content{display:none}
+  .sidebar .maq-list{
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:5px;
+  }
+  .content{display:none;flex-direction:column;height:calc(100vh - 96px);overflow:hidden}
   .content.mobile-active{display:flex}
+  .content .cot-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .content .footer{flex-shrink:0}
+  .content .content-top{flex-shrink:0}
   #historialView.mobile-active,#clientesView.mobile-active{display:flex}
 
   /* Cuando el historial o clientes están activos */
