@@ -236,14 +236,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   .content.mobile-active{display:flex}
   .content-top{
     flex-shrink:0;
-    padding:8px 10px;
-    gap:6px;
-    overflow-y:auto;
-    max-height:180px;
-    -webkit-overflow-scrolling:touch;
+    padding:6px 10px;
+    gap:5px;
+    display:none; /* oculto por defecto en móvil */
+    flex-wrap:wrap;
   }
+  .content-top.mobile-open{display:flex}
   .field-group{width:calc(50% - 3px);min-width:0}
-  .field-group input,.field-group select{min-width:0;width:100%;font-size:14px}
+  .field-group input,.field-group select{min-width:0;width:100%;font-size:14px;padding:5px 8px}
+  .field-group label{font-size:10px}
   .oferta-badge{font-size:11px;padding:4px 10px;margin-left:auto}
   .cot-area{
     flex:1;
@@ -265,6 +266,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   .total-val.sub2,.total-val.big2{font-size:10px}
   .btn-primary{padding:9px 14px;font-size:12px}
   .btn-sec{padding:8px 10px;font-size:12px}
+
+  #carritoTopBar{display:none}
+  .content.mobile-active #carritoTopBar{display:flex}
+  .content-top#contentTopPanel{display:none}
+  .content-top#contentTopPanel.mobile-open{display:flex}
 
   /* ── HISTORIAL Y CLIENTES ── */
   #historialView{
@@ -469,11 +475,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
       </div>
     </div>
     <div class="content" id="nuevaView">
-      <div class="content-top">
+      <!-- Barra sticky carrito móvil -->
+      <div id="carritoTopBar" style="display:none;padding:6px 10px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div id="carritoClienteLabel" style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Sin cliente</div>
+          <div class="oferta-badge" id="ofertaNumMobil" style="font-size:10px;padding:2px 8px;display:inline-block;margin-top:2px">COT-2026-001</div>
+        </div>
+        <button onclick="toggleContentTop()" style="padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap">
+          <i class="ti ti-settings" style="font-size:12px;vertical-align:-1px"></i> Datos
+        </button>
+      </div>
+      <div class="content-top" id="contentTopPanel">
         <div class="field-group">
           <label>Cliente</label>
           <div style="display:flex;gap:6px;align-items:center">
-            <input type="text" id="clienteInput" placeholder="Buscar cliente..." list="clientesList" style="min-width:160px" oninput="filtrarClienteInput(this.value)">
+            <input type="text" id="clienteInput" placeholder="Buscar cliente..." list="clientesList" style="min-width:160px" oninput="filtrarClienteInput(this.value);actualizarCarritoTopBar()">
             <datalist id="clientesList"></datalist>
             <button onclick="abrirModalCliente()" title="Nuevo cliente" style="padding:6px 10px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);cursor:pointer;font-size:13px;white-space:nowrap"><i class="ti ti-user-plus"></i></button>
           </div>
@@ -540,6 +556,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
           </div>
         </div>
       </div>
+      </div><!-- close contentTopPanel -->
       <div class="cot-area">
         <div class="empty-state" id="emptyState">
           <i class="ti ti-shopping-cart"></i>
@@ -1260,6 +1277,7 @@ function toggleBP(id){
 
 function renderCarrito(){
   actualizarBadgeCarrito();
+  actualizarCarritoTopBar();
   const empty=document.getElementById('emptyState'),wrap=document.getElementById('itemsWrap'),tbody=document.getElementById('itemsBody');
   if(!carrito.length){empty.style.display='block';wrap.style.display='none';return;}
   empty.style.display='none';wrap.style.display='block';tbody.innerHTML='';
@@ -1342,6 +1360,23 @@ function getDescuento(){
   const base=parseFloat(document.getElementById('descInput').value)||0;
   const especial=document.getElementById('descEspecialChk').checked?3:0;
   return base+especial;
+}
+
+function toggleContentTop(){
+  const panel=document.getElementById('contentTopPanel');
+  panel.classList.toggle('mobile-open');
+}
+
+function actualizarCarritoTopBar(){
+  const label=document.getElementById('carritoClienteLabel');
+  const numMobil=document.getElementById('ofertaNumMobil');
+  if(label){
+    const cli=document.getElementById('clienteInput')?.value||'Sin cliente';
+    label.textContent=cli;
+  }
+  if(numMobil){
+    numMobil.textContent=document.getElementById('ofertaNum')?.textContent||'';
+  }
 }
 
 function toggleFiltrosMobil(){
