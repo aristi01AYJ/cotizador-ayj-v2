@@ -294,7 +294,7 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
           <select id="filtroTipologia" onchange="renderCatalogo()"><option value="">Todas las tipologías</option></select>
         </div>
       </div>
-      <div class="trm-bar">
+      <div class="trm-bar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <label><i class="ti ti-currency-dollar" style="font-size:13px;vertical-align:-1px"></i> TRM</label>
         <input type="number" id="trmInput" value="3650" step="10" oninput="onTrmChange()">
         <span id="trmLabel">$ 4.200 COP/USD</span>
@@ -1292,7 +1292,11 @@ function renderCarrito(){
         +`</div>`
         +`<div style="font-size:9px;color:var(--text3);margin-top:1px">${fmtUSD(precioUnit)}/u</div>`
       +`</td>`
-      +`<td class="price-cell" style="vertical-align:middle"><div class="price-usd-item" id="pusd_${i}">${fmtUSD(item.tarifa)}</div></td>`
+      +`<td class="price-cell" style="vertical-align:middle">`
+      +(window.precioDesbloqueado
+        ?`<div style="display:flex;align-items:center;gap:3px;justify-content:center"><span style="font-size:10px;color:var(--text2)">USD</span><input type="number" min="0" value="${Math.round(item.tarifa/(item.cantidad||1))}" onchange="editarPrecioItem(${i},this.value)" style="width:70px;padding:2px 4px;border:1px solid #F59E0B;border-radius:3px;font-size:12px;font-family:inherit;text-align:right;background:#fffbf0"></div>`
+        :`<div class="price-usd-item" id="pusd_${i}">${fmtUSD(item.tarifa)}</div>`)
+      +`</td>`
       +`<td class="price-cell" style="vertical-align:middle"><div class="price-cop-item" id="pcop_${i}">${fmtCOP(item.tarifa)}</div></td>`
       +`<td style="vertical-align:middle"><button class="btn-remove" onclick="removerItem(${i})"><i class="ti ti-x"></i></button></td>`;
     tbody.appendChild(tr);
@@ -1339,6 +1343,41 @@ function calcTotales(){
 }
 
 // ── DESCUENTO ──────────────────────────────────────────
+// ── EDICIÓN DE PRECIOS ────────────────────────────────
+window.precioDesbloqueado=false;
+const CLAVE_PRECIO='AYJ860';
+
+function solicitarClavePrecio(){
+  if(window.precioDesbloqueado){
+    window.precioDesbloqueado=false;
+    const btn=document.getElementById('precioLockBtn');
+    if(btn){btn.textContent='💲 Precio';btn.style.background='#f0f4e8';btn.style.color='var(--green-dark)';}
+    renderCarrito();calcTotales();
+    showToast('Edición de precios bloqueada','success');
+    return;
+  }
+  const clave=prompt('Clave para modificar precios:');
+  if(clave===null) return;
+  if(clave!==CLAVE_PRECIO){showToast('Clave incorrecta','error');return;}
+  window.precioDesbloqueado=true;
+  const btn=document.getElementById('precioLockBtn');
+  if(btn){btn.textContent='🔓 Precio';btn.style.background='#F59E0B';btn.style.color='#fff';}
+  renderCarrito();
+  showToast('✓ Precios desbloqueados para edición','success');
+}
+
+function editarPrecioItem(idx, nuevoPrecioUnit){
+  if(!window.precioDesbloqueado) return;
+  const val=parseFloat(nuevoPrecioUnit)||0;
+  if(val<0) return;
+  const cant=carrito[idx].cantidad||1;
+  carrito[idx].tarifa=val*cant;
+  calcTotales();
+  // Actualizar display sin re-renderizar completo
+  const el=document.getElementById('pusd_'+idx);
+  if(el) el.textContent=fmtUSD(carrito[idx].tarifa);
+}
+
 let descMaximo=20; // 20 normal, 30 con clave
 
 const TABLA_MG={0:[50.0,7.5],1:[49.495,7.424],2:[48.98,7.347],3:[48.454,7.268],4:[47.917,7.188],5:[47.368,7.105],6:[46.809,7.021],7:[46.237,6.935],8:[45.652,6.848],9:[45.055,6.758],10:[44.444,6.667],11:[43.82,6.573],12:[43.182,6.477],13:[42.529,6.379],14:[41.86,6.279],15:[41.176,6.176],16:[40.476,6.071],17:[39.759,5.964],18:[39.024,5.854],19:[38.272,5.741],20:[37.5,5.625],21:[36.709,5.506],22:[35.897,5.385],23:[35.065,5.26],24:[34.211,5.132],25:[33.333,5.0],26:[32.432,4.865],27:[31.507,4.726],28:[30.556,4.583],29:[29.577,4.437],30:[28.571,4.286],31:[27.536,4.13],32:[26.471,3.971],33:[25.373,3.806],34:[24.242,3.636],35:[23.077,3.462],36:[21.875,3.281],37:[20.635,3.095],38:[19.355,2.903],39:[18.033,2.705],40:[16.667,2.5],41:[15.254,2.288],42:[13.793,2.069],43:[12.281,1.842],44:[10.714,1.607],45:[9.091,1.364],46:[7.407,1.111],47:[5.66,0.849],48:[3.846,0.577],49:[1.961,0.294],50:[0.0,0.0]};
@@ -1523,6 +1562,10 @@ function nuevaCotizacion(){
   ['clienteInput','obsInput','idSynergyInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   // Limpiar modo edición
   modoEdicion=null;
+  // Bloquear precios
+  window.precioDesbloqueado=false;
+  const pb=document.getElementById('precioLockBtn');
+  if(pb){pb.textContent='💲 Precio';pb.style.background='#f0f4e8';pb.style.color='var(--green-dark)';}
   const btnG=document.getElementById('btnGuardar');
   if(btnG){btnG.innerHTML='<i class="ti ti-device-floppy"></i> Guardar y PDF';btnG.style.background='';}
   document.getElementById('modoCOPChk').checked=false;
