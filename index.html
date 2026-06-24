@@ -1373,10 +1373,10 @@ function editarPrecioItem(idx, nuevoPrecioUnit){
   if(val<0) return;
   const cant=carrito[idx].cantidad||1;
   carrito[idx].tarifa=val*cant;
+  // En modo edición USD es un input — solo actualizar COP
+  const elCOP=document.getElementById('pcop_'+idx);
+  if(elCOP) elCOP.textContent=fmtCOP(carrito[idx].tarifa);
   calcTotales();
-  // Actualizar display sin re-renderizar completo
-  const el=document.getElementById('pusd_'+idx);
-  if(el) el.textContent=fmtUSD(carrito[idx].tarifa);
 }
 
 let descMaximo=20; // 20 normal, 30 con clave
