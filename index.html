@@ -3497,7 +3497,7 @@ initMsal();
           <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Variables — Todo en USD</div>
           <div class="liq-field">
             <label>Máquina del catálogo (para enviar al carrito)</label>
-            <select id="liqMaquinaSel" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px">
+            <select id="liqMaquinaSel" onchange="liqSyncInstMaquina()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px">
               <option value="">— Seleccionar máquina (opcional) —</option>
             </select>
           </div>
