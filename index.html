@@ -256,6 +256,7 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
       <button id="navHistorial" onclick="switchView('historial')">Historial</button>
       <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
       <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
+      <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
     </div>
     <div class="topbar-right">
       <span class="user-chip" id="userChip">—</span>
@@ -1882,7 +1883,166 @@ function generarPDF(d, soloRetornar=false){
     +'</tr></table></div>'
 
     +condiciones
-    +'</body></html>';
+    +'
+<!-- LIQUIDADOR MODAL -->
+<div id="liquidadorModal" style="display:none;position:fixed;inset:0;z-index:1000;background:#f0f4f8;flex-direction:column;overflow:hidden">
+  <!-- Header -->
+  <div style="background:#575756;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+    <span style="font-size:14px;font-weight:700;letter-spacing:0.5px">🔒 LIQUIDADOR AYJ — Uso Interno</span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button onclick="liqEnviarAlCarrito()" style="background:#80A61B;border:none;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"><i class="ti ti-shopping-cart"></i> Enviar precio al carrito</button>
+      <button onclick="cerrarLiquidador()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-x"></i> Cerrar</button>
+    </div>
+  </div>
+  <!-- Sub-tabs -->
+  <div style="background:#fff;border-bottom:1px solid #ddd;display:flex;flex-shrink:0">
+    <button id="liqTab1" onclick="liqSwitchTab('liquidacion')" style="padding:10px 20px;border:none;border-bottom:2px solid #575756;background:none;font-size:13px;font-weight:600;color:#575756;cursor:pointer;font-family:inherit">📊 Liquidación</button>
+    <button id="liqTab2" onclick="liqSwitchTab('instalacion')" style="padding:10px 20px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;color:#888;cursor:pointer;font-family:inherit">🔧 Instalación</button>
+    <button id="liqTab3" onclick="liqSwitchTab('financiacion')" style="padding:10px 20px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;color:#888;cursor:pointer;font-family:inherit">💳 Financiación</button>
+  </div>
+  <!-- Content area -->
+  <div style="flex:1;overflow-y:auto;padding:20px">
+
+    <!-- ═══ LIQUIDACIÓN ═══ -->
+    <div id="liqPanelLiquidacion">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+
+        <!-- Col 1: Datos de compra -->
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Variables de Importación</div>
+          <div class="liq-field"><label>Precio FOB (USD)</label><input type="number" id="liqFOB" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>TRM (COP/USD)</label><input type="number" id="liqTRM" value="3650" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Flete + Seguro Int. (USD)</label><input type="number" id="liqFleteInt" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Arancel (%)</label>
+            <select id="liqArancel" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0">0% — Sin arancel</option>
+              <option value="0.05">5%</option>
+              <option value="0.10">10%</option>
+              <option value="0.15">15%</option>
+              <option value="0.20">20%</option>
+              <option value="0.25">25%</option>
+              <option value="0.30">30%</option>
+            </select>
+          </div>
+          <div class="liq-field"><label>Agente Aduanas + Gastos (%)</label>
+            <select id="liqAgente" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0.005">0.5%</option>
+              <option value="0.01">1.0%</option>
+              <option value="0.015">1.5%</option>
+              <option value="0.02" selected>2.0%</option>
+              <option value="0.025">2.5%</option>
+              <option value="0.03">3.0%</option>
+              <option value="0.035">3.5%</option>
+              <option value="0.04">4.0%</option>
+            </select>
+          </div>
+          <div class="liq-field"><label>Flete Nacional (COP)</label><input type="number" id="liqFleteNal" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Descargue en cliente (COP)</label><input type="number" id="liqDescargue" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Otros costos (COP)</label><input type="number" id="liqOtros" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Garantías + Marketing (%FOB)</label>
+            <select id="liqGarantia" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0">0% — No aplica</option>
+              <option value="0.03" selected>3% — 12 meses</option>
+              <option value="0.045">4.5% — 24 meses</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Col 2: Costos calculados -->
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #575756">Cálculo de Costos</div>
+          <div id="liqCostosTable" style="font-size:13px"></div>
+        </div>
+
+        <!-- Col 3: Precio de venta y resultados -->
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Precio de Venta</div>
+          <div class="liq-field"><label>Instalación (COP)</label><input type="number" id="liqInstalacion" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Costo Financiación (COP)</label><input type="number" id="liqCostoFin" value="0" readonly style="background:#f5f5f5;color:#888"></div>
+          <div class="liq-field"><label>Descuento a cliente (%)</label><input type="number" id="liqDescCliente" value="0" min="0" max="50" oninput="liqCalc()"></div>
+          <div style="margin-top:16px" id="liqResultados"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ INSTALACIÓN ═══ -->
+    <div id="liqPanelInstalacion" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Parámetros de Instalación</div>
+          <div class="liq-field"><label>TRM</label><input type="number" id="instTRM" value="3650" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Máquina (para horas estándar)</label>
+            <select id="instMaquina" onchange="instSelMaquina()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px"></select>
+          </div>
+          <div class="liq-field"><label>Horas de instalación</label><input type="number" id="instHoras" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Tiquete nacional (COP)</label><input type="number" id="instTiqNal" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Tiquete internacional (USD)</label><input type="number" id="instTiqInt" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Traslado Cali-Medellín (COP)</label><input type="number" id="instTraslado" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Alojamiento (COP/noche)</label><input type="number" id="instAlojamiento" value="145000" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Días de instalación</label><input type="number" id="instDias" value="0" step="0.5" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Gastos por día (COP)</label><input type="number" id="instGastosDia" value="75000" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Incluir visita premontaje</label>
+            <select id="instPremontaje" onchange="instCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0">No</option>
+              <option value="1">Sí</option>
+            </select>
+          </div>
+        </div>
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #575756">Resultado Instalación</div>
+          <div id="instResultados" style="font-size:13px"></div>
+          <div style="margin-top:16px">
+            <button onclick="instEnviarALiq()" style="width:100%;padding:8px;background:#575756;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">→ Usar este costo en Liquidación</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ FINANCIACIÓN ═══ -->
+    <div id="liqPanelFinanciacion" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Parámetros de Financiación</div>
+          <div class="liq-field"><label>Tipo de financiación</label>
+            <select id="finTipo" onchange="finCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="ayj">AYJ Financia</option>
+              <option value="fsm">FSM (Financiamos Su Máquina)</option>
+            </select>
+          </div>
+          <div class="liq-field"><label>Valor a financiar (COP)</label><input type="number" id="finValor" value="0" oninput="finCalc()"></div>
+          <div class="liq-field"><label>Plazo (meses)</label><input type="number" id="finMeses" value="3" min="1" max="36" oninput="finCalc()"></div>
+          <div id="finTasaInfo" style="font-size:11px;color:#888;margin-bottom:12px;padding:8px;background:#f5f5f5;border-radius:4px"></div>
+          <div id="finFSMcostos" style="display:none">
+            <div style="font-size:11px;font-weight:600;color:#575756;margin-bottom:8px">Costos FSM:</div>
+            <div class="liq-field"><label>Costo estudio (COP)</label><input type="number" id="finCostoEstudio" value="800000" oninput="finCalc()"></div>
+          </div>
+        </div>
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #575756">Tabla de Amortización</div>
+          <div id="finResultados" style="font-size:12px;max-height:400px;overflow-y:auto"></div>
+          <div style="margin-top:12px">
+            <button onclick="finEnviarALiq()" style="width:100%;padding:8px;background:#575756;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">→ Usar costo financiero en Liquidación</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.liq-field{margin-bottom:10px}
+.liq-field label{display:block;font-size:11px;color:#666;margin-bottom:3px;font-weight:500}
+.liq-field input{width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;font-family:inherit;box-sizing:border-box}
+.liq-field input:focus{outline:none;border-color:#80A61B}
+.liq-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px}
+.liq-row.total{font-weight:700;font-size:13px;border-top:2px solid #ddd;border-bottom:none;padding-top:8px;margin-top:4px}
+.liq-kpi{background:#f5f7f0;border-radius:6px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #80A61B}
+.liq-kpi .label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px}
+.liq-kpi .value{font-size:18px;font-weight:800;color:#575756}
+.liq-kpi .sub{font-size:11px;color:#aaa;margin-top:1px}
+</style>
+</body></html>';
 
   if(soloRetornar) return html;
   const win=window.open('','_blank','width=960,height=860');
@@ -2821,6 +2981,397 @@ async function exportarPedidoExcel(){
   showToast('✓ Excel descargado','success');
 }
 
+
+// ══════════════════════════════════════════════════════
+// LIQUIDADOR AYJ
+// ══════════════════════════════════════════════════════
+const MAQUINAS_INST=[["ENCHAPADORA M45", "B", "TWM", 12, 1.5], ["ENCHAPADORA GAMA 0", "B", "TWM", 18, 2.25], ["ENCHAPADORA GAMA 1", "B", "TWM", 20, 2.5], ["ENCHAPADORA GAMA 2", "B", "TWM", 26, 3.25], ["ENCHAPADORA GAMA 3", "B", "TWM", 30, 3.75], ["ESCUADRADORA TS16", "C", "TWM", 14, 1.75], ["ESCUADRADORA TS32", "B", "TWM", 18, 2.25], ["PLANEADORA / CEPILLOS / LIJADORA LB / TROMPO", "C", "TWM", 6, 0.75], ["EXTRACTOR EP2 / EP3", "C", "TWM", 3, 0.375], ["EXTRACTOR EP5 / EP7", "C", "TWM", 6, 0.75], ["TRONZADORA / RADIAL", "C", "TWM", 6, 0.75], ["CR01", "C", "TWM", 4, 0.5], ["SIERRA VERTICAL", "B", "BALA", 24, 3], ["BARRENO", "A", "PADE", 16, 2], ["ESPIGADORA", "A", "PADE", 24, 3], ["ENCHAPADORA AKRON/ROXYL", "A", "BIESSE", 56, 7], ["ENCHAPADORA STREAM", "A", "BIESSE", 96, 12], ["LIJADORAS BIESSE", "A", "BIESSE", 40, 5], ["ROVER C - 6FT / C EDGE", "A", "BIESSE", 120, 15], ["ROVER A y C - SKILL - KLEVER - EKO", "A", "BIESSE", 48, 6], ["SECCIONADORA SEKTOR / EB95", "A", "BIESSE", 48, 6], ["SECCIONADORA SERIE 6 y 7", "A", "BIESSE", 56, 7], ["SECCIONADORA SERIE 6 y 7 ROTANTE", "A", "BIESSE", 80, 10], ["SKIPPER 100 / SKIPPER 130", "A", "BIESSE", 56, 7], ["TALADRO DE LINEA TECHNO", "A", "BIESSE", 48, 6], ["TALADRO DE LINEA TECHNO FDT", "A", "BIESSE", 80, 10], ["COSMO / BANCO DE ARMADO", "B", "BIESSE", 24, 3], ["CABINA PRESURIZADA CORAL", "A", "CORAL", 40, 5], ["EXTRACTOR FM / MFM CORAL", "A", "CORAL", 24, 3], ["EXTRACTOR DE POLVO 10HP", "B", "CORAL", 16, 2], ["SECCIONADORA NANXING NPC", "A", "NANXING", 48, 6], ["SECCIONADORA NANXING SERIE 6/7", "A", "NANXING", 56, 7], ["ENCHAPADORA NANXING GAMA 1", "B", "NANXING", 20, 2.5], ["ENCHAPADORA NANXING GAMA 2", "B", "NANXING", 26, 3.25], ["CNC NANXING ATC", "A", "NANXING", 80, 10], ["CNC NANXING BASICO", "A", "NANXING", 48, 6], ["SIERRA ESCUADRADORA JOWAY", "A", "JOWAY", 24, 3], ["PERSONALIZADA (Ingresar horas)", "X", "OTRO", 0, 0]];
+
+let liqDesbloqueado=false;
+const CLAVE_LIQ='AYJ860';
+
+function abrirLiquidador(){
+  if(!liqDesbloqueado){
+    const clave=prompt('Clave para acceder al Liquidador:');
+    if(!clave) return;
+    if(clave!==CLAVE_LIQ){showToast('Clave incorrecta','error');return;}
+    liqDesbloqueado=true;
+    // Poblar select de máquinas
+    const sel=document.getElementById('instMaquina');
+    if(sel) sel.innerHTML=MAQUINAS_INST.map((m,i)=>`<option value="${i}">${m[0]} (${m[3]}h · ${m[2]})</option>`).join('');
+    // Sync TRM
+    const trmV=parseFloat(document.getElementById('trmInput')?.value)||3650;
+    if(document.getElementById('liqTRM')) document.getElementById('liqTRM').value=trmV;
+    if(document.getElementById('instTRM')) document.getElementById('instTRM').value=trmV;
+    liqCalc(); instCalc(); finCalc();
+  }
+  document.getElementById('liquidadorModal').style.display='flex';
+  liqSwitchTab('liquidacion');
+}
+
+function cerrarLiquidador(){
+  document.getElementById('liquidadorModal').style.display='none';
+}
+
+function liqSwitchTab(tab){
+  ['liquidacion','instalacion','financiacion'].forEach(t=>{
+    const panel=document.getElementById('liqPanel'+t.charAt(0).toUpperCase()+t.slice(1));
+    const btn=document.getElementById('liqTab'+(['liquidacion','instalacion','financiacion'].indexOf(t)+1));
+    if(panel) panel.style.display=t===tab?'block':'none';
+    if(btn){btn.style.borderBottomColor=t===tab?'#575756':'transparent';btn.style.color=t===tab?'#575756':'#888';btn.style.fontWeight=t===tab?'600':'400';}
+  });
+}
+
+// ── LIQUIDACIÓN ──────────────────────────────────────
+function liqCalc(){
+  const FOB=parseFloat(document.getElementById('liqFOB')?.value)||0;
+  const TRM=parseFloat(document.getElementById('liqTRM')?.value)||3650;
+  const fleteInt=parseFloat(document.getElementById('liqFleteInt')?.value)||0;
+  const arancel=parseFloat(document.getElementById('liqArancel')?.value)||0;
+  const agente=parseFloat(document.getElementById('liqAgente')?.value)||0.02;
+  const fleteNal=parseFloat(document.getElementById('liqFleteNal')?.value)||0;
+  const descargue=parseFloat(document.getElementById('liqDescargue')?.value)||0;
+  const otros=parseFloat(document.getElementById('liqOtros')?.value)||0;
+  const garantiaPct=parseFloat(document.getElementById('liqGarantia')?.value)||0.03;
+  const instalacion=parseFloat(document.getElementById('liqInstalacion')?.value)||0;
+  const costoFin=parseFloat(document.getElementById('liqCostoFin')?.value)||0;
+  const descCliente=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
+
+  // Cálculo en COP
+  const FOBcop=FOB*TRM;
+  const fleteIntCop=fleteInt*TRM;
+  const CIF=FOB+fleteInt;
+  const CIFcop=CIF*TRM;
+  const arancelCop=CIFcop*arancel;
+  const agenteCop=CIFcop*agente;
+  const ivaImport=CIFcop*0.19; // IVA importación sobre CIF
+  const garantiaCop=FOBcop*garantiaPct;
+  const totalNacionalizacion=arancelCop+agenteCop+ivaImport;
+  const totalCostos=CIFcop+totalNacionalizacion+fleteNal+descargue+otros+garantiaCop+instalacion+costoFin;
+
+  // Precio venta (margen 40% = TC/0.6)
+  const PVN=totalCostos/0.6; // Precio venta neto (margen 40%)
+  const descCop=PVN*descCliente/100;
+  const PVD=PVN-descCop;
+  const IVA=PVD*0.19;
+  const PVIVA=PVD+IVA;
+  const margenReal=PVD>0?(PVD-totalCostos)/PVD*100:0;
+  const utilidadBruta=PVD-totalCostos;
+
+  // PVN en USD
+  const PVNusd=TRM>0?PVN/TRM:0;
+  const PVDusd=TRM>0?PVD/TRM:0;
+
+  const fmt=n=>'COP '+Math.round(n).toLocaleString('es-CO');
+  const fmtU=n=>'USD '+Math.round(n).toLocaleString('es-CO');
+
+  // Tabla costos
+  document.getElementById('liqCostosTable').innerHTML=[
+    ['Precio FOB', fmtU(FOB), fmt(FOBcop)],
+    ['Flete + Seguro Int.', fmtU(fleteInt), fmt(fleteIntCop)],
+    ['Precio CIF', fmtU(CIF), fmt(CIFcop)],
+    ['Arancel ('+Math.round(arancel*100)+'%)', '', fmt(arancelCop)],
+    ['Agente + Gastos ('+Math.round(agente*100)+'%)', '', fmt(agenteCop)],
+    ['IVA Importación 19%', '', fmt(ivaImport)],
+    ['Flete Nacional', '', fmt(fleteNal)],
+    ['Descargue', '', fmt(descargue)],
+    ['Garantías ('+Math.round(garantiaPct*100)+'%)', '', fmt(garantiaCop)],
+    ['Instalación', '', fmt(instalacion)],
+    ['Costo Financiación', '', fmt(costoFin)],
+    ['Otros', '', fmt(otros)],
+  ].map(([l,u,p])=>`<div class="liq-row"><span style="color:#666">${l}</span><span>${u?u+'<br>':''}<strong>${p}</strong></span></div>`).join('')
+  +`<div class="liq-row total"><span>TOTAL COSTOS</span><span><strong style="color:#EF4444">${fmt(totalCostos)}</strong></span></div>`;
+
+  // Resultados
+  document.getElementById('liqResultados').innerHTML=
+    `<div class="liq-kpi"><div class="label">Precio Venta Neto (40% margen)</div><div class="value">${fmtU(PVNusd)}</div><div class="sub">${fmt(PVN)}</div></div>`
+    +`<div class="liq-kpi" style="border-left-color:#575756"><div class="label">Precio con Descuento (${descCliente}%)</div><div class="value">${fmtU(PVDusd)}</div><div class="sub">${fmt(PVD)}</div></div>`
+    +`<div class="liq-kpi" style="border-left-color:#3B82F6"><div class="label">Con IVA 19%</div><div class="value">${fmtU(TRM>0?PVIVA/TRM:0)}</div><div class="sub">${fmt(PVIVA)}</div></div>`
+    +`<div class="liq-kpi" style="border-left-color:${margenReal>=30?'#22C55E':margenReal>=20?'#F59E0B':'#EF4444'}"><div class="label">Margen Real</div><div class="value" style="color:${margenReal>=30?'#166534':margenReal>=20?'#92400E':'#991B1B'}">${margenReal.toFixed(1)}%</div><div class="sub">Utilidad: ${fmt(utilidadBruta)}</div></div>`;
+
+  // Guardar para enviar al carrito
+  window._liqPrecioUSD=PVDusd;
+}
+
+function liqEnviarAlCarrito(){
+  const precio=window._liqPrecioUSD||0;
+  if(!precio){showToast('Calcula un precio primero','error');return;}
+  // Crear item manual en el carrito
+  carrito.push({id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina (Liquidador)',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0});
+  renderCarrito();calcTotales();
+  cerrarLiquidador();
+  switchView('nueva');
+  showToast('✓ Precio USD '+Math.round(precio).toLocaleString('es-CO')+' enviado al carrito','success');
+}
+
+// ── INSTALACIÓN ──────────────────────────────────────
+function instSelMaquina(){
+  const idx=parseInt(document.getElementById('instMaquina').value)||0;
+  const m=MAQUINAS_INST[idx];
+  if(m&&m[3]>0){
+    document.getElementById('instHoras').value=m[3];
+    document.getElementById('instDias').value=m[4];
+  }
+  instCalc();
+}
+
+function instCalc(){
+  const TRM=parseFloat(document.getElementById('instTRM')?.value)||3650;
+  const horas=parseFloat(document.getElementById('instHoras')?.value)||0;
+  const tiqNal=parseFloat(document.getElementById('instTiqNal')?.value)||0;
+  const tiqIntUSD=parseFloat(document.getElementById('instTiqInt')?.value)||0;
+  const traslado=parseFloat(document.getElementById('instTraslado')?.value)||0;
+  const aloj=parseFloat(document.getElementById('instAlojamiento')?.value)||145000;
+  const dias=parseFloat(document.getElementById('instDias')?.value)||0;
+  const gastosDia=parseFloat(document.getElementById('instGastosDia')?.value)||75000;
+  const premontaje=parseInt(document.getElementById('instPremontaje')?.value)||0;
+  const VALOR_HORA=51300;
+
+  const costoHoras=horas*VALOR_HORA;
+  const tiqIntCop=tiqIntUSD*TRM;
+  const alojTotal=aloj*Math.ceil(dias);
+  const gastosTotal=gastosDia*dias;
+  const subtotalInst=costoHoras+tiqNal+tiqIntCop+traslado+alojTotal+gastosTotal;
+  // Premontaje = 50% de instalación
+  const premontajeCop=premontaje?subtotalInst*0.5:0;
+  const total=subtotalInst+premontajeCop;
+
+  const fmt=n=>'COP '+Math.round(n).toLocaleString('es-CO');
+  document.getElementById('instResultados').innerHTML=
+    [['Horas instalación ('+horas+'h × $'+VALOR_HORA.toLocaleString('es-CO')+')',fmt(costoHoras)],
+     ['Tiquete nacional',fmt(tiqNal)],
+     ['Tiquete internacional',fmt(tiqIntCop)],
+     ['Traslado',fmt(traslado)],
+     ['Alojamiento ('+Math.ceil(dias)+' noches)',fmt(alojTotal)],
+     ['Gastos diarios ('+dias+' días)',fmt(gastosTotal)],
+    ].map(([l,v])=>`<div class="liq-row"><span style="color:#666">${l}</span><span>${v}</span></div>`).join('')
+    +(premontaje?`<div class="liq-row"><span style="color:#666">Visita premontaje (50%)</span><span>${fmt(premontajeCop)}</span></div>`:'')
+    +`<div class="liq-row total"><span>TOTAL INSTALACIÓN</span><span><strong style="color:#80A61B">${fmt(total)}</strong></span></div>`;
+  window._instTotal=total;
+}
+
+function instEnviarALiq(){
+  const val=window._instTotal||0;
+  const el=document.getElementById('liqInstalacion');
+  if(el){el.value=Math.round(val);liqCalc();}
+  liqSwitchTab('liquidacion');
+  showToast('✓ Costo instalación enviado a Liquidación','success');
+}
+
+// ── FINANCIACIÓN ──────────────────────────────────────
+function finCalc(){
+  const tipo=document.getElementById('finTipo')?.value||'ayj';
+  const valor=parseFloat(document.getElementById('finValor')?.value)||0;
+  const meses=parseInt(document.getElementById('finMeses')?.value)||3;
+  const costoEstudio=parseFloat(document.getElementById('finCostoEstudio')?.value)||800000;
+  document.getElementById('finFSMcostos').style.display=tipo==='fsm'?'block':'none';
+
+  // Tasa según tramo (igual que Excel)
+  let tasa=0.025;
+  if(tipo==='fsm'){
+    if(valor<30000000)tasa=0.03;
+    else if(valor<75000000)tasa=0.025;
+    else if(valor<150000000)tasa=0.02;
+    else if(valor<300000000)tasa=0.015;
+    else tasa=0.01;
+    document.getElementById('finTasaInfo').textContent='Tasa FSM: '+Math.round(tasa*100)+'% · Costo estudio: COP '+costoEstudio.toLocaleString('es-CO');
+  } else {
+    tasa=0.025; // 2.5% mensual AYJ
+    document.getElementById('finTasaInfo').textContent='Tasa AYJ: 2.5% mensual';
+  }
+
+  // Cuota fija
+  const cuota=valor>0&&meses>0?valor*tasa*Math.pow(1+tasa,meses)/(Math.pow(1+tasa,meses)-1):0;
+  let saldo=valor;
+  let totalIntereses=0;
+  const rows=[];
+  for(let i=1;i<=meses;i++){
+    const interes=saldo*tasa;
+    const capital=cuota-interes;
+    totalIntereses+=interes;
+    saldo=Math.max(0,saldo-capital);
+    rows.push(`<tr style="font-size:11px"><td style="padding:3px 6px">${i}</td><td style="padding:3px 6px;text-align:right">${Math.round(cuota).toLocaleString('es-CO')}</td><td style="padding:3px 6px;text-align:right">${Math.round(interes).toLocaleString('es-CO')}</td><td style="padding:3px 6px;text-align:right">${Math.round(capital).toLocaleString('es-CO')}</td></tr>`);
+  }
+  const costoFSM=tipo==='fsm'?valor*0.03+costoEstudio+1250000:0;
+  const costoTotal=tipo==='fsm'?costoFSM:totalIntereses;
+
+  document.getElementById('finResultados').innerHTML=
+    `<table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      <thead><tr style="background:#f5f5f5;font-size:11px"><th style="padding:4px 6px;text-align:left">Cuota</th><th style="padding:4px 6px;text-align:right">Valor</th><th style="padding:4px 6px;text-align:right">Interés</th><th style="padding:4px 6px;text-align:right">Capital</th></tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table>`
+    +`<div class="liq-row total"><span>COSTO FINANCIACIÓN</span><span><strong style="color:#3B82F6">COP ${Math.round(costoTotal).toLocaleString('es-CO')}</strong></span></div>`
+    +`<div class="liq-row"><span style="color:#666">Total a pagar</span><span>COP ${Math.round(valor+costoTotal).toLocaleString('es-CO')}</span></div>`;
+  window._finCosto=costoTotal;
+}
+
+function finEnviarALiq(){
+  const val=window._finCosto||0;
+  const el=document.getElementById('liqCostoFin');
+  if(el){el.value=Math.round(val);liqCalc();}
+  liqSwitchTab('liquidacion');
+  showToast('✓ Costo financiación enviado a Liquidación','success');
+}
+
 initMsal();
 </script>
+
+<!-- LIQUIDADOR MODAL -->
+<div id="liquidadorModal" style="display:none;position:fixed;inset:0;z-index:1000;background:#f0f4f8;flex-direction:column;overflow:hidden">
+  <!-- Header -->
+  <div style="background:#575756;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+    <span style="font-size:14px;font-weight:700;letter-spacing:0.5px">🔒 LIQUIDADOR AYJ — Uso Interno</span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button onclick="liqEnviarAlCarrito()" style="background:#80A61B;border:none;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"><i class="ti ti-shopping-cart"></i> Enviar precio al carrito</button>
+      <button onclick="cerrarLiquidador()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-x"></i> Cerrar</button>
+    </div>
+  </div>
+  <!-- Sub-tabs -->
+  <div style="background:#fff;border-bottom:1px solid #ddd;display:flex;flex-shrink:0">
+    <button id="liqTab1" onclick="liqSwitchTab('liquidacion')" style="padding:10px 20px;border:none;border-bottom:2px solid #575756;background:none;font-size:13px;font-weight:600;color:#575756;cursor:pointer;font-family:inherit">📊 Liquidación</button>
+    <button id="liqTab2" onclick="liqSwitchTab('instalacion')" style="padding:10px 20px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;color:#888;cursor:pointer;font-family:inherit">🔧 Instalación</button>
+    <button id="liqTab3" onclick="liqSwitchTab('financiacion')" style="padding:10px 20px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;color:#888;cursor:pointer;font-family:inherit">💳 Financiación</button>
+  </div>
+  <!-- Content area -->
+  <div style="flex:1;overflow-y:auto;padding:20px">
+
+    <!-- ═══ LIQUIDACIÓN ═══ -->
+    <div id="liqPanelLiquidacion">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+
+        <!-- Col 1: Datos de compra -->
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Variables de Importación</div>
+          <div class="liq-field"><label>Precio FOB (USD)</label><input type="number" id="liqFOB" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>TRM (COP/USD)</label><input type="number" id="liqTRM" value="3650" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Flete + Seguro Int. (USD)</label><input type="number" id="liqFleteInt" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Arancel (%)</label>
+            <select id="liqArancel" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0">0% — Sin arancel</option>
+              <option value="0.05">5%</option>
+              <option value="0.10">10%</option>
+              <option value="0.15">15%</option>
+              <option value="0.20">20%</option>
+              <option value="0.25">25%</option>
+              <option value="0.30">30%</option>
+            </select>
+          </div>
+          <div class="liq-field"><label>Agente Aduanas + Gastos (%)</label>
+            <select id="liqAgente" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0.005">0.5%</option>
+              <option value="0.01">1.0%</option>
+              <option value="0.015">1.5%</option>
+              <option value="0.02" selected>2.0%</option>
+              <option value="0.025">2.5%</option>
+              <option value="0.03">3.0%</option>
+              <option value="0.035">3.5%</option>
+              <option value="0.04">4.0%</option>
+            </select>
+          </div>
+          <div class="liq-field"><label>Flete Nacional (COP)</label><input type="number" id="liqFleteNal" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Descargue en cliente (COP)</label><input type="number" id="liqDescargue" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Otros costos (COP)</label><input type="number" id="liqOtros" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Garantías + Marketing (%FOB)</label>
+            <select id="liqGarantia" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0">0% — No aplica</option>
+              <option value="0.03" selected>3% — 12 meses</option>
+              <option value="0.045">4.5% — 24 meses</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Col 2: Costos calculados -->
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #575756">Cálculo de Costos</div>
+          <div id="liqCostosTable" style="font-size:13px"></div>
+        </div>
+
+        <!-- Col 3: Precio de venta y resultados -->
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Precio de Venta</div>
+          <div class="liq-field"><label>Instalación (COP)</label><input type="number" id="liqInstalacion" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Costo Financiación (COP)</label><input type="number" id="liqCostoFin" value="0" readonly style="background:#f5f5f5;color:#888"></div>
+          <div class="liq-field"><label>Descuento a cliente (%)</label><input type="number" id="liqDescCliente" value="0" min="0" max="50" oninput="liqCalc()"></div>
+          <div style="margin-top:16px" id="liqResultados"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ INSTALACIÓN ═══ -->
+    <div id="liqPanelInstalacion" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Parámetros de Instalación</div>
+          <div class="liq-field"><label>TRM</label><input type="number" id="instTRM" value="3650" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Máquina (para horas estándar)</label>
+            <select id="instMaquina" onchange="instSelMaquina()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px"></select>
+          </div>
+          <div class="liq-field"><label>Horas de instalación</label><input type="number" id="instHoras" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Tiquete nacional (COP)</label><input type="number" id="instTiqNal" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Tiquete internacional (USD)</label><input type="number" id="instTiqInt" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Traslado Cali-Medellín (COP)</label><input type="number" id="instTraslado" value="0" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Alojamiento (COP/noche)</label><input type="number" id="instAlojamiento" value="145000" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Días de instalación</label><input type="number" id="instDias" value="0" step="0.5" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Gastos por día (COP)</label><input type="number" id="instGastosDia" value="75000" oninput="instCalc()"></div>
+          <div class="liq-field"><label>Incluir visita premontaje</label>
+            <select id="instPremontaje" onchange="instCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="0">No</option>
+              <option value="1">Sí</option>
+            </select>
+          </div>
+        </div>
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #575756">Resultado Instalación</div>
+          <div id="instResultados" style="font-size:13px"></div>
+          <div style="margin-top:16px">
+            <button onclick="instEnviarALiq()" style="width:100%;padding:8px;background:#575756;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">→ Usar este costo en Liquidación</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ FINANCIACIÓN ═══ -->
+    <div id="liqPanelFinanciacion" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Parámetros de Financiación</div>
+          <div class="liq-field"><label>Tipo de financiación</label>
+            <select id="finTipo" onchange="finCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+              <option value="ayj">AYJ Financia</option>
+              <option value="fsm">FSM (Financiamos Su Máquina)</option>
+            </select>
+          </div>
+          <div class="liq-field"><label>Valor a financiar (COP)</label><input type="number" id="finValor" value="0" oninput="finCalc()"></div>
+          <div class="liq-field"><label>Plazo (meses)</label><input type="number" id="finMeses" value="3" min="1" max="36" oninput="finCalc()"></div>
+          <div id="finTasaInfo" style="font-size:11px;color:#888;margin-bottom:12px;padding:8px;background:#f5f5f5;border-radius:4px"></div>
+          <div id="finFSMcostos" style="display:none">
+            <div style="font-size:11px;font-weight:600;color:#575756;margin-bottom:8px">Costos FSM:</div>
+            <div class="liq-field"><label>Costo estudio (COP)</label><input type="number" id="finCostoEstudio" value="800000" oninput="finCalc()"></div>
+          </div>
+        </div>
+        <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #575756">Tabla de Amortización</div>
+          <div id="finResultados" style="font-size:12px;max-height:400px;overflow-y:auto"></div>
+          <div style="margin-top:12px">
+            <button onclick="finEnviarALiq()" style="width:100%;padding:8px;background:#575756;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">→ Usar costo financiero en Liquidación</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.liq-field{margin-bottom:10px}
+.liq-field label{display:block;font-size:11px;color:#666;margin-bottom:3px;font-weight:500}
+.liq-field input{width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;font-family:inherit;box-sizing:border-box}
+.liq-field input:focus{outline:none;border-color:#80A61B}
+.liq-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px}
+.liq-row.total{font-weight:700;font-size:13px;border-top:2px solid #ddd;border-bottom:none;padding-top:8px;margin-top:4px}
+.liq-kpi{background:#f5f7f0;border-radius:6px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #80A61B}
+.liq-kpi .label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px}
+.liq-kpi .value{font-size:18px;font-weight:800;color:#575756}
+.liq-kpi .sub{font-size:11px;color:#aaa;margin-top:1px}
+</style>
 </body></html>
