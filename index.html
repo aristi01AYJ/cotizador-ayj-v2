@@ -2789,6 +2789,7 @@ function abrirLiquidador(){
   }
   document.getElementById('liquidadorModal').style.display='flex';
   liqSwitchTab('liquidacion');
+  liqRefreshChips();
 }
 
 function cerrarLiquidador(){
@@ -2877,37 +2878,123 @@ function liqCalc(){
   window._liqPrecioUSD=PVD;
 }
 
-function liqEnviarAlCarrito(){
+// ── LIQUIDADOR MULTI-MÁQUINA ──────────────────────────
+let liqEditandoId=null; // ID del item del carrito que se está editando
+
+function liqGetItem(){
   const precio=window._liqPrecioUSD||0;
-  if(!precio){showToast('Calcula un precio primero','error');return;}
+  if(!precio){showToast('Calcula un precio primero','error');return null;}
   const sel=document.getElementById('liqMaquinaSel');
   const gkey=sel?.value||'';
-  let item;
+  let item=null;
   if(gkey.startsWith('g_')){
     const key=gkey.slice(2);
     const g=grupos.find(x=>x.key===key);
     if(g){
       const tipo=g.stockCount>0?'stock':g.importCount>0?'importacion':'pedido';
-      item={id:'liq_'+Date.now(),grupoKey:null,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount};
+      item={grupoKey:null,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount};
     }
   } else if(gkey.startsWith('bp_')){
     const id=gkey.slice(3);
     const m=bajosPedido.find(x=>x.id===id);
-    if(m) item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo||'',tipologia:m.tipologia||'',tarifa:precio,descripcion:m.descripcion||'',fichaTecnica:m.fichaTecnica||'',ytVideo:m.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
+    if(m) item={grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo||'',tipologia:m.tipologia||'',tarifa:precio,descripcion:m.descripcion||'',fichaTecnica:m.fichaTecnica||'',ytVideo:m.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
   }
-  if(!item) item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador AYJ',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
-  carrito.push(item);
-  // Aplicar descuento del liquidador al carrito
+  if(!item) item={grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
+  return item;
+}
+
+function liqAgregarAlCarrito(){
+  const item=liqGetItem();
+  if(!item) return;
+  if(liqEditandoId){
+    // Modo edición — actualizar item existente
+    const idx=carrito.findIndex(i=>i.id===liqEditandoId);
+    if(idx>=0){
+      carrito[idx]={...item,id:liqEditandoId};
+      showToast('✓ '+item.nombre+' actualizado en carrito','success');
+    }
+    liqEditandoId=null;
+    document.getElementById('liqBtnAgregar').innerHTML='<i class="ti ti-shopping-cart"></i> + Agregar';
+    document.getElementById('liqBtnAgregar').style.background='#80A61B';
+  } else {
+    // Modo nuevo
+    item.id='liq_'+Date.now();
+    carrito.push(item);
+    showToast('✓ '+item.nombre+' agregado al carrito','success');
+  }
+  // Aplicar descuento
   const descLiq=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
   if(descLiq>0){
     document.getElementById('descInput').value=descLiq;
     validarDescuento(document.getElementById('descInput'));
   }
   renderCarrito();calcTotales();
-  cerrarLiquidador();
-  switchView('nueva');
-  showToast('✓ Precio USD '+Math.round(precio).toLocaleString('es-CO')+' + descuento '+descLiq+'% enviados al carrito','success');
+  liqRefreshChips();
+  liqLimpiarCampos();
 }
+
+function liqLimpiarCampos(){
+  // Limpia FOB y máquina, mantiene TRM/arancel/agente
+  ['liqFOB','liqFleteInt','liqFleteNal','liqDescargue','liqOtros','liqInstalacion','liqCostoFin'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value=0;
+  });
+  const sel=document.getElementById('liqMaquinaSel');
+  if(sel) sel.value='';
+  const ds=document.getElementById('liqDescSlider'); if(ds) ds.value=0;
+  const dn=document.getElementById('liqDescCliente'); if(dn) dn.value=0;
+  const dl=document.getElementById('liqDescLabel'); if(dl) dl.textContent='0%';
+  window._liqPrecioUSD=0;
+  liqCalc();
+}
+
+function liqRefreshChips(){
+  const chips=document.getElementById('liqChips');
+  if(!chips) return;
+  const liqItems=carrito.filter(i=>i.id&&i.id.startsWith('liq_'));
+  chips.innerHTML=liqItems.map(item=>`
+    <div style="display:flex;align-items:center;gap:4px;background:${liqEditandoId===item.id?'#F59E0B':'rgba(255,255,255,0.15)'};border-radius:20px;padding:3px 8px 3px 10px;font-size:11px;cursor:pointer;border:1px solid ${liqEditandoId===item.id?'#F59E0B':'transparent'}"
+      onclick="liqEditarItem('${item.id}')">
+      <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.nombre}</span>
+      <span style="opacity:0.7;margin-left:2px">USD ${Math.round(item.tarifa).toLocaleString('es-CO')}</span>
+      <button onclick="event.stopPropagation();liqQuitarItem('${item.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;margin-left:4px;font-family:inherit">×</button>
+    </div>`).join('');
+}
+
+function liqEditarItem(id){
+  const item=carrito.find(i=>i.id===id);
+  if(!item) return;
+  liqEditandoId=id;
+  // Destacar chip
+  liqRefreshChips();
+  // Cambiar botón
+  const btn=document.getElementById('liqBtnAgregar');
+  btn.innerHTML='<i class="ti ti-check"></i> Actualizar';
+  btn.style.background='#F59E0B';
+  // Pre-cargar máquina en el selector
+  const sel=document.getElementById('liqMaquinaSel');
+  if(sel){
+    // Buscar por nombre
+    const opt=[...sel.options].find(o=>o.text.startsWith(item.nombre));
+    if(opt) sel.value=opt.value;
+  }
+  showToast('Editando: '+item.nombre+' — modifica y presiona Actualizar','success');
+}
+
+function liqQuitarItem(id){
+  carrito=carrito.filter(i=>i.id!==id);
+  if(liqEditandoId===id){
+    liqEditandoId=null;
+    const btn=document.getElementById('liqBtnAgregar');
+    btn.innerHTML='<i class="ti ti-shopping-cart"></i> + Agregar';
+    btn.style.background='#80A61B';
+  }
+  renderCarrito();calcTotales();
+  liqRefreshChips();
+  showToast('Máquina eliminada del carrito','success');
+}
+
+// Mantener compatibilidad
+function liqEnviarAlCarrito(){ liqAgregarAlCarrito(); }
 
 // ── INSTALACIÓN ──────────────────────────────────────
 function instSelMaquina(){
@@ -3278,12 +3365,14 @@ initMsal();
 
 <!-- LIQUIDADOR MODAL -->
 <div id="liquidadorModal" style="display:none;position:fixed;inset:0;z-index:1000;background:#f0f4f8;flex-direction:column;overflow:hidden">
-  <div style="background:#575756;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0">
-    <span style="font-size:14px;font-weight:700;letter-spacing:0.5px">🔒 LIQUIDADOR AYJ — Uso Interno</span>
-    <div style="margin-left:auto;display:flex;gap:8px">
-      <button onclick="liqEnviarAlCarrito()" style="background:#80A61B;border:none;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"><i class="ti ti-shopping-cart"></i> Enviar precio al carrito</button>
-      <button onclick="liqImprimir()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-printer"></i> Imprimir PDF</button>
-      <button onclick="cerrarLiquidador()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-x"></i> Cerrar</button>
+  <div style="background:#575756;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:700;letter-spacing:0.5px;white-space:nowrap">🔒 LIQUIDADOR AYJ</span>
+    <!-- Chips de máquinas en carrito -->
+    <div id="liqChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1"></div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button id="liqBtnAgregar" onclick="liqAgregarAlCarrito()" style="background:#80A61B;border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap"><i class="ti ti-shopping-cart"></i> + Agregar</button>
+      <button onclick="liqImprimir()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-printer"></i></button>
+      <button onclick="cerrarLiquidador()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-x"></i></button>
     </div>
   </div>
   <div style="background:#fff;border-bottom:1px solid #ddd;display:flex;flex-shrink:0">
