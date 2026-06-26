@@ -1044,6 +1044,12 @@ async function resolverSite(){
 function mapItem(i){
   const f=i.fields;
   let tarifa=0;
+  // Log raw SP para diagnóstico horas (solo primera vez)
+  if(!window._loggedFields&&f.Title){
+    const horasKeys=Object.keys(f).filter(k=>k.toLowerCase().includes('hora')||k.toLowerCase().includes('inst'));
+    if(horasKeys.length) console.log('[AYJ SP campos horas]',f.Title,horasKeys.reduce((o,k)=>({...o,[k]:f[k]}),{}));
+    window._loggedFields=true;
+  }
   const tarifaRaw=f.TARIFA||f.TARIFA_SUGERIDO||0;
       if(tarifaRaw){const clean=String(tarifaRaw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');tarifa=parseFloat(clean)||0;}
   const _ft=f.Ficha_x0020_Tecnica||f.FichaTecnica||f.Ficha_Tecnica||null;
@@ -1057,7 +1063,12 @@ function mapItem(i){
     fichaTecnica,
     ytVideo:(()=>{const v=f.YTvideo||f.YTVideo||f.Ytvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
     observaciones:(f.Observaciones||'').trim(),
-    horasInstalacion:parseFloat(String(f.HorasInstalacion||f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.Horas_x0020_Instalacion||'0').replace(',','.')||0),
+    horasInstalacion:(()=>{
+      const v=f.HorasInstalacion||f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.Horas_x0020_Instalacion||null;
+      if(v===null||v===undefined){return 0;}
+      const n=parseFloat(String(v).replace(',','.'));
+      return isNaN(n)?0:n;
+    })(),
   };
 }
 
@@ -1115,6 +1126,11 @@ async function cargarMaquinas(){
 }
 
 function procesarCatalogo(){
+  // DEBUG horas instalacion — ver en consola
+  if(rawMaquinas.length>0){
+    const sample=rawMaquinas.slice(0,3);
+    console.log('[AYJ] Muestra campos horas:',sample.map(m=>({title:m.title,horasInstalacion:m.horasInstalacion})));
+  }
   const disponibles=rawMaquinas.filter(m=>m.estadoDisp==='DISPONIBLE');
   bajosPedido=rawMaquinas.filter(m=>m.estadoDisp==='BAJO PEDIDO').sort((a,b)=>a.title.localeCompare(b.title,'es'));
   const mapa={};
