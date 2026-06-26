@@ -2893,10 +2893,16 @@ function liqEnviarAlCarrito(){
     item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador AYJ',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
   }
   carrito.push(item);
+  // Aplicar descuento del liquidador al carrito
+  const descLiq=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
+  if(descLiq>0){
+    document.getElementById('descInput').value=descLiq;
+    validarDescuento(document.getElementById('descInput'));
+  }
   renderCarrito();calcTotales();
   cerrarLiquidador();
   switchView('nueva');
-  showToast('✓ Precio USD '+Math.round(precio).toLocaleString('es-CO')+' enviado al carrito','success');
+  showToast('✓ Precio USD '+Math.round(precio).toLocaleString('es-CO')+' + descuento '+descLiq+'% enviados al carrito','success');
 }
 
 // ── INSTALACIÓN ──────────────────────────────────────
@@ -3342,8 +3348,10 @@ initMsal();
             <label>Margen AYJ: <strong id="liqMargenLabel" style="color:#80A61B">50%</strong></label>
             <input type="range" id="liqMargenSlider" min="10" max="70" value="50" oninput="document.getElementById('liqMargenLabel').textContent=this.value+'%';liqCalc()" style="width:100%;accent-color:#80A61B">
           </div>
-          <div class="liq-field"><label>Descuento al cliente (%)</label>
-            <input type="number" id="liqDescCliente" value="0" min="0" max="50" oninput="liqCalc()">
+          <div class="liq-field">
+            <label>Descuento al cliente: <strong id="liqDescLabel" style="color:#575756">0%</strong></label>
+            <input type="range" id="liqDescSlider" min="0" max="20" value="0" oninput="document.getElementById('liqDescLabel').textContent=this.value+'%';document.getElementById('liqDescCliente').value=this.value;liqCalc()" style="width:100%;accent-color:#575756">
+            <input type="number" id="liqDescCliente" value="0" min="0" max="20" oninput="document.getElementById('liqDescLabel').textContent=this.value+'%';document.getElementById('liqDescSlider').value=this.value;liqCalc()" style="width:60px;margin-top:4px">
           </div>
           <div style="margin-top:12px" id="liqResultados"></div>
         </div>
