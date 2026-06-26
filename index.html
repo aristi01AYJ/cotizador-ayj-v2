@@ -3030,6 +3030,214 @@ function finEnviarALiq(){
 }
 
 
+
+// ══ IMPRIMIR LIQUIDACIÓN ══════════════════════════════════════════════
+function liqImprimir(){
+  const TRM=parseFloat(document.getElementById('liqTRM')?.value)||3650;
+  const FOB=parseFloat(document.getElementById('liqFOB')?.value)||0;
+  const fleteInt=parseFloat(document.getElementById('liqFleteInt')?.value)||0;
+  const arancel=parseFloat(document.getElementById('liqArancel')?.value)||0;
+  const agente=parseFloat(document.getElementById('liqAgente')?.value)||0.02;
+  const fleteNal=parseFloat(document.getElementById('liqFleteNal')?.value)||0;
+  const descargue=parseFloat(document.getElementById('liqDescargue')?.value)||0;
+  const otros=parseFloat(document.getElementById('liqOtros')?.value)||0;
+  const garantiaPct=parseFloat(document.getElementById('liqGarantia')?.value)||0.03;
+  const instalacion=parseFloat(document.getElementById('liqInstalacion')?.value)||0;
+  const costoFin=parseFloat(document.getElementById('liqCostoFin')?.value)||0;
+  const descCliente=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
+  const margenPct=parseFloat(document.getElementById('liqMargenSlider')?.value)||50;
+  const selMaq=document.getElementById('liqMaquinaSel');
+  const maqNombre=selMaq?.options[selMaq.selectedIndex]?.text||'—';
+
+  // Instalación
+  const horas=parseFloat(document.getElementById('instHoras')?.value)||0;
+  const cantTiqNal=parseFloat(document.getElementById('instCantTiqNal')?.value)||0;
+  const cantTiqInt=parseFloat(document.getElementById('instCantTiqInt')?.value)||0;
+  const cantTraslado=parseFloat(document.getElementById('instCantTraslado')?.value)||0;
+  const noches=parseFloat(document.getElementById('instNoches')?.value)||0;
+  const diasInt=parseFloat(document.getElementById('instDiasInt')?.value)||0;
+  const dias=horas>0?Math.ceil(horas/8*2)/2:0;
+  const instMaqNombre=document.getElementById('instMaquina')?.options[document.getElementById('instMaquina')?.selectedIndex]?.text||'—';
+  const premontaje=parseInt(document.getElementById('instPremontaje')?.value)||0;
+  const instTotal=window._instTotal||0;
+
+  // Financiación
+  const finTipo=document.getElementById('finTipo')?.value||'ayj';
+  const finValor=parseFloat(document.getElementById('finValor')?.value)||0;
+  const finMeses=parseInt(document.getElementById('finMeses')?.value)||3;
+  const finTRM=parseFloat(document.getElementById('finTRM')?.value)||3650;
+  const finTotal=window._finCosto||0;
+
+  // Cálculos
+  const CIF=FOB+fleteInt;
+  const arancelUSD=CIF*arancel;
+  const agenteUSD=CIF*agente;
+  const ivaImportUSD=CIF*0.19;
+  const garantiaUSD=FOB*garantiaPct;
+  const totalCostosUSD=CIF+arancelUSD+agenteUSD+ivaImportUSD+fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
+  const m=margenPct/100;
+  const PVN=m<1?totalCostosUSD/(1-m):totalCostosUSD*2;
+  const PVD=PVN*(1-descCliente/100);
+  const PVIVA=PVD*1.19;
+  const margenReal=PVD>0?(PVD-totalCostosUSD)/PVD*100:0;
+  const utilidadUSD=PVD-totalCostosUSD;
+  const descTotal=Math.min(50,Math.round(descCliente));
+  const comPct=(TABLA_MG[descTotal]||[0,0])[1];
+  const comUSD=PVD*comPct/100;
+
+  const fU=n=>'USD '+Math.round(n).toLocaleString('es-CO');
+  const fC=n=>'COP '+Math.round(n*TRM).toLocaleString('es-CO');
+  const fecha=new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
+  const asesor=document.getElementById('userChip')?.textContent||'—';
+
+  const filaC=(l,u,c,bold=false)=>`<tr><td style="padding:5px 10px;color:#555;border-bottom:1px solid #eee">${l}</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;font-weight:${bold?'700':'400'}">${u}</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;color:#888;font-weight:${bold?'700':'400'}">${c}</td></tr>`;
+  const kpi=(label,val,sub,color='#575756')=>`<div style="background:#f9f9f9;border-radius:6px;padding:10px 14px;border-left:3px solid ${color}"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px">${label}</div><div style="font-size:18px;font-weight:800;color:${color}">${val}</div><div style="font-size:11px;color:#aaa">${sub}</div></div>`;
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Liquidación AYJ — ${fecha}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:12px;color:#333;background:#fff}
+  .page{width:210mm;min-height:297mm;padding:15mm 18mm;page-break-after:always}
+  .page:last-child{page-break-after:auto}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #80A61B}
+  .logo-area h1{font-size:18px;color:#575756;font-weight:800}
+  .logo-area p{font-size:11px;color:#80A61B;font-weight:600}
+  .meta{text-align:right;font-size:11px;color:#666;line-height:1.6}
+  .section-title{font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #e0e0e0}
+  table{width:100%;border-collapse:collapse}
+  th{background:#575756;color:#fff;padding:6px 10px;text-align:left;font-size:11px}
+  th:not(:first-child){text-align:right}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+  .total-box{background:#575756;color:#fff;padding:12px 16px;border-radius:6px;text-align:right}
+  .confidencial{background:#FEF3C7;border:1px solid #F59E0B;padding:6px 10px;border-radius:4px;font-size:10px;color:#92400E;margin-bottom:12px;text-align:center;font-weight:600}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{margin:0;padding:12mm 15mm}}
+</style></head><body>
+
+<!-- PÁGINA 1: LIQUIDACIÓN -->
+<div class="page">
+  <div class="header">
+    <div class="logo-area">
+      <h1>AYJ Maquinaria</h1>
+      <p>Aristizábal y Jinete S.A.S. · NIT: 860.079.605-6</p>
+    </div>
+    <div class="meta">
+      <strong style="font-size:14px;color:#575756">LIQUIDACIÓN INTERNA</strong><br>
+      Fecha: ${fecha}<br>
+      Asesor: ${asesor}<br>
+      Máquina: <strong>${maqNombre}</strong>
+    </div>
+  </div>
+  <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
+
+  <div class="grid2">
+    <div>
+      <div class="section-title">Variables de Importación</div>
+      <table>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">TRM</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">$ ${TRM.toLocaleString('es-CO')} COP/USD</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Precio FOB</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${fU(FOB)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete + Seguro Int.</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteInt)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Precio CIF</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${fU(CIF)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Arancel (${Math.round(arancel*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(arancelUSD)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Agente + Gastos (${Math.round(agente*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(agenteUSD)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">IVA Importación 19%</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(ivaImportUSD)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete Nacional</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteNal)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Descargue</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(descargue)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Garantías (${Math.round(garantiaPct*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(garantiaUSD)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Instalación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(instalacion)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Costo Financiación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(costoFin)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Otros</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(otros)}</td></tr>
+        <tr style="background:#f5f5f5"><td style="padding:6px 8px;font-weight:700">TOTAL COSTOS</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#EF4444">${fU(totalCostosUSD)}<br><span style="font-size:10px;color:#aaa">${fC(totalCostosUSD)}</span></td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="section-title">Resultados Económicos</div>
+      <div style="display:grid;gap:8px">
+        ${kpi('Precio Venta Neto ('+margenPct+'% margen)',fU(PVN),fC(PVN),'#80A61B')}
+        ${kpi('Con Descuento '+descCliente+'%',fU(PVD),fC(PVD),'#575756')}
+        ${kpi('Con IVA 19%',fU(PVIVA),fC(PVIVA),'#3B82F6')}
+        ${kpi('Margen Real · Utilidad',margenReal.toFixed(1)+'%',fU(utilidadUSD)+' · '+fC(utilidadUSD),margenReal>=35?'#22C55E':margenReal>=25?'#F59E0B':'#EF4444')}
+        ${kpi('Comisión Asesor ('+comPct.toFixed(3)+'%)',fU(comUSD),fC(comUSD),'#F59E0B')}
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:16px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:8px;text-align:center">
+    AYJ Maquinaria · Uso exclusivo interno · ${fecha}
+  </div>
+</div>
+
+<!-- PÁGINA 2: INSTALACIÓN -->
+<div class="page">
+  <div class="header">
+    <div class="logo-area"><h1>AYJ Maquinaria</h1><p>Cálculo de Instalación</p></div>
+    <div class="meta">Fecha: ${fecha}<br>Asesor: ${asesor}</div>
+  </div>
+  <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
+
+  <div class="section-title">Máquina: ${instMaqNombre}</div>
+  <div class="grid2" style="margin-bottom:16px">
+    <table>
+      <tr><th>Concepto</th><th>Cantidad/Horas</th><th style="text-align:right">USD</th><th style="text-align:right">COP ref.</th></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Horas técnico (× COP 51.300)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${horas}h = ${dias}d</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(horas*51300/TRM)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(horas*51300/TRM)}</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Tiquetes nacionales (× COP 900.000)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${cantTiqNal}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(cantTiqNal*900000/TRM)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(cantTiqNal*900000/TRM)}</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Tiquetes internacionales (× USD 850)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${cantTiqInt}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(cantTiqInt*850)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(cantTiqInt*850)}</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Extra viaje int. (${cantTiqInt}×${diasInt}d × USD 28)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${cantTiqInt*diasInt} días</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(cantTiqInt*diasInt*28)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(cantTiqInt*diasInt*28)}</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Traslados Cali-Med. (× COP 155.000)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${cantTraslado}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(cantTraslado*155000/TRM)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(cantTraslado*155000/TRM)}</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Alojamiento (${noches} noches × COP 145.000)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${noches} noches</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(noches*145000/TRM)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(noches*145000/TRM)}</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Gastos diarios (${dias}d × COP 75.000)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${dias} días</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(dias*75000/TRM)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${fC(dias*75000/TRM)}</td></tr>
+      ${premontaje?`<tr><td style="padding:5px 8px;border-bottom:1px solid #eee">Visita premontaje (50%)</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">—</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fU(instTotal*0.5/(premontaje?1.5:1))}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">—</td></tr>`:''}
+      <tr style="background:#f5f5f5"><td style="padding:6px 8px;font-weight:700" colspan="2">TOTAL INSTALACIÓN</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#80A61B">${fU(instTotal)}</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#aaa">${fC(instTotal)}</td></tr>
+    </table>
+  </div>
+  <div style="margin-top:auto;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:8px;text-align:center">
+    AYJ Maquinaria · Uso exclusivo interno · ${fecha}
+  </div>
+</div>
+
+<!-- PÁGINA 3: FINANCIACIÓN -->
+<div class="page">
+  <div class="header">
+    <div class="logo-area"><h1>AYJ Maquinaria</h1><p>Simulación de Financiación</p></div>
+    <div class="meta">Fecha: ${fecha}<br>Asesor: ${asesor}</div>
+  </div>
+  <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
+
+  <div class="grid3">
+    ${kpi('Valor a Financiar',fU(finValor),fC(finValor),'#3B82F6')}
+    ${kpi('Plazo',finMeses+' meses','Tipo: '+(finTipo==='fsm'?'FSM':'AYJ'),'#575756')}
+    ${kpi('Costo Financiación',fU(finTotal),fC(finTotal),'#F59E0B')}
+  </div>
+
+  <div class="section-title">Tabla de Amortización</div>
+  <table>
+    <tr><th>Cuota</th><th>Saldo Inicial USD</th><th>Cuota USD</th><th>Interés USD</th><th>Capital USD</th></tr>
+    ${(()=>{
+      const tasa=finTipo==='fsm'?(finValor*finTRM<30000000?0.03:finValor*finTRM<75000000?0.025:finValor*finTRM<150000000?0.02:finValor*finTRM<300000000?0.015:0.01):0.025;
+      const cuota=finValor>0&&finMeses>0?finValor*tasa*Math.pow(1+tasa,finMeses)/(Math.pow(1+tasa,finMeses)-1):0;
+      let saldo=finValor; const rows=[];
+      for(let i=1;i<=finMeses;i++){
+        const interes=saldo*tasa; const capital=cuota-interes; const saldoAnt=saldo;
+        saldo=Math.max(0,saldo-capital);
+        rows.push(`<tr style="background:${i%2?'#fff':'#f9f9f9'}"><td style="padding:4px 8px;border-bottom:1px solid #eee">${i}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">USD ${Math.round(saldoAnt).toLocaleString('es-CO')}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600">USD ${Math.round(cuota).toLocaleString('es-CO')}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:#EF4444">USD ${Math.round(interes).toLocaleString('es-CO')}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:#22C55E">USD ${Math.round(capital).toLocaleString('es-CO')}</td></tr>`);
+      }
+      return rows.join('');
+    })()}
+    <tr style="background:#575756;color:#fff"><td style="padding:6px 8px;font-weight:700" colspan="2">TOTAL A PAGAR</td><td style="padding:6px 8px;text-align:right;font-weight:700">USD ${Math.round(finValor+finTotal).toLocaleString('es-CO')}</td><td style="padding:6px 8px;text-align:right">USD ${Math.round(finTotal).toLocaleString('es-CO')}</td><td></td></tr>
+  </table>
+  <div style="margin-top:16px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:8px;text-align:center">
+    AYJ Maquinaria · Uso exclusivo interno · ${fecha}
+  </div>
+</div>
+
+</body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),800);
+}
+
 initMsal();
 </script>
 
@@ -3042,6 +3250,7 @@ initMsal();
     <span style="font-size:14px;font-weight:700;letter-spacing:0.5px">🔒 LIQUIDADOR AYJ — Uso Interno</span>
     <div style="margin-left:auto;display:flex;gap:8px">
       <button onclick="liqEnviarAlCarrito()" style="background:#80A61B;border:none;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"><i class="ti ti-shopping-cart"></i> Enviar precio al carrito</button>
+      <button onclick="liqImprimir()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-printer"></i> Imprimir PDF</button>
       <button onclick="cerrarLiquidador()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit"><i class="ti ti-x"></i> Cerrar</button>
     </div>
   </div>
