@@ -3097,23 +3097,39 @@ function liqImprimir(){
 <title>Liquidación AYJ — ${fecha}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:12px;color:#333;background:#fff}
-  .page{width:210mm;min-height:297mm;padding:15mm 18mm;page-break-after:always}
-  .page:last-child{page-break-after:auto}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #80A61B}
-  .logo-area h1{font-size:18px;color:#575756;font-weight:800}
-  .logo-area p{font-size:11px;color:#80A61B;font-weight:600}
-  .meta{text-align:right;font-size:11px;color:#666;line-height:1.6}
-  .section-title{font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #e0e0e0}
+  body{font-family:Arial,sans-serif;font-size:12px;color:#333;background:#f0f0f0}
+  .print-bar{background:#575756;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+  .print-bar button{background:#80A61B;border:none;color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+  .print-bar button:hover{background:#6a8c16}
+  .page{width:210mm;background:#fff;padding:14mm 16mm;margin:16px auto;box-shadow:0 2px 12px rgba(0,0,0,0.15);border-radius:4px}
+  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:3px solid #80A61B}
+  .logo-area{display:flex;align-items:center;gap:10px}
+  .logo-area img{height:36px}
+  .logo-area div h1{font-size:16px;color:#575756;font-weight:800;line-height:1}
+  .logo-area div p{font-size:10px;color:#80A61B;font-weight:600;margin-top:2px}
+  .meta{text-align:right;font-size:11px;color:#666;line-height:1.7}
+  .section-title{font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid #e0e0e0}
   table{width:100%;border-collapse:collapse}
-  th{background:#575756;color:#fff;padding:6px 10px;text-align:left;font-size:11px}
+  th{background:#575756;color:#fff;padding:5px 8px;text-align:left;font-size:10px}
   th:not(:first-child){text-align:right}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
-  .total-box{background:#575756;color:#fff;padding:12px 16px;border-radius:6px;text-align:right}
-  .confidencial{background:#FEF3C7;border:1px solid #F59E0B;padding:6px 10px;border-radius:4px;font-size:10px;color:#92400E;margin-bottom:12px;text-align:center;font-weight:600}
-  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{margin:0;padding:12mm 15mm}}
+  .confidencial{background:#FEF3C7;border:1px solid #F59E0B;padding:5px 10px;border-radius:4px;font-size:10px;color:#92400E;margin-bottom:10px;text-align:center;font-weight:600}
+  .page-footer{margin-top:14px;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:6px;text-align:center}
+  @media print{
+    body{background:#fff}
+    .print-bar{display:none}
+    .page{margin:0;padding:12mm 15mm;box-shadow:none;border-radius:0;page-break-after:always}
+    .page:last-child{page-break-after:auto}
+    -webkit-print-color-adjust:exact;print-color-adjust:exact
+  }
 </style></head><body>
+<div class="print-bar">
+  <img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" style="height:28px">
+  <span style="font-size:13px;font-weight:600">Liquidación Interna AYJ</span>
+  <button onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+  <span style="margin-left:auto;font-size:11px;opacity:0.7">Documento Confidencial</span>
+</div>
 
 <!-- PÁGINA 1: LIQUIDACIÓN -->
 <div class="page">
@@ -3170,7 +3186,7 @@ function liqImprimir(){
 <!-- PÁGINA 2: INSTALACIÓN -->
 <div class="page">
   <div class="header">
-    <div class="logo-area"><h1>AYJ Maquinaria</h1><p>Cálculo de Instalación</p></div>
+    <div class="logo-area"><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png"><div><h1>AYJ Maquinaria</h1><p>Cálculo de Instalación</p></div></div>
     <div class="meta">Fecha: ${fecha}<br>Asesor: ${asesor}</div>
   </div>
   <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
@@ -3198,7 +3214,7 @@ function liqImprimir(){
 <!-- PÁGINA 3: FINANCIACIÓN -->
 <div class="page">
   <div class="header">
-    <div class="logo-area"><h1>AYJ Maquinaria</h1><p>Simulación de Financiación</p></div>
+    <div class="logo-area"><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png"><div><h1>AYJ Maquinaria</h1><p>Simulación de Financiación</p></div></div>
     <div class="meta">Fecha: ${fecha}<br>Asesor: ${asesor}</div>
   </div>
   <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
@@ -3235,7 +3251,6 @@ function liqImprimir(){
   const w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
-  setTimeout(()=>w.print(),800);
 }
 
 initMsal();
