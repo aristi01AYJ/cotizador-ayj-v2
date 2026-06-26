@@ -2910,8 +2910,23 @@ function liqAgregarAlCarrito(){
     // Modo edición — actualizar item existente
     const idx=carrito.findIndex(i=>i.id===liqEditandoId);
     if(idx>=0){
-      carrito[idx]={...item,id:liqEditandoId};
-      showToast('✓ '+item.nombre+' actualizado en carrito','success');
+      const snap={
+        FOB:document.getElementById('liqFOB')?.value||0,
+        fleteInt:document.getElementById('liqFleteInt')?.value||0,
+        arancel:document.getElementById('liqArancel')?.value||0,
+        agente:document.getElementById('liqAgente')?.value||0.02,
+        fleteNal:document.getElementById('liqFleteNal')?.value||0,
+        descargue:document.getElementById('liqDescargue')?.value||0,
+        otros:document.getElementById('liqOtros')?.value||0,
+        garantia:document.getElementById('liqGarantia')?.value||0.03,
+        instalacion:document.getElementById('liqInstalacion')?.value||0,
+        costoFin:document.getElementById('liqCostoFin')?.value||0,
+        margen:document.getElementById('liqMargenSlider')?.value||50,
+        desc:document.getElementById('liqDescCliente')?.value||0,
+        maqSel:document.getElementById('liqMaquinaSel')?.value||'',
+      };
+      carrito[idx]={...item,id:liqEditandoId,_liqSnapshot:snap};
+      showToast('✓ '+item.nombre+' actualizado','success');
     }
     liqEditandoId=null;
     document.getElementById('liqBtnAgregar').innerHTML='<i class="ti ti-shopping-cart"></i> + Agregar';
@@ -2919,8 +2934,24 @@ function liqAgregarAlCarrito(){
   } else {
     // Modo nuevo
     item.id='liq_'+Date.now();
+    // Guardar snapshot de los campos de liquidación para poder recargarlos
+    item._liqSnapshot={
+      FOB:document.getElementById('liqFOB')?.value||0,
+      fleteInt:document.getElementById('liqFleteInt')?.value||0,
+      arancel:document.getElementById('liqArancel')?.value||0,
+      agente:document.getElementById('liqAgente')?.value||0.02,
+      fleteNal:document.getElementById('liqFleteNal')?.value||0,
+      descargue:document.getElementById('liqDescargue')?.value||0,
+      otros:document.getElementById('liqOtros')?.value||0,
+      garantia:document.getElementById('liqGarantia')?.value||0.03,
+      instalacion:document.getElementById('liqInstalacion')?.value||0,
+      costoFin:document.getElementById('liqCostoFin')?.value||0,
+      margen:document.getElementById('liqMargenSlider')?.value||50,
+      desc:document.getElementById('liqDescCliente')?.value||0,
+      maqSel:document.getElementById('liqMaquinaSel')?.value||'',
+    };
     carrito.push(item);
-    showToast('✓ '+item.nombre+' agregado al carrito','success');
+    showToast('✓ '+item.nombre+' agregado','success');
   }
   // Aplicar descuento
   const descLiq=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
@@ -2953,31 +2984,58 @@ function liqRefreshChips(){
   const liqItems=carrito.filter(i=>i.id&&i.id.startsWith('liq_'));
   chips.innerHTML=liqItems.map(item=>`
     <div style="display:flex;align-items:center;gap:4px;background:${liqEditandoId===item.id?'#F59E0B':'rgba(255,255,255,0.15)'};border-radius:20px;padding:3px 8px 3px 10px;font-size:11px;cursor:pointer;border:1px solid ${liqEditandoId===item.id?'#F59E0B':'transparent'}"
+      title="${liqEditandoId===item.id?'Clic para cancelar edición':'Clic para editar'}"
       onclick="liqEditarItem('${item.id}')">
-      <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.nombre}</span>
-      <span style="opacity:0.7;margin-left:2px">USD ${Math.round(item.tarifa).toLocaleString('es-CO')}</span>
-      <button onclick="event.stopPropagation();liqQuitarItem('${item.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;margin-left:4px;font-family:inherit">×</button>
-    </div>`).join('');
+      <span style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.nombre.split(' ')[0]}</span>
+      <span style="opacity:0.8;margin-left:2px;font-weight:600">USD ${Math.round(item.tarifa).toLocaleString('es-CO')}</span>
+      <button onclick="event.stopPropagation();liqQuitarItem('${item.id}')" style="background:rgba(255,255,255,0.25);border:none;color:#fff;cursor:pointer;border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;margin-left:4px;font-family:inherit">×</button>
+    </div>`).join('')
+  // Si estamos editando, mostrar botón cancelar/nueva
+  +(liqEditandoId?`<div onclick="liqEditarItem(liqEditandoId)" style="display:flex;align-items:center;background:rgba(255,255,255,0.1);border:1px dashed rgba(255,255,255,0.4);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:rgba(255,255,255,0.7)" title="Cancelar edición y nueva máquina">＋ Nueva máquina</div>`:'');
 }
 
 function liqEditarItem(id){
   const item=carrito.find(i=>i.id===id);
   if(!item) return;
-  liqEditandoId=id;
-  // Destacar chip
-  liqRefreshChips();
-  // Cambiar botón
-  const btn=document.getElementById('liqBtnAgregar');
-  btn.innerHTML='<i class="ti ti-check"></i> Actualizar';
-  btn.style.background='#F59E0B';
-  // Pre-cargar máquina en el selector
-  const sel=document.getElementById('liqMaquinaSel');
-  if(sel){
-    // Buscar por nombre
-    const opt=[...sel.options].find(o=>o.text.startsWith(item.nombre));
-    if(opt) sel.value=opt.value;
+  // Si ya estaba editando este mismo, cancelar (toggle)
+  if(liqEditandoId===id){
+    liqEditandoId=null;
+    const btn=document.getElementById('liqBtnAgregar');
+    btn.innerHTML='<i class="ti ti-shopping-cart"></i> + Agregar';
+    btn.style.background='#80A61B';
+    liqLimpiarCampos();
+    liqRefreshChips();
+    return;
   }
-  showToast('Editando: '+item.nombre+' — modifica y presiona Actualizar','success');
+  liqEditandoId=id;
+  liqRefreshChips();
+  const btn=document.getElementById('liqBtnAgregar');
+  btn.innerHTML='<i class="ti ti-check"></i> Actualizar '+item.nombre.split(' ')[0];
+  btn.style.background='#F59E0B';
+  // Cargar snapshot si existe
+  const s=item._liqSnapshot;
+  if(s){
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
+    set('liqFOB',s.FOB); set('liqFleteInt',s.fleteInt);
+    set('liqFleteNal',s.fleteNal); set('liqDescargue',s.descargue);
+    set('liqOtros',s.otros); set('liqInstalacion',s.instalacion);
+    set('liqCostoFin',s.costoFin);
+    if(document.getElementById('liqArancel')) document.getElementById('liqArancel').value=s.arancel;
+    if(document.getElementById('liqAgente')) document.getElementById('liqAgente').value=s.agente;
+    if(document.getElementById('liqGarantia')) document.getElementById('liqGarantia').value=s.garantia;
+    // Margen
+    const ms=document.getElementById('liqMargenSlider'); if(ms)ms.value=s.margen;
+    const ml=document.getElementById('liqMargenLabel'); if(ml)ml.textContent=s.margen+'%';
+    // Descuento
+    const ds=document.getElementById('liqDescSlider'); if(ds)ds.value=s.desc;
+    const dn=document.getElementById('liqDescCliente'); if(dn)dn.value=s.desc;
+    const dl=document.getElementById('liqDescLabel'); if(dl)dl.textContent=s.desc+'%';
+    // Máquina
+    const sel=document.getElementById('liqMaquinaSel');
+    if(sel&&s.maqSel) sel.value=s.maqSel;
+    liqCalc();
+  }
+  showToast('Editando '+item.nombre+' — ajusta y presiona Actualizar','success');
 }
 
 function liqQuitarItem(id){
