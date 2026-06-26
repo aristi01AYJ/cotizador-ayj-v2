@@ -2886,7 +2886,10 @@ function liqEnviarAlCarrito(){
   if(gkey.startsWith('g_')){
     const key=gkey.slice(2);
     const g=grupos.find(x=>x.key===key);
-    if(g) item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
+    if(g){
+      const tipo=g.stockCount>0?'stock':g.importCount>0?'importacion':'pedido';
+      item={id:'liq_'+Date.now(),grupoKey:null,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount};
+    }
   } else if(gkey.startsWith('bp_')){
     const id=gkey.slice(3);
     const m=bajosPedido.find(x=>x.id===id);
