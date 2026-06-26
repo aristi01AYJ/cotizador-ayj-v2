@@ -2782,9 +2782,10 @@ function abrirLiquidador(){
   }
   // Poblar catálogo siempre (puede haberse cargado después del desbloqueo)
   const selCatNow=document.getElementById('liqMaquinaSel');
-  if(selCatNow&&grupos.length>0){
+  if(selCatNow&&(grupos.length>0||bajosPedido.length>0)){
     selCatNow.innerHTML='<option value="">— Seleccionar máquina del catálogo —</option>'
-      +grupos.map(g=>`<option value="${g.key}">${g.title}${g.marca?' · '+g.marca:''}</option>`).join('');
+      +(grupos.length?'<optgroup label="✅ Disponibles">'+grupos.map(g=>`<option value="g_${g.key}">${g.title}${g.marca?' · '+g.marca:''}</option>`).join('')+'</optgroup>':'')
+      +(bajosPedido.length?'<optgroup label="📦 Bajo Pedido">'+bajosPedido.map(m=>`<option value="bp_${m.id}">${m.title}${m.marca?' · '+m.marca:''}</option>`).join('')+'</optgroup>':'');
   }
   document.getElementById('liquidadorModal').style.display='flex';
   liqSwitchTab('liquidacion');
@@ -2882,16 +2883,16 @@ function liqEnviarAlCarrito(){
   const sel=document.getElementById('liqMaquinaSel');
   const gkey=sel?.value||'';
   let item;
-  if(gkey){
-    // Usar datos de la máquina del catálogo
-    const g=grupos.find(x=>x.key===gkey);
-    if(g){
-      item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
-    }
+  if(gkey.startsWith('g_')){
+    const key=gkey.slice(2);
+    const g=grupos.find(x=>x.key===key);
+    if(g) item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
+  } else if(gkey.startsWith('bp_')){
+    const id=gkey.slice(3);
+    const m=bajosPedido.find(x=>x.id===id);
+    if(m) item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo||'',tipologia:m.tipologia||'',tarifa:precio,descripcion:m.descripcion||'',fichaTecnica:m.fichaTecnica||'',ytVideo:m.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
   }
-  if(!item){
-    item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador AYJ',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
-  }
+  if(!item) item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador AYJ',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
   carrito.push(item);
   // Aplicar descuento del liquidador al carrito
   const descLiq=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
