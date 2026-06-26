@@ -1057,7 +1057,7 @@ function mapItem(i){
     fichaTecnica,
     ytVideo:(()=>{const v=f.YTvideo||f.YTVideo||f.Ytvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
     observaciones:(f.Observaciones||'').trim(),
-    horasInstalacion:parseFloat(f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.HorasInstalacion||0),
+    horasInstalacion:parseFloat(String(f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.Horas_x0020_Instalacion||f.HorasInstalacion||f.Horas||'0').replace(',','.')||0),
   };
 }
 
@@ -2800,9 +2800,9 @@ function cerrarLiquidador(){
 }
 
 function liqSwitchTab(tab){
-  ['liquidacion','instalacion','financiacion'].forEach(t=>{
+  ['liquidacion','instalacion','financiacion'].forEach((t,idx)=>{
     const panel=document.getElementById('liqPanel'+t.charAt(0).toUpperCase()+t.slice(1));
-    const btn=document.getElementById('liqTab'+(['liquidacion','instalacion','financiacion'].indexOf(t)+1));
+    const btn=document.getElementById('liqTab'+(idx+1));
     if(panel) panel.style.display=t===tab?'block':'none';
     if(btn){btn.style.borderBottomColor=t===tab?'#575756':'transparent';btn.style.color=t===tab?'#575756':'#888';btn.style.fontWeight=t===tab?'600':'400';}
   });
@@ -3059,16 +3059,21 @@ function liqEnviarAlCarrito(){ liqAgregarAlCarrito(); }
 
 // ── INSTALACIÓN ──────────────────────────────────────
 function liqSyncInstMaquina(){
-  // Cuando se selecciona máquina en Liquidación, sincronizar con instMaquina
   const liqSel=document.getElementById('liqMaquinaSel');
   const instSel=document.getElementById('instMaquina');
   if(!liqSel||!instSel) return;
   const val=liqSel.value;
-  // Buscar opción equivalente en instMaquina
+  // Buscar opción equivalente en instMaquina por value
   const opt=[...instSel.options].find(o=>o.value===val);
   if(opt){
     instSel.value=val;
     instSelMaquina();
+    // Mostrar indicador visual en pestaña instalación
+    const tab2=document.getElementById('liqTab2');
+    if(tab2){
+      const horas=parseFloat(opt.dataset?.horas)||0;
+      tab2.innerHTML='🔧 Instalación'+(horas?` <span style="background:#80A61B;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px">${horas}h</span>`:'');
+    }
   }
 }
 
