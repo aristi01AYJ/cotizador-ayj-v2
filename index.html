@@ -1057,6 +1057,7 @@ function mapItem(i){
     fichaTecnica,
     ytVideo:(()=>{const v=f.YTvideo||f.YTVideo||f.Ytvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
     observaciones:(f.Observaciones||'').trim(),
+    horasInstalacion:parseFloat(f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.HorasInstalacion||0),
   };
 }
 
@@ -1119,11 +1120,12 @@ function procesarCatalogo(){
   const mapa={};
   disponibles.forEach(m=>{
     const key=m.title.toLowerCase().trim();
-    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0};
+    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0,horasInstalacion:m.horasInstalacion||0};
     if(m.ytVideo&&!mapa[key].ytVideo)mapa[key].ytVideo=m.ytVideo;
     const st=m.estadoStock.toLowerCase();
     if(st.includes('importa'))mapa[key].importCount++;else mapa[key].stockCount++;
     if(m.fichaTecnica&&!mapa[key].fichaTecnica)mapa[key].fichaTecnica=m.fichaTecnica;
+    if(m.horasInstalacion&&!mapa[key].horasInstalacion)mapa[key].horasInstalacion=m.horasInstalacion;
   });
   grupos=Object.values(mapa).sort((a,b)=>a.title.localeCompare(b.title));
 }
@@ -2767,8 +2769,8 @@ function abrirLiquidador(){
     if(clave!==CLAVE_LIQ){showToast('Clave incorrecta','error');return;}
     liqDesbloqueado=true;
     // Poblar select de máquinas instalación
-    const selInst=document.getElementById('instMaquina');
-    if(selInst) selInst.innerHTML=MAQUINAS_INST.map((m,i)=>`<option value="${i}">${m[0]} (${m[3]}h · ${m[2]})</option>`).join('');
+    // Poblar instMaquina desde catálogo real (con horas de SharePoint)
+    liqRefreshInstMaquinas();
     // Poblar select de máquinas del catálogo para el carrito
     const selCat=document.getElementById('liqMaquinaSel');
     if(selCat&&grupos.length){
@@ -2790,6 +2792,7 @@ function abrirLiquidador(){
   document.getElementById('liquidadorModal').style.display='flex';
   liqSwitchTab('liquidacion');
   liqRefreshChips();
+  liqRefreshInstMaquinas();
 }
 
 function cerrarLiquidador(){
@@ -3055,14 +3058,47 @@ function liqQuitarItem(id){
 function liqEnviarAlCarrito(){ liqAgregarAlCarrito(); }
 
 // ── INSTALACIÓN ──────────────────────────────────────
+function liqSyncInstMaquina(){
+  // Cuando se selecciona máquina en Liquidación, sincronizar con instMaquina
+  const liqSel=document.getElementById('liqMaquinaSel');
+  const instSel=document.getElementById('instMaquina');
+  if(!liqSel||!instSel) return;
+  const val=liqSel.value;
+  // Buscar opción equivalente en instMaquina
+  const opt=[...instSel.options].find(o=>o.value===val);
+  if(opt){
+    instSel.value=val;
+    instSelMaquina();
+  }
+}
+
+function liqRefreshInstMaquinas(){
+  const sel=document.getElementById('instMaquina');
+  if(!sel) return;
+  // Combinar disponibles + bajo pedido, con horas de SharePoint
+  const todos=[
+    ...grupos.map(g=>({key:g.key,nombre:g.title,marca:g.marca,horas:g.horasInstalacion||0})),
+    ...bajosPedido.map(m=>({key:'bp_'+m.id,nombre:m.title,marca:m.marca,horas:m.horasInstalacion||0})),
+  ].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  sel.innerHTML='<option value="">— Seleccionar máquina —</option>'
+    +todos.map(m=>`<option value="${m.key}" data-horas="${m.horas}">${m.nombre}${m.marca?' · '+m.marca:''}${m.horas?' ('+m.horas+'h)':''}</option>`).join('')
+    +'<option value="__custom__">✏️ Ingresar horas manualmente</option>';
+}
+
 function instSelMaquina(){
-  const idx=parseInt(document.getElementById('instMaquina')?.value)||0;
-  const m=MAQUINAS_INST[idx];
-  if(m&&m[3]>0){
-    document.getElementById('instHoras').value=m[3];
-    // Días = horas / 8 (jornada laboral), redondeado a 0.5
-    const dias=Math.ceil(m[3]/8*2)/2;
-    document.getElementById('instNoches').value=Math.ceil(dias);
+  const sel=document.getElementById('instMaquina');
+  if(!sel) return;
+  const opt=sel.options[sel.selectedIndex];
+  const horas=parseFloat(opt?.dataset?.horas)||0;
+  const horasEl=document.getElementById('instHoras');
+  if(opt?.value&&opt.value!=='__custom__'&&horas>0){
+    horasEl.value=horas;
+    horasEl.style.background='#eef3e6'; // verde: vino de SP
+    horasEl.title='Horas cargadas desde SharePoint — puedes modificar';
+  } else if(opt?.value==='__custom__'){
+    horasEl.value=0;
+    horasEl.style.background='#fff';
+    horasEl.focus();
   }
   instCalc();
 }
