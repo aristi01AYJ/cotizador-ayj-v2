@@ -2991,20 +2991,33 @@ function finCalc(){
     tasa=0.025;
     document.getElementById('finTasaInfo').innerHTML='<strong>Tasa AYJ: 2.5%</strong> mensual';
   }
+  // valor en USD — convertir a COP para tramos FSM
+  const valorCOP=valor*TRM;
+  if(tipo==='fsm'){
+    // Tramos basados en COP
+    if(valorCOP<30000000)tasa=0.03;
+    else if(valorCOP<75000000)tasa=0.025;
+    else if(valorCOP<150000000)tasa=0.02;
+    else if(valorCOP<300000000)tasa=0.015;
+    else tasa=0.01;
+    document.getElementById('finTasaInfo').innerHTML='<strong>Tasa FSM: '+Math.round(tasa*100)+'%</strong> mensual · Costo estudio: COP '+costoEstudio.toLocaleString('es-CO');
+  }
+  // Cuotas en USD
   const cuota=valor>0&&meses>0?valor*tasa*Math.pow(1+tasa,meses)/(Math.pow(1+tasa,meses)-1):0;
   let saldo=valor; let totalIntereses=0; const rows=[];
   for(let i=1;i<=meses;i++){
     const interes=saldo*tasa; const capital=cuota-interes;
     totalIntereses+=interes; saldo=Math.max(0,saldo-capital);
-    rows.push(`<tr><td style="padding:3px 6px">${i}</td><td style="padding:3px 6px;text-align:right">${Math.round(cuota).toLocaleString('es-CO')}</td><td style="padding:3px 6px;text-align:right">${Math.round(interes).toLocaleString('es-CO')}</td><td style="padding:3px 6px;text-align:right">${Math.round(capital).toLocaleString('es-CO')}</td></tr>`);
+    const cop=n=>Math.round(n*TRM).toLocaleString('es-CO');
+    rows.push(`<tr><td style="padding:3px 6px">${i}</td><td style="padding:3px 6px;text-align:right"><strong>USD ${Math.round(cuota).toLocaleString('es-CO')}</strong><br><span style="font-size:10px;color:#aaa">COP ${cop(cuota)}</span></td><td style="padding:3px 6px;text-align:right;color:#EF4444">USD ${Math.round(interes).toLocaleString('es-CO')}</td><td style="padding:3px 6px;text-align:right;color:#22C55E">USD ${Math.round(capital).toLocaleString('es-CO')}</td></tr>`);
   }
-  const costoFSM=tipo==='fsm'?valor*0.03+costoEstudio+1250000:0;
-  const costoTotalCOP=tipo==='fsm'?costoFSM:totalIntereses;
-  const costoTotalUSD=TRM>0?costoTotalCOP/TRM:0;
+  const costoFSMusd=tipo==='fsm'?(valorCOP*0.03+costoEstudio+1250000)/TRM:0;
+  const costoTotalUSD=tipo==='fsm'?costoFSMusd:totalIntereses;
+  const costoTotalCOP=Math.round(costoTotalUSD*TRM);
   document.getElementById('finResultados').innerHTML=
-    `<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr style="background:#f5f5f5;font-size:11px"><th style="padding:4px 6px;text-align:left">Cuota</th><th style="padding:4px 6px;text-align:right">Valor COP</th><th style="padding:4px 6px;text-align:right">Interés</th><th style="padding:4px 6px;text-align:right">Capital</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
-    +`<div class="liq-row total-row"><span>Costo Financiación</span><span style="text-align:right"><strong style="color:#3B82F6">USD ${Math.round(costoTotalUSD).toLocaleString('es-CO')}</strong><br><span style="font-size:11px;color:#999">COP ${Math.round(costoTotalCOP).toLocaleString('es-CO')}</span></span></div>`
-    +`<div class="liq-row"><span style="color:#666">Total a pagar</span><span>COP ${Math.round(valor+costoTotalCOP).toLocaleString('es-CO')}</span></div>`;
+    `<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr style="background:#f5f5f5;font-size:11px"><th style="padding:4px 6px;text-align:left">Cuota</th><th style="padding:4px 6px;text-align:right">Valor</th><th style="padding:4px 6px;text-align:right;color:#EF4444">Interés</th><th style="padding:4px 6px;text-align:right;color:#22C55E">Capital</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+    +`<div class="liq-row total-row"><span>Costo Financiación</span><span style="text-align:right"><strong style="color:#3B82F6">USD ${Math.round(costoTotalUSD).toLocaleString('es-CO')}</strong><br><span style="font-size:11px;color:#999">COP ${costoTotalCOP.toLocaleString('es-CO')}</span></span></div>`
+    +`<div class="liq-row"><span style="color:#666">Total a pagar</span><span style="text-align:right"><strong>USD ${Math.round(valor+costoTotalUSD).toLocaleString('es-CO')}</strong><br><span style="font-size:11px;color:#999">COP ${Math.round((valor+costoTotalUSD)*TRM).toLocaleString('es-CO')}</span></span></div>`;
   window._finCosto=costoTotalUSD;
 }
 
@@ -3156,8 +3169,8 @@ initMsal();
               <option value="fsm">FSM — Financiamos Su Máquina</option>
             </select>
           </div>
-          <div class="liq-field"><label>Valor a financiar (COP)</label><input type="number" id="finValor" value="0" oninput="finCalc()"></div>
-          <div class="liq-field"><label>TRM (para convertir a USD)</label><input type="number" id="finTRM" value="3650" oninput="finCalc()"></div>
+          <div class="liq-field"><label>Valor a financiar (USD)</label><input type="number" id="finValor" value="0" oninput="finCalc()"></div>
+          <div class="liq-field"><label>TRM (COP/USD)</label><input type="number" id="finTRM" value="3650" oninput="finCalc()"></div>
           <div class="liq-field"><label>Plazo (meses)</label><input type="number" id="finMeses" value="3" min="1" max="36" oninput="finCalc()"></div>
           <div id="finTasaInfo" style="font-size:11px;padding:8px;background:#f5f5f5;border-radius:4px;margin-bottom:8px"></div>
           <div id="finFSMcostos" style="display:none">
