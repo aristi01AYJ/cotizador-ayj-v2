@@ -3073,18 +3073,26 @@ function liqSyncInstMaquina(){
   const liqSel=document.getElementById('liqMaquinaSel');
   const instSel=document.getElementById('instMaquina');
   if(!liqSel||!instSel) return;
-  const val=liqSel.value;
-  // Buscar opción equivalente en instMaquina por value
-  const opt=[...instSel.options].find(o=>o.value===val);
+  const val=liqSel.value; // ej: "g_af01" o "bp_123"
+  if(!val) return;
+
+  // Buscar opción en instMaquina por value exacto
+  let opt=[...instSel.options].find(o=>o.value===val);
+
+  // Si no coincide, buscar por nombre de la máquina seleccionada
+  if(!opt){
+    const liqText=liqSel.options[liqSel.selectedIndex]?.text||'';
+    const nombreLiq=liqText.split(' · ')[0].toLowerCase().trim();
+    opt=[...instSel.options].find(o=>o.text.toLowerCase().includes(nombreLiq)&&nombreLiq.length>2);
+  }
+
   if(opt){
-    instSel.value=val;
+    instSel.value=opt.value;
     instSelMaquina();
-    // Mostrar indicador visual en pestaña instalación
+    const horas=parseFloat(opt.dataset?.horas)||0;
     const tab2=document.getElementById('liqTab2');
-    if(tab2){
-      const horas=parseFloat(opt.dataset?.horas)||0;
-      tab2.innerHTML='🔧 Instalación'+(horas?` <span style="background:#80A61B;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px">${horas}h</span>`:'');
-    }
+    if(tab2) tab2.innerHTML='🔧 Instalación'+(horas?` <span style="background:#80A61B;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px">${horas}h</span>`:'');
+    if(horas) showToast('✓ Instalación cargada: '+horas+'h','success');
   }
 }
 
