@@ -2766,13 +2766,18 @@ function abrirLiquidador(){
     if(!clave) return;
     if(clave!==CLAVE_LIQ){showToast('Clave incorrecta','error');return;}
     liqDesbloqueado=true;
-    // Poblar select de máquinas
-    const sel=document.getElementById('instMaquina');
-    if(sel) sel.innerHTML=MAQUINAS_INST.map((m,i)=>`<option value="${i}">${m[0]} (${m[3]}h · ${m[2]})</option>`).join('');
+    // Poblar select de máquinas instalación
+    const selInst=document.getElementById('instMaquina');
+    if(selInst) selInst.innerHTML=MAQUINAS_INST.map((m,i)=>`<option value="${i}">${m[0]} (${m[3]}h · ${m[2]})</option>`).join('');
+    // Poblar select de máquinas del catálogo para el carrito
+    const selCat=document.getElementById('liqMaquinaSel');
+    if(selCat&&grupos.length){
+      selCat.innerHTML='<option value="">— Seleccionar máquina (opcional) —</option>'
+        +grupos.map(g=>`<option value="${g.key}">${g.title}${g.marca?' · '+g.marca:''}</option>`).join('');
+    }
     // Sync TRM
     const trmV=parseFloat(document.getElementById('trmInput')?.value)||3650;
-    if(document.getElementById('liqTRM')) document.getElementById('liqTRM').value=trmV;
-    if(document.getElementById('instTRM')) document.getElementById('instTRM').value=trmV;
+    ['liqTRM','instTRM','finTRM'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=trmV;});
     liqCalc(); instCalc(); finCalc();
   }
   document.getElementById('liquidadorModal').style.display='flex';
@@ -2857,8 +2862,20 @@ function liqCalc(){
 function liqEnviarAlCarrito(){
   const precio=window._liqPrecioUSD||0;
   if(!precio){showToast('Calcula un precio primero','error');return;}
-  // Crear item manual en el carrito
-  carrito.push({id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina (Liquidador)',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0});
+  const sel=document.getElementById('liqMaquinaSel');
+  const gkey=sel?.value||'';
+  let item;
+  if(gkey){
+    // Usar datos de la máquina del catálogo
+    const g=grupos.find(x=>x.key===gkey);
+    if(g){
+      item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
+    }
+  }
+  if(!item){
+    item={id:'liq_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador AYJ',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
+  }
+  carrito.push(item);
   renderCarrito();calcTotales();
   cerrarLiquidador();
   switchView('nueva');
@@ -2871,9 +2888,9 @@ function instSelMaquina(){
   const m=MAQUINAS_INST[idx];
   if(m&&m[3]>0){
     document.getElementById('instHoras').value=m[3];
-    document.getElementById('instDias').value=m[4];
-    // Auto-sugerir noches
-    document.getElementById('instNoches').value=Math.ceil(m[4]);
+    // Días = horas / 8 (jornada laboral), redondeado a 0.5
+    const dias=Math.ceil(m[3]/8*2)/2;
+    document.getElementById('instNoches').value=Math.ceil(dias);
   }
   instCalc();
 }
@@ -2881,7 +2898,8 @@ function instSelMaquina(){
 function instCalc(){
   const TRM=parseFloat(document.getElementById('instTRM')?.value)||3650;
   const horas=parseFloat(document.getElementById('instHoras')?.value)||0;
-  const dias=parseFloat(document.getElementById('instDias')?.value)||0;
+  // Días calculados automáticamente: horas / 8, redondeado a 0.5 jornadas
+  const dias=horas>0?Math.ceil(horas/8*2)/2:0;
   const cantTiqNal=parseFloat(document.getElementById('instCantTiqNal')?.value)||0;
   const cantTiqInt=parseFloat(document.getElementById('instCantTiqInt')?.value)||0;
   const cantTraslado=parseFloat(document.getElementById('instCantTraslado')?.value)||0;
@@ -2898,6 +2916,9 @@ function instCalc(){
   const ALOJ_COP=145000;
   const GASTOS_DIA_COP=75000;
 
+  // Mostrar días calculados
+  const elDias=document.getElementById('instDias');
+  if(elDias) elDias.value=dias;
   const costoHorasUSD=horas*HORA_COP/TRM;
   const tiqNalUSD=cantTiqNal*TIQ_NAL_COP/TRM;
   const tiqIntUSD=cantTiqInt*TIQ_INT_USD;
@@ -3008,6 +3029,12 @@ initMsal();
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
         <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
           <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Variables — Todo en USD</div>
+          <div class="liq-field">
+            <label>Máquina del catálogo (para enviar al carrito)</label>
+            <select id="liqMaquinaSel" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px">
+              <option value="">— Seleccionar máquina (opcional) —</option>
+            </select>
+          </div>
           <div class="liq-field"><label>TRM (COP/USD)</label><input type="number" id="liqTRM" value="3650" oninput="liqCalc()"></div>
           <div class="liq-field"><label>Precio FOB (USD)</label><input type="number" id="liqFOB" value="0" oninput="liqCalc()"></div>
           <div class="liq-field"><label>Flete + Seguro Internacional (USD)</label><input type="number" id="liqFleteInt" value="0" oninput="liqCalc()"></div>
@@ -3081,7 +3108,10 @@ initMsal();
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="liq-field"><label>Horas instalación</label><input type="number" id="instHoras" value="0" oninput="instCalc()"></div>
-            <div class="liq-field"><label>Días instalación</label><input type="number" id="instDias" value="0" step="0.5" oninput="instCalc()"></div>
+            <div class="liq-field" style="background:#f5f7f0;border-radius:4px;padding:6px 8px;border:1px solid #c5d9a0">
+              <label style="color:#3d6b0a">Días instalación (calculado: horas ÷ 8)</label>
+              <input type="number" id="instDias" readonly style="background:#eef3e6;color:#3d6b0a;font-weight:700;cursor:not-allowed;border-color:#c5d9a0">
+            </div>
             <div class="liq-field"><label>Tiquetes nacionales (cant.)</label><input type="number" id="instCantTiqNal" value="0" min="0" oninput="instCalc()"></div>
             <div class="liq-field"><label>Tiquetes internacionales (cant.)</label><input type="number" id="instCantTiqInt" value="0" min="0" oninput="instCalc()"></div>
             <div class="liq-field"><label>Traslados Cali-Med. (cant.)</label><input type="number" id="instCantTraslado" value="0" min="0" oninput="instCalc()"></div>
