@@ -2867,7 +2867,7 @@ function liqCalc(){
   const comUSD=PVD*comPct/100;
 
   document.getElementById('liqResultados').innerHTML=
-    `<div class="liq-kpi"><div class="liq-label">Precio Venta Neto (${margenPct}% margen)</div><div class="liq-value">${fU(PVN)}</div><div class="liq-sub">${fC(PVN)}</div></div>`
+    `<div class="liq-kpi"><div class="liq-label">Precio Venta Neto — base: costos sin IVA · ${margenPct}% margen</div><div class="liq-value">${fU(PVN)}</div><div class="liq-sub">${fC(PVN)}</div></div>`
     +`<div class="liq-kpi" style="border-left-color:#575756"><div class="liq-label">Con Descuento ${descCliente}%</div><div class="liq-value">${fU(PVD)}</div><div class="liq-sub">${fC(PVD)}</div></div>`
     +`<div class="liq-kpi" style="border-left-color:#3B82F6"><div class="liq-label">Con IVA 19%</div><div class="liq-value">${fU(PVIVA)}</div><div class="liq-sub">${fC(PVIVA)}</div></div>`
     +`<div class="liq-kpi" style="border-left-color:${margenReal>=35?'#22C55E':margenReal>=25?'#F59E0B':'#EF4444'}"><div class="liq-label">Margen Real · Utilidad</div><div class="liq-value" style="color:${margenReal>=35?'#166534':margenReal>=25?'#92400E':'#991B1B'}">${margenReal.toFixed(1)}%</div><div class="liq-sub">${fU(utilidadUSD)} · ${fC(utilidadUSD)}</div></div>`
