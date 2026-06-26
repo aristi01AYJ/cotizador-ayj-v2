@@ -1057,7 +1057,7 @@ function mapItem(i){
     fichaTecnica,
     ytVideo:(()=>{const v=f.YTvideo||f.YTVideo||f.Ytvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
     observaciones:(f.Observaciones||'').trim(),
-    horasInstalacion:parseFloat(String(f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.Horas_x0020_Instalacion||f.HorasInstalacion||f.Horas||'0').replace(',','.')||0),
+    horasInstalacion:parseFloat(String(f.HorasInstalacion||f.Horas_Instalacion||f.Horas_x0020_Instalalacion||f.Horas_x0020_Instalacion||'0').replace(',','.')||0),
   };
 }
 
