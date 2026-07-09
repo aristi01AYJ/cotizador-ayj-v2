@@ -27,16 +27,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .btn-login:hover{background:var(--green-dark)}
 .login-note{font-size:11px;color:var(--text3);margin-top:16px}
 #appScreen{display:none;flex-direction:column;height:100vh}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);background:#fff;flex-shrink:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:3px solid #2C2C2C;background:#2C2C2C;flex-shrink:0}
 .topbar-logo{font-size:15px;font-weight:600}.topbar-logo span{color:var(--green)}
 .topbar-right{display:flex;align-items:center;gap:10px}
-.user-chip{font-size:12px;color:var(--text2);background:var(--bg);padding:4px 10px;border-radius:20px;border:1px solid var(--border)}
-.btn-logout{background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 8px;border-radius:var(--radius)}
+.user-chip{font-size:12px;color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.2)}
+.btn-logout{background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.6);font-size:13px;padding:4px 8px;border-radius:var(--radius)}
 .btn-logout:hover{color:var(--red)}
 .nav{display:flex;gap:4px}
-.nav button{background:none;border:none;padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text2);font-family:inherit}
-.nav button.active{background:var(--bg);color:var(--text);font-weight:500}
-.nav button:hover:not(.active){background:var(--bg)}
+.nav button{background:none;border:none;padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:rgba(255,255,255,0.7);font-family:inherit}
+.nav button.active{background:rgba(255,255,255,0.15);color:#fff;font-weight:600}
+.nav button:hover:not(.active){background:rgba(255,255,255,0.1)}
 .main{display:flex;flex:1;overflow:hidden}
 .sidebar{width:300px;border-right:1px solid var(--border);background:#fff;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
 .sidebar-header{padding:12px 14px;border-bottom:1px solid var(--border)}
@@ -205,7 +205,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   .totales{margin-left:0;width:100%;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   .total-val.big{font-size:14px}
   #historialView{height:100%;overflow-y:scroll;-webkit-overflow-scrolling:touch;padding:10px}
-  #clientesView{height:100%;overflow-y:scroll;-webkit-overflow-scrolling:touch;padding:10px}
+  #clientesView{height:100%;overflow:hidden}
   .hist-table th:nth-child(2),.hist-table td:nth-child(2),
   .hist-table th:nth-child(4),.hist-table td:nth-child(4){display:none}
   .cli-table th:nth-child(3),.cli-table td:nth-child(3),
@@ -230,7 +230,14 @@ body.modo-cop .price-cop-item{font-size:13px;font-weight:700;color:var(--text)}
 body.modo-cop #tSubCOP,body.modo-cop #tDescCOP,body.modo-cop #tIVACOP,body.modo-cop #tTotalCOP,body.modo-cop #tFleteCOP{font-size:14px;font-weight:700;color:var(--text)}
 body.modo-cop #tSubUSD,body.modo-cop #tDescUSD,body.modo-cop #tIVAUSD,body.modo-cop #tTotalUSD,body.modo-cop #tFleteUSD{display:none}
 body.modo-cop .trm-bar{opacity:0.6}
-body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-child(4){display:none}
+body.modo-cop .items-table th:nth-child(6),body.modo-cop .items-table td:nth-child(6){display:none}
+/* Modo solo USD */
+body.modo-usd .precio-usd{font-size:13px;font-weight:700;color:var(--green-dark)}
+body.modo-usd .precio-cop{display:none}
+body.modo-usd .price-cop-item{display:none}
+body.modo-usd .price-usd-item{font-size:13px;font-weight:700;color:var(--text)}
+body.modo-usd #tSubCOP,body.modo-usd #tDescCOP,body.modo-usd #tIVACOP,body.modo-usd #tTotalCOP,body.modo-usd #tFleteCOP,body.modo-usd #tBaseIvaCOP{display:none}
+body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-usd #tTotalUSD,body.modo-usd #tFleteUSD,body.modo-usd #tBaseIvaUSD{font-size:14px;font-weight:700;color:var(--text)}
 </style>
 </head>
 <body>
@@ -249,7 +256,7 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
 
 <div id="appScreen">
   <div class="topbar">
-    <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;"><span style="font-size:13px;color:var(--text2);font-weight:400;">Cotizador</span></div>
+    <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;filter:brightness(0) invert(1)"><span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:400;letter-spacing:0.5px">Cotizador</span> <span style="font-size:13px;color:#fff;font-weight:800;letter-spacing:1px">MAQUINARIA</span></div>
     <div class="nav">
       <button class="active" id="navNueva" onclick="switchView('nueva')">Nueva oferta</button>
       <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
@@ -317,6 +324,11 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
             <button onclick="abrirModalCliente()" title="Nuevo cliente" style="padding:6px 10px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);cursor:pointer;font-size:13px;white-space:nowrap"><i class="ti ti-user-plus"></i></button>
           </div>
           <div id="clienteInfo" style="font-size:11px;color:var(--text2);margin-top:3px;display:none"></div>
+          <div id="contactoWrap" style="display:none;margin-top:4px">
+            <select id="contactoSel" onchange="onContactoSeleccionado()" style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;color:var(--text)">
+              <option value="">— Seleccionar contacto —</option>
+            </select>
+          </div>
         </div>
         <div class="field-group">
           <label>Vendedor</label>
@@ -337,15 +349,23 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
         </div>
         <div class="field-group">
           <label>Garantía</label>
-          <select id="garantiaSel">
+          <select id="garantiaSel" onchange="onGarantiaChange(this.value)">
             <option value="12m">12 meses o 2.000 horas</option>
             <option value="24m">24 meses o 4.000 horas</option>
+            <option value="6m">6 meses — Máquina Usada</option>
+            <option value="__custom_garantia__">✏️ Personalizar...</option>
           </select>
+          <input type="text" id="garantiaCustomInput" placeholder="Ej: 3 meses, sin garantía..." style="display:none;margin-top:4px;width:100%;padding:4px 8px;border:1px solid #F59E0B;border-radius:var(--radius);font-size:12px;font-family:inherit;background:#fffbf0" oninput="window._garantiaPersonalizada=this.value">
         </div>
         <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <button id="modoCOPBtn" onclick="toggleModoCOPBtn()" style="font-size:11px;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:all 0.15s">
-            <span id="modoCOPIcon">💲</span> <span id="modoCOPTxt">Ver en COP</span>
-          </button>
+          <div style="display:flex;gap:5px">
+            <button id="modoCOPBtn" onclick="toggleModoCOPBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
+              <span id="modoCOPIcon">💲</span> <span id="modoCOPTxt">Ver COP</span>
+            </button>
+            <button id="modoUSDBtn" onclick="toggleModoUSDBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
+              <span>🇺🇸</span> <span id="modoUSDTxt">Ver USD</span>
+            </button>
+          </div>
           <input type="checkbox" id="modoCOPChk" onchange="toggleModoCOP(this.checked)" style="display:none">
           <div class="oferta-badge" id="ofertaNum">COT-2026-001</div>
           <div style="display:flex;align-items:center;gap:6px;">
@@ -516,6 +536,7 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
           <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
           <button class="btn-sec" onclick="abrirItemLibre()" style="border-color:var(--amber);color:#92400E" title="Agregar ítem personalizado"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
           <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
+          <button onclick="mostrarResumenMargenes()" title="Resumen de márgenes por máquina" style="display:none"><i class="ti ti-chart-bar"></i> Márgenes</button>
         </div>
       </div>
     </div>
@@ -523,12 +544,18 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
       <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
         <strong style="font-size:15px;align-self:center">Historial de ofertas</strong>
         <div class="field-group">
+          <label>N° Oferta</label>
+          <input type="text" id="hFiltNum" placeholder="COT-2026-..." oninput="filtrarHistorial()" style="min-width:120px">
+        </div>
+        <div class="field-group">
           <label>Cliente</label>
           <input type="text" id="hFiltCliente" placeholder="Filtrar cliente..." oninput="filtrarHistorial()" style="min-width:140px">
         </div>
         <div class="field-group">
           <label>Vendedor</label>
-          <input type="text" id="hFiltVendedor" placeholder="Filtrar vendedor..." oninput="filtrarHistorial()" style="min-width:130px">
+          <select id="hFiltVendedor" onchange="filtrarHistorial()" style="min-width:130px">
+            <option value="">Todos</option>
+          </select>
         </div>
         <div class="field-group">
           <label>Estado</label>
@@ -549,8 +576,8 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
           <input type="date" id="hFiltHasta" onchange="filtrarHistorial()" style="min-width:130px">
         </div>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);margin-left:auto;white-space:nowrap">
-          <input type="checkbox" id="histVerTodas" onchange="filtrarHistorial()" style="cursor:pointer">
-          Ver todas
+          <input type="checkbox" id="histVerTodas" onchange="filtrarMisOfertas(this.checked)" style="cursor:pointer">
+          Mis ofertas
         </label>
         <button class="btn-sec" onclick="cargarHistorial()"><i class="ti ti-refresh"></i></button>
       </div>
@@ -560,12 +587,12 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
     </div>
 
     <div id="clientesView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
-      <!-- Header fijo -->
-      <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
-        <strong style="font-size:15px;align-self:center">Clientes</strong>
+      <!-- Header -->
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0">
+        <strong style="font-size:15px">Clientes</strong>
         <div style="position:relative">
           <i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px"></i>
-          <input type="text" id="clientesBuscador" placeholder="Buscar por nombre, ciudad, email..." oninput="renderTablaClientes()" style="padding:6px 10px 6px 28px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:280px;font-family:inherit">
+          <input type="text" id="clientesBuscador" placeholder="Buscar cliente..." oninput="renderTablaClientes()" style="padding:6px 10px 6px 28px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:220px;font-family:inherit">
         </div>
         <select id="clientesFiltCiudad" onchange="renderTablaClientes()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
           <option value="">Todas las ciudades</option>
@@ -573,17 +600,26 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
         <select id="clientesOrden" onchange="renderTablaClientes()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
           <option value="nombre">Por Nombre</option>
           <option value="ciudad">Por Ciudad</option>
-          <option value="contacto">Por Contacto</option>
         </select>
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="btn-sec" onclick="cargarClientes(true)"><i class="ti ti-refresh"></i></button>
           <button class="btn-primary" onclick="abrirModalCliente()"><i class="ti ti-user-plus"></i> Nuevo Cliente</button>
         </div>
       </div>
-      <!-- Listado scrolleable -->
-      <div style="flex:1;overflow-y:auto;padding:16px 20px">
-        <div id="clientesTablaWrap">
-          <div class="loading-list"><span class="spinner dark"></span> Cargando...</div>
+      <!-- Layout maestro/detalle -->
+      <div style="flex:1;display:flex;overflow:hidden">
+        <!-- Lista de clientes -->
+        <div style="width:340px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:#fff">
+          <div id="clientesTablaWrap">
+            <div class="loading-list"><span class="spinner dark"></span> Cargando...</div>
+          </div>
+        </div>
+        <!-- Panel detalle: contactos -->
+        <div style="flex:1;overflow-y:auto;background:var(--bg);padding:20px" id="clienteDetallePanel">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3)">
+            <i class="ti ti-users" style="font-size:48px;margin-bottom:12px;opacity:0.3"></i>
+            <div style="font-size:14px">Selecciona un cliente para ver sus contactos</div>
+          </div>
         </div>
       </div>
     </div>
@@ -708,61 +744,84 @@ body.modo-cop .items-table th:nth-child(4),body.modo-cop .items-table td:nth-chi
 
 <!-- MODAL NUEVO CLIENTE -->
 <div id="modalCliente" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px 32px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px 32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <strong style="font-size:15px" id="modalClienteTitulo">Nuevo Cliente</strong>
       <button onclick="cerrarModalCliente()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">×</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="field-group" style="grid-column:1/-1">
-        <label>Razón Social *</label>
-        <input type="text" id="mc_titulo" placeholder="Nombre de la empresa..." style="width:100%">
-      </div>
-      <div class="field-group">
-        <label>Contacto (Nombre)</label>
-        <input type="text" id="mc_nombre" placeholder="Nombre del contacto...">
-      </div>
-      <div class="field-group">
-        <label>Email</label>
-        <input type="email" id="mc_email" placeholder="correo@empresa.com">
-      </div>
-      <div class="field-group">
-        <label>Teléfono</label>
-        <input type="text" id="mc_telefono" placeholder="3001234567">
-      </div>
-      <div class="field-group">
-        <label>Ciudad</label>
-        <input type="text" id="mc_ciudad" placeholder="Selecciona o escribe una ciudad..." list="ciudadesList" autocomplete="off">
-        <datalist id="ciudadesList">
-          <option value="Bogotá"><option value="Medellín"><option value="Cali">
-          <option value="Barranquilla"><option value="Bucaramanga"><option value="Pereira">
-          <option value="Manizales"><option value="Cúcuta"><option value="Ibagué">
-          <option value="Cartagena"><option value="Armenia"><option value="Pasto">
-          <option value="Villavicencio"><option value="Montería"><option value="Sincelejo">
-          <option value="Valledupar"><option value="Santa Marta"><option value="Neiva">
-          <option value="Popayán"><option value="Tunja"><option value="Palmira">
-          <option value="Bello"><option value="Itagüí"><option value="Envigado">
-          <option value="Rionegro"><option value="Dosquebradas">
-          <option value="Quito"><option value="Lima"><option value="Ciudad de Panamá">
-          <option value="Caracas">
-        </datalist>
-      </div>
-      <div class="field-group">
-        <label>País</label>
-        <input type="text" id="mc_pais" value="Colombia">
-      </div>
-      <div class="field-group" style="grid-column:1/-1">
-        <label>NIT / RUT</label>
-        <input type="text" id="mc_nit" placeholder="860.079.605-6">
+
+    <!-- SECCIÓN 1: Datos de la empresa -->
+    <div style="background:#f5f7f0;border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">🏢 Datos de la Empresa</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field-group" style="grid-column:1/-1;margin:0">
+          <label>Razón Social *</label>
+          <input type="text" id="mc_titulo" placeholder="Nombre de la empresa..." style="width:100%">
+        </div>
+        <div class="field-group" style="margin:0">
+          <label>Ciudad</label>
+          <input type="text" id="mc_ciudad" placeholder="Ciudad..." list="ciudadesList" autocomplete="off">
+          <datalist id="ciudadesList">
+            <option value="Bogotá"><option value="Medellín"><option value="Cali">
+            <option value="Barranquilla"><option value="Bucaramanga"><option value="Pereira">
+            <option value="Manizales"><option value="Cúcuta"><option value="Ibagué">
+            <option value="Cartagena"><option value="Armenia"><option value="Pasto">
+            <option value="Villavicencio"><option value="Montería"><option value="Santa Marta">
+            <option value="Quito"><option value="Lima"><option value="Ciudad de Panamá">
+          </datalist>
+        </div>
+        <div class="field-group" style="margin:0">
+          <label>País</label>
+          <input type="text" id="mc_pais" value="Colombia">
+        </div>
+        <div class="field-group" style="grid-column:1/-1;margin:0">
+          <label>NIT / RUT</label>
+          <input type="text" id="mc_nit" placeholder="860.079.605-6">
+        </div>
       </div>
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+
+    <!-- SECCIÓN 2: Contactos -->
+    <div style="background:#EFF6FF;border-radius:var(--radius);padding:12px 14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:#1E3A8A;text-transform:uppercase;letter-spacing:0.5px">👤 Contactos</div>
+        <button onclick="mcAgregarContacto()" style="background:#1E3A8A;color:#fff;border:none;border-radius:var(--radius);padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit">+ Agregar contacto</button>
+      </div>
+      <div id="mcContactosWrap">
+        <!-- El primer contacto se agrega dinámicamente -->
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn-sec" onclick="cerrarModalCliente()">Cancelar</button>
-      <button class="btn-primary" id="btnGuardarCliente" onclick="guardarCliente()"><i class="ti ti-check"></i> Guardar Cliente</button>
+      <button class="btn-primary" id="btnGuardarCliente" onclick="guardarCliente()"><i class="ti ti-check"></i> Guardar</button>
     </div>
   </div>
 </div>
 
+<!-- MODAL NUEVO CONTACTO -->
+<div id="modalNuevoContacto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:24px 28px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="font-size:14px">Nuevo Contacto</strong>
+      <button onclick="document.getElementById('modalNuevoContacto').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">×</button>
+    </div>
+    <div style="background:#EFF6FF;border-radius:var(--radius);padding:8px 12px;margin-bottom:14px;font-size:12px;color:#1E3A8A">
+      🏢 Cliente: <strong id="modalContactoClienteNombre"></strong>
+    </div>
+    <input type="hidden" id="modalContactoClienteIdx">
+    <div style="display:grid;gap:10px">
+      <div class="field-group" style="margin:0"><label>Nombre *</label><input type="text" id="mc_cont_nombre_new" placeholder="Nombre completo..." style="width:100%"></div>
+      <div class="field-group" style="margin:0"><label>Cargo</label><input type="text" id="mc_cont_cargo_new" placeholder="Gerente, Jefe de Compras..."></div>
+      <div class="field-group" style="margin:0"><label>Email</label><input type="email" id="mc_cont_email_new" placeholder="correo@empresa.com" style="width:100%"></div>
+      <div class="field-group" style="margin:0"><label>Teléfono</label><input type="text" id="mc_cont_tel_new" placeholder="300 123 4567"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+      <button class="btn-sec" onclick="document.getElementById('modalNuevoContacto').style.display='none'">Cancelar</button>
+      <button class="btn-primary" onclick="guardarNuevoContactoModal()"><i class="ti ti-check"></i> Guardar Contacto</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -779,7 +838,52 @@ let historialData=[];
 let modoEdicion=null;
 let currentUserName='';
 
-// ── TIEMPO DE ENTREGA PERSONALIZADO ──────────────────
+// ── MODAL CLIENTE: contactos dinámicos ──────────────────
+let mcContactosCount = 0;
+
+function mcAgregarContacto(datos={}){
+  const wrap = document.getElementById('mcContactosWrap');
+  const idx = mcContactosCount++;
+  const div = document.createElement('div');
+  div.id = `mcContacto_${idx}`;
+  div.style.cssText = 'background:#fff;border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;border:1px solid #BFDBFE;position:relative';
+  div.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="field-group" style="grid-column:1/-1;margin:0">
+        <label style="font-size:10px">Nombre *</label>
+        <input type="text" id="mc_cont_nombre_${idx}" placeholder="Nombre completo..." value="${datos.nombre||''}" style="width:100%">
+      </div>
+      <div class="field-group" style="margin:0">
+        <label style="font-size:10px">Cargo</label>
+        <input type="text" id="mc_cont_cargo_${idx}" placeholder="Gerente, Jefe..." value="${datos.cargo||''}">
+      </div>
+      <div class="field-group" style="margin:0">
+        <label style="font-size:10px">Teléfono</label>
+        <input type="text" id="mc_cont_tel_${idx}" placeholder="300 123 4567" value="${datos.telefono||''}">
+      </div>
+      <div class="field-group" style="grid-column:1/-1;margin:0">
+        <label style="font-size:10px">Email</label>
+        <input type="email" id="mc_cont_email_${idx}" placeholder="correo@empresa.com" value="${datos.email||''}" style="width:100%">
+      </div>
+    </div>
+    ${idx>0?`<button onclick="document.getElementById('mcContacto_${idx}').remove()" style="position:absolute;top:6px;right:8px;background:none;border:none;cursor:pointer;color:#888;font-size:14px">×</button>`:''}
+  `;
+  wrap.appendChild(div);
+}
+
+function abrirModalCliente(){
+  document.getElementById('modalClienteTitulo').textContent='Nuevo Cliente';
+  ['mc_titulo','mc_ciudad','mc_pais','mc_nit'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.value=id==='mc_pais'?'Colombia':'';}
+  });
+  document.getElementById('mcContactosWrap').innerHTML='';
+  mcContactosCount=0;
+  mcAgregarContacto();
+  clienteEditandoId=null;
+  document.getElementById('modalCliente').style.display='flex';
+  setTimeout(()=>document.getElementById('mc_titulo')?.focus(),100);
+}
 let entregaPersonalizada='';
 
 function onVoltajeChange(val){
@@ -920,8 +1024,9 @@ function getCondPago(){
   return sel;
 }
 
-function tablaPagos(condPago, cuotas, totalUSD, fmtUSD, fmtCOP, mCOP=false, fleteCOP=0, trm=1){
+function tablaPagos(condPago, cuotas, totalUSD, fmtUSD, fmtCOP, mCOP=false, fleteCOP=0, trm=1, mUSD=false){
   // cuotas: array [{concepto, pct}] si es personalizada, sino null
+  const esUSD=!!mUSD;
   let items=[];
   if(cuotas&&cuotas.length){
     items=cuotas.map(c=>({label:c.concepto+' ('+c.pct+'%)',pct:c.pct/100}));
@@ -952,7 +1057,7 @@ function tablaPagos(condPago, cuotas, totalUSD, fmtUSD, fmtCOP, mCOP=false, flet
   const rows=items.map(c=>'<tr>'
     +'<td style="padding:6px 12px;border-bottom:1px solid #eee;">'+c.label+'</td>'
     +(esCOP?'':'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">'+fmtUSD(totalUSD*c.pct)+'</td>')
-    +'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;'+(esCOP?'font-weight:600;':'color:#666;')+'">'+fmtCOP(totalUSD*c.pct)+'</td>'
+    +(esUSD?'':'<td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;'+(esCOP?'font-weight:600;':'color:#666;')+'">'+fmtCOP(totalUSD*c.pct)+'</td>')
     +'</tr>'
   ).join('');
 
@@ -962,14 +1067,14 @@ function tablaPagos(condPago, cuotas, totalUSD, fmtUSD, fmtCOP, mCOP=false, flet
     +'<thead><tr style="background:#f5f7f0;">'
     +'<th style="padding:6px 12px;text-align:left;font-size:10px;color:#575756;font-weight:600;">Concepto</th>'
     +(esCOP?'':'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">USD</th>')
-    +'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">'+(esCOP?'COP':'COP (ref.)')+'</th>'
+    +(esUSD?'':'<th style="padding:6px 12px;text-align:right;font-size:10px;color:#575756;font-weight:600;">'+(esCOP?'COP':'COP (ref.)') +'</th>')
     +'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'<tfoot><tr style="background:#f5f7f0;">'
     +'<td style="padding:6px 12px;font-weight:700;font-size:11px;color:#575756;">TOTAL</td>'
     +(esCOP?'':'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtUSD(totalConFlete)+'</td>')
-    +'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtCOP(totalConFlete)+'</td>'
-    +'</tr></tfoot>'
+    +(esCOP?'':'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtUSD(totalConFlete)+'</td>')
+    +(esUSD?'':'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtCOP(totalConFlete)+'</td>')
     +'</table></div>';
 }
 
@@ -1034,6 +1139,82 @@ function getVendedorInfo(nombre){
 }
 function emailVendedor(nombre){ return getVendedorInfo(nombre).email; }
 function telVendedor(nombre){ return getVendedorInfo(nombre).tel; }
+
+// ══ CONTACTOS ══════════════════════════════════════════
+let listIdContactos='';
+let siteIdComercial='';
+
+async function cargarListaContactos(){
+  if(listIdContactos) return;
+  try{
+    const token=await getToken();
+    const sc=await fetch('https://graph.microsoft.com/v1.0/sites/ayjcsp.sharepoint.com:/sites/comercial',
+      {headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    siteIdComercial=sc.id;
+    const lists=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists?$select=id,displayName`,
+      {headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    const lc=lists.value.find(l=>l.displayName.toLowerCase()==='contactos');
+    if(lc) listIdContactos=lc.id;
+    console.log('[AYJ] Contactos lista:', listIdContactos?'OK':'no encontrada');
+  }catch(e){console.warn('Contactos:',e.message);}
+}
+
+async function onClienteSeleccionado(nombreCliente){
+  const wrap=document.getElementById('contactoWrap');
+  const sel=document.getElementById('contactoSel');
+  if(!wrap||!sel) return;
+  if(!nombreCliente){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  sel.innerHTML='<option value="">Cargando...</option>';
+  await cargarListaContactos();
+  if(!listIdContactos){sel.innerHTML='<option value="">— Sin contactos —</option>';return;}
+  try{
+    const token=await getToken();
+    const r=await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items?expand=fields($select=Title,Cliente,Cargo,Email,Telefono,Activo)&$top=500`,
+      {headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    const contactos=(r.value||[])
+      .filter(i=>(i.fields?.Cliente||'').trim().toLowerCase()===nombreCliente.trim().toLowerCase())
+      .map(i=>({
+        nombre:(i.fields?.Title||'').trim(),
+        cargo:(i.fields?.Cargo||'').trim(),
+        email:(i.fields?.Email||'').trim(),
+        telefono:(i.fields?.Telefono||'').trim(),
+      })).filter(c=>c.nombre);
+    sel._contactos=contactos;
+    if(!contactos.length){sel.innerHTML='<option value="">— Sin contactos registrados —</option>';return;}
+    sel.innerHTML='<option value="">— Seleccionar contacto —</option>'
+      +contactos.map((c,i)=>`<option value="${i}">${c.nombre}${c.cargo?' · '+c.cargo:''}</option>`).join('');
+    if(contactos.length===1){sel.value='0';onContactoSeleccionado();}
+  }catch(e){sel.innerHTML='<option value="">Error: '+e.message+'</option>';}
+}
+
+function onContactoSeleccionado(){
+  const sel=document.getElementById('contactoSel');
+  if(!sel||sel.value==='') return;
+  const c=sel._contactos?.[parseInt(sel.value)];
+  if(!c) return;
+  // Rellenar campos de clienteInfo si existen
+  const emailEl=document.getElementById('clienteEmail');
+  const telEl=document.getElementById('clienteTel');
+  const cargoEl=document.getElementById('clienteCargo');
+  if(emailEl) emailEl.value=c.email;
+  if(telEl) telEl.value=c.telefono;
+  if(cargoEl) cargoEl.value=c.cargo;
+  // Actualizar el clienteInfo display
+  const infoEl=document.getElementById('clienteInfo');
+  if(infoEl&&c.nombre){
+    const current=infoEl.innerHTML;
+    // Inyectar contacto seleccionado en el info
+    const linea=`<div style="margin-top:2px"><strong>Contacto:</strong> ${c.nombre}${c.cargo?' · '+c.cargo:''}</div>`
+      +(c.email?`<div>${c.email}</div>`:'')
+      +(c.telefono?`<div>${c.telefono}</div>`:'');
+    // Reemplazar si ya hay una línea de contacto
+    if(current.includes('Contacto:')) infoEl.innerHTML=current.replace(/<div[^>]*>.*?Contacto:.*?<\/div>/s, linea);
+    else infoEl.innerHTML+=linea;
+  }
+}
+
 async function initMsal(){
   msalInstance=new msal.PublicClientApplication(msalConfig);
   await msalInstance.initialize();
@@ -1095,10 +1276,10 @@ async function resolverSite(){
     const lists=await graphGet(`/sites/${siteId}/lists?$select=id,displayName`);
     lists.value.forEach(l=>{
       const n=l.displayName.toLowerCase();
-      if(n.includes('todas_2025'))listIdMaquinas=l.id;
-      else if(n.includes('cliente'))listIdClientes=l.id;
-      else if(n.includes('cotizaci'))listIdCotizaciones=l.id;
-      else if(n.includes('liquidaci'))listIdLiquidaciones=l.id;
+      if(n.includes('todas_2025')) listIdMaquinas=l.id;
+      if(n.includes('cliente')) listIdClientes=l.id;
+      if(n==='cotizaciones') listIdCotizaciones=l.id;
+      if(n.includes('liquidaci')) listIdLiquidaciones=l.id;
     });
   }catch(e){showToast('Error conectando SharePoint: '+e.message,'error');}
 }
@@ -1114,6 +1295,7 @@ function mapItem(i){
     id:i.id,title:(f.Title||'').trim(),modelo:(f.Modelo||'').trim(),marca:(f.Marca||f.Marca0||f.MO||'').trim(),
     tipologia:(f.Tipologia||'').trim(),estadoDisp:(f.ESTADO_||'').trim().toUpperCase(),
     estadoStock:(f.ESTADO||'').trim(),tarifa,
+    costoAYJ:parseFloat(String(f.COSTO_AYJ||f.CostoAYJ||'0').replace(/[^0-9.,]/g,'').replace(',','.'))||0,
     ubicacion:(f.Ubicaci_x00f3_n||f.Ubicacion||'').trim(),
     descripcion:(f.Descripci_x00f3_n||f.Descripcion||f.Descripci_n||'').trim(),
     fichaTecnica,
@@ -1131,7 +1313,6 @@ function mapItem(i){
 async function cargarMaquinas(){
   if(!siteId||!listIdMaquinas){document.getElementById('maqList').innerHTML='<div class="loading-list">Lista no encontrada</div>';return;}
   try{
-    // Primero detectar nombres internos de columnas clave
     let marcaField='Marca', tipologiaField='Tipologia';
     try{
       const cols=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns?$select=name,displayName`);
@@ -1142,7 +1323,7 @@ async function cargarMaquinas(){
       });
     }catch(e){}
 
-    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$select=id,fields&$top=200`);
+    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$top=200`);
     rawMaquinas=todos.map(i=>{
       const f=i.fields;
 
@@ -1165,6 +1346,7 @@ async function cargarMaquinas(){
         fichaTecnica,
         ytVideo:(()=>{const v=f.YTvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
         observaciones:(f.Observaciones||'').trim(),
+        costoAYJ:parseFloat(String(f.COSTO_AYJ||'0').replace(/[^0-9.,]/g,'').replace(',','.'))||0,
         horasInstalacion:parseFloat(String(f.HorasInstalacion||f.Horas_Instalacion||'0').replace(',','.')||0),
       };
     }).filter(m=>m.estadoDisp==='DISPONIBLE'||m.estadoDisp==='BAJO PEDIDO');
@@ -1179,11 +1361,13 @@ async function cargarMaquinas(){
     procesarCatalogo();
     document.getElementById('catalogoCount').textContent=`${grupos.length} productos · ${bajosPedido.length} bajo pedido`;
     renderCatalogo();
-  }catch(e){document.getElementById('maqList').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
+  }catch(e){
+    console.error('[AYJ] cargarMaquinas error:', e.message, e.stack);
+    document.getElementById('maqList').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;
+  }
 }
 
 function procesarCatalogo(){
-  // DEBUG horas instalacion — ver en consola
   if(rawMaquinas.length>0){
     const sample=rawMaquinas.slice(0,3);
     console.log('[AYJ] Muestra campos horas:',sample.map(m=>({title:m.title,horasInstalacion:m.horasInstalacion})));
@@ -1193,7 +1377,7 @@ function procesarCatalogo(){
   const mapa={};
   disponibles.forEach(m=>{
     const key=m.title.toLowerCase().trim();
-    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0,horasInstalacion:m.horasInstalacion||0};
+    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0,horasInstalacion:m.horasInstalacion||0,costoAYJ:m.costoAYJ||0};
     if(m.ytVideo&&!mapa[key].ytVideo)mapa[key].ytVideo=m.ytVideo;
     const st=m.estadoStock.toLowerCase();
     if(st.includes('importa'))mapa[key].importCount++;else mapa[key].stockCount++;
@@ -1219,14 +1403,31 @@ async function cargarTRM(){
         const trmHoy=Math.round(parseFloat(data[0].valor));
         trm=trmHoy;
         document.getElementById('trmInput').value=trmHoy;
-        document.getElementById('trmLabel').textContent='$ '+trmHoy.toLocaleString('es-CO')+' COP/USD · Banco República';
+        document.getElementById('trmLabel').textContent='$ '+trmHoy.toLocaleString('es-CO')+' COP/USD · BanRep';
+        calcTotales();
         return;
       }
     }
-  }catch(e){}
-  // Si falla la API, mantener el valor por defecto
-  trm=parseFloat(document.getElementById('trmInput').value)||3650;
-  document.getElementById('trmLabel').textContent='$ '+Math.round(trm).toLocaleString('es-CO')+' COP/USD';
+  }catch(e){console.warn('BanRep API falló, usando er-api:',e.message);}
+  // Fallback: open.er-api.com
+  try{
+    const r2=await fetch('https://open.er-api.com/v6/latest/USD');
+    const d=await r2.json();
+    const rate=Math.round(d.rates?.COP||4200);
+    trm=rate;
+    document.getElementById('trmInput').value=rate;
+    document.getElementById('trmLabel').textContent='$ '+rate.toLocaleString('es-CO')+' COP/USD · er-api';
+    calcTotales();
+  }catch(e2){
+    trm=parseFloat(document.getElementById('trmInput').value)||4200;
+    document.getElementById('trmLabel').textContent='$ '+Math.round(trm).toLocaleString('es-CO')+' COP/USD';
+  }
+}
+
+function onGarantiaChange(val){
+  const inp=document.getElementById('garantiaCustomInput');
+  if(inp) inp.style.display=val==='__custom_garantia__'?'block':'none';
+  if(val!=='__custom_garantia__') window._garantiaPersonalizada='';
 }
 
 function resetTRM(){
@@ -1334,14 +1535,14 @@ function buildBpCard(m){
 function agregarGrupo(key,tipo){
   const g=grupos.find(x=>x.key===key);
   if(!g||carrito.some(i=>i.grupoKey===key&&i.tipo===tipo))return;
-  carrito.push({id:'g_'+key+'_'+tipo,grupoKey:key,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo,tipologia:g.tipologia||'',tarifa:g.tarifa,descripcion:g.descripcion,fichaTecnica:g.fichaTecnica,ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount});
+  carrito.push({id:'g_'+key+'_'+tipo,grupoKey:key,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo,tipologia:g.tipologia||'',tarifa:g.tarifa,costoAYJ:g.costoAYJ||0,descripcion:g.descripcion,fichaTecnica:g.fichaTecnica,ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount});
   renderCarrito();renderCatalogo();calcTotales();showToast('Agregado: '+g.title,'success');
 }
 function quitarGrupo(key,tipo){carrito=carrito.filter(i=>!(i.grupoKey===key&&i.tipo===tipo));renderCarrito();renderCatalogo();calcTotales();}
 function toggleBP(id){
   const idx=carrito.findIndex(i=>i.id===id);
   if(idx>=0)carrito.splice(idx,1);
-  else{const m=bajosPedido.find(x=>x.id===id);if(!m)return;carrito.push({id:m.id,grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia||'',tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',cantidad:1});showToast('Agregado: '+m.title,'success');}
+  else{const m=bajosPedido.find(x=>x.id===id);if(!m)return;carrito.push({id:m.id,grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia||'',tarifa:m.tarifa,costoAYJ:m.costoAYJ||0,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',cantidad:1});showToast('Agregado: '+m.title,'success');}
   renderCarrito();renderCatalogo();calcTotales();
 }
 
@@ -1610,6 +1811,27 @@ function getDescuento(){
 // ── MODO COP ──────────────────────────────────────────
 let modoCOP=false;
 
+function toggleModoUSDBtn(){
+  const activo=document.body.classList.contains('modo-usd');
+  if(activo){
+    document.body.classList.remove('modo-usd');
+    const btn=document.getElementById('modoUSDBtn');
+    btn.style.background='#fff'; btn.style.color='var(--text2)'; btn.style.borderColor='var(--border)'; btn.style.fontWeight='400';
+    document.getElementById('modoUSDTxt').textContent='Ver USD';
+  } else {
+    // Desactivar modo COP si está activo
+    if(document.body.classList.contains('modo-cop')){
+      document.getElementById('modoCOPChk').checked=false;
+      toggleModoCOP(false);
+    }
+    document.body.classList.add('modo-usd');
+    const btn=document.getElementById('modoUSDBtn');
+    btn.style.background='#1D4ED8'; btn.style.color='#fff'; btn.style.borderColor='#1D4ED8'; btn.style.fontWeight='600';
+    document.getElementById('modoUSDTxt').textContent='Solo USD ✓';
+  }
+  renderCarrito(); calcTotales();
+}
+
 function toggleModoCOPBtn(){
   const chk=document.getElementById('modoCOPChk');
   chk.checked=!chk.checked;
@@ -1617,6 +1839,13 @@ function toggleModoCOPBtn(){
 }
 
 function toggleModoCOP(checked){
+  // Desactivar modo USD si está activo
+  if(checked&&document.body.classList.contains('modo-usd')){
+    document.body.classList.remove('modo-usd');
+    const btnU=document.getElementById('modoUSDBtn');
+    if(btnU){btnU.style.background='#fff';btnU.style.color='var(--text2)';btnU.style.borderColor='var(--border)';btnU.style.fontWeight='400';}
+    document.getElementById('modoUSDTxt').textContent='Ver USD';
+  }
   const btn=document.getElementById('modoCOPBtn');
   const icon=document.getElementById('modoCOPIcon');
   const txt=document.getElementById('modoCOPTxt');
@@ -1701,6 +1930,13 @@ async function generarNumOferta(){
   document.getElementById('ofertaNum').textContent='COT-2026-'+String(cotNum).padStart(3,'0');
 }
 
+function vendedorFolderName(nombre){
+  const n=(nombre||'').toLowerCase();
+  if(n.includes('pulido')) return 'JorgeP';
+  if(n.includes('salamanca')) return 'JorgeS';
+  return nombre.split(' ')[0]||'AYJ';
+}
+
 async function guardarCotizacion(){
   const cliente=document.getElementById('clienteInput').value.trim();
   const vendedor=currentUserName;
@@ -1713,7 +1949,12 @@ async function guardarCotizacion(){
   const cuotasPago=document.getElementById('condPagoSel').value==='__custom__'?[...condCuotas]:null;
   const validez=document.getElementById('validezSel').value;
   const entrega=getEntrega();
-  const garantia=document.getElementById('garantiaSel').value==='24m'?'24 meses o 4.000 horas':'12 meses o 2.000 horas';
+  const _garSel=document.getElementById('garantiaSel');
+  let _garCustom=window._garantiaPersonalizada||'';
+  const garantia=_garSel.value==='24m'?'24 meses o 4.000 horas':
+    _garSel.value==='6m'?'6 meses — Máquina Usada':
+    _garSel.value==='__custom_garantia__'?(_garCustom||'A convenir'):
+    '12 meses o 2.000 horas';
   const obs=document.getElementById('obsInput').value.trim();
   const desc=getDescuento();
   const descEspecial=document.getElementById('descEspecialChk').checked;
@@ -1749,24 +1990,53 @@ async function guardarCotizacion(){
       Garantia:garantia,
       CondicionPago:condPago,
       Validez:validez,
-      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa}))),
+      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||''}))),
     };
     let itemCreado;
-    if(modoEdicion){
-      // POST nuevo registro con número de revisión (conserva el original)
-      itemCreado=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields});
-      showToast('✓ Revisión '+numOferta+' guardada (original: '+modoEdicion.original+')','success');
-    } else {
-      itemCreado=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields});
-      showToast('✓ Oferta '+numOferta+' guardada','success');
+    const guardarEnSP = async (f) => {
+      if(modoEdicion){
+        const r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:f});
+        showToast('✓ Revisión '+numOferta+' guardada (original: '+modoEdicion.original+')','success');
+        return r;
+      } else {
+        const r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:f});
+        showToast('✓ Oferta '+numOferta+' guardada','success');
+        return r;
+      }
+    };
+    itemCreado=await guardarEnSP(fields);
+    // Guardar campos de descuento especial en PATCH separado
+    if(itemCreado?.id){
+      try{
+        const tokenPatch=await getToken();
+        const descBase=parseFloat(document.getElementById('descInput')?.value)||0;
+        const descEsp=document.getElementById('descEspecialChk')?.checked===true;
+        await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemCreado.id}/fields`,{
+          method:'PATCH',
+          headers:{Authorization:'Bearer '+tokenPatch,'Content-Type':'application/json'},
+          body:JSON.stringify({DescBase:descBase,DescEspecial:descEsp?'3':'0',DescEspecialConcepto:descEsp?(getCausalEspecial()||''):''})
+
+        });
+      }catch(ePatch){console.warn('DescBase/Especial no guardados:',ePatch.message);}
     }
     const itemId=itemCreado?.id||null;
     const clienteInfo=clientesData.find(c=>c.titulo.toLowerCase()===cliente.toLowerCase())||{};
+    // Agregar datos del contacto seleccionado
+    const contactoSel=document.getElementById('contactoSel');
+    if(contactoSel&&contactoSel.value!==''&&contactoSel._contactos){
+      const ct=contactoSel._contactos[parseInt(contactoSel.value)];
+      if(ct){
+        clienteInfo.nombre=ct.nombre||clienteInfo.nombre||'';
+        clienteInfo.email=ct.email||clienteInfo.email||'';
+        clienteInfo.telefono=ct.telefono||clienteInfo.telefono||'';
+        clienteInfo.cargo=ct.cargo||'';
+      }
+    }
     // Generar HTML, subir a SharePoint, luego abrir con link
     const voltaje=getVoltaje();
-    const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,trm,items:[...carrito]},true);
+    const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito]},true);
     const linkPDF=await guardarHTMLEnSharePoint(numOferta, htmlSinLink, cliente, idSynergy);
-    const htmlFinal=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,trm,items:[...carrito],linkSharePoint:linkPDF},true);
+    const htmlFinal=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito],linkSharePoint:linkPDF},true);
     const pdfWin=window.open('','_blank','width=960,height=860');
     if(pdfWin){pdfWin.document.write(htmlFinal);pdfWin.document.close();}
     // Actualizar LinkPDF en la lista
@@ -1776,17 +2046,101 @@ async function guardarCotizacion(){
         await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
           method:'PATCH',
           headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-          body:JSON.stringify({LinkPDF:linkPDF})
+          body:JSON.stringify({LinkPDF:{Url:linkPDF,Description:'PDF Cotización'}})
         });
       }catch(e){console.warn('No se pudo actualizar LinkPDF:',e.message);}
     }
-    await generarNumOferta();
+    // NO generar nuevo número — el usuario debe hacer clic en "Nueva Oferta" explícitamente
+    btn.innerHTML='<i class="ti ti-check"></i> Guardada ✓';
+    setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy"></i> Guardar y PDF';},3000);
   if(esMobil()){const s=document.querySelector('.sidebar');if(s)s.classList.add('mobile-active');}
   }catch(e){showToast('Error: '+e.message,'error');}
-  finally{btn.disabled=false;btn.innerHTML='<i class="ti ti-device-floppy"></i> Guardar y PDF';}
+  finally{btn.disabled=false;}
+}
+
+function mostrarResumenMargenes(){
+  if(!carrito.length){showToast('El carrito está vacío','error');return;}
+  const desc=getDescuento()/100;
+  const trm_=trm||4200;
+  const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
+  const numOferta=document.getElementById('ofertaNum')?.textContent||'';
+  const cliente=document.getElementById('clienteInput')?.value||'';
+
+  let totalCosto=0, totalVenta=0, filas='';
+  carrito.forEach((item,i)=>{
+    const precioOferta=item.tarifa*(1-desc);
+    const costo=item.costoAYJ||0;
+    const utilidad=precioOferta-costo;
+    const margen=precioOferta>0?(utilidad/precioOferta*100):0;
+    // Comisión usando TABLA_MG igual que el liquidador
+    const descPct=Math.min(50,Math.round(desc*100));
+    const mgRow=TABLA_MG[descPct]||[0,0];
+    const comisionPct=mgRow[1];
+    const comision=precioOferta*comisionPct/100;
+    totalCosto+=costo;
+    totalVenta+=precioOferta;
+    const color=margen>=35?'#166534':margen>=20?'#92400E':'#991B1B';
+    const bg=margen>=35?'#F0FDF4':margen>=20?'#FEF3C7':'#FEF2F2';
+    filas+=`<tr style="background:${i%2===0?'#fff':'#f9fafb'}">
+      <td style="padding:8px 12px;font-weight:600">${item.nombre||item.title||'—'}</td>
+      <td style="padding:8px 12px;text-align:right">${item.cantidad||1}</td>
+      <td style="padding:8px 12px;text-align:right;color:#666">${costo>0?'USD '+Math.round(costo).toLocaleString('es-CO'):'—'}</td>
+      <td style="padding:8px 12px;text-align:right">USD ${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
+      <td style="padding:8px 12px;text-align:right;color:#e24b4a">${desc>0?'-'+Math.round(desc*100)+'%':'—'}</td>
+      <td style="padding:8px 12px;text-align:right;font-weight:700">USD ${Math.round(precioOferta).toLocaleString('es-CO')}</td>
+      <td style="padding:8px 12px;text-align:right;background:${bg};color:${color};font-weight:700">${costo>0?margen.toFixed(1)+'%':'—'}</td>
+      <td style="padding:8px 12px;text-align:right;color:#1e40af">${costo>0?'USD '+Math.round(comision).toLocaleString('es-CO'):'—'}</td>
+    </tr>`;
+  });
+
+  const margenTotal=totalVenta>0?((totalVenta-totalCosto)/totalVenta*100):0;
+  const utilidadTotal=totalVenta-totalCosto;
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Resumen de Márgenes — ${numOferta}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#333;font-size:13px}
+    h2{color:#575756;margin-bottom:4px}
+    .sub{color:#888;font-size:12px;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th{background:#575756;color:#fff;padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+    th:not(:first-child){text-align:right}
+    .total-row{background:#f0f4e8;font-weight:700;font-size:13px}
+    .total-row td{padding:10px 12px;border-top:2px solid #80A61B}
+    .nota{margin-top:16px;font-size:11px;color:#888;font-style:italic}
+    @media print{.no-print{display:none}}
+  </style></head><body>
+  <div class="no-print" style="margin-bottom:16px">
+    <button onclick="window.print()" style="background:#80A61B;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  <h2>📊 Resumen de Márgenes — ${numOferta}</h2>
+  <div class="sub">${cliente} · ${fecha} · Descuento aplicado: ${Math.round(desc*100)}%</div>
+  <table>
+    <thead><tr>
+      <th>Máquina</th><th>Cant.</th><th>Costo AYJ</th><th>Tarifa Lista</th>
+      <th>Descuento</th><th>P. Venta</th><th>Margen</th><th>Comisión (15%)</th>
+    </tr></thead>
+    <tbody>${filas}</tbody>
+    <tfoot><tr class="total-row">
+      <td colspan="2">TOTAL OFERTA</td>
+      <td style="text-align:right">USD ${Math.round(totalCosto).toLocaleString('es-CO')}</td>
+      <td></td><td></td>
+      <td style="text-align:right">USD ${Math.round(totalVenta).toLocaleString('es-CO')}</td>
+      <td style="text-align:right;color:${margenTotal>=35?'#166534':margenTotal>=20?'#92400E':'#991B1B'}">${totalCosto>0?margenTotal.toFixed(1)+'%':'—'}</td>
+      <td style="text-align:right;color:#1e40af">${totalCosto>0?'USD '+Math.round((totalVenta-totalCosto)*0.15).toLocaleString('es-CO'):'—'}</td>
+    </tr></tfoot>
+  </table>
+  <div class="nota">* Margen calculado sobre precio con descuento. Comisión = 15% de la utilidad. Costo AYJ tomado de SharePoint — "—" indica que no está registrado en el catálogo.</div>
+  <div class="nota">🟢 ≥35% · 🟡 20-34% · 🔴 &lt;20%</div>
+  </body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 function generarPDF(d, soloRetornar=false){
+
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
   const fUSD=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
   const fCOP=n=>'COP '+Math.round((n||0)*d.trm).toLocaleString('es-CO');
@@ -1815,11 +2169,26 @@ function generarPDF(d, soloRetornar=false){
       +'</div>'
       :'')
       +'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:center;vertical-align:top;font-size:13px;font-weight:600;color:#575756;">'
+      +(item.cantidad||1)
+      +'</td>'
+      +(d.modoUSD?'':('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
+      +(d.modoCOP
+        ?'<div style="font-size:12px;color:#575756;">'+fCOP((item.tarifa||0)/(item.cantidad||1))+'</div>'
+        :'<div style="font-size:12px;color:#575756;">'+fUSD((item.tarifa||0)/(item.cantidad||1))+'</div>'
+         +'<div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP((item.tarifa||0)/(item.cantidad||1))+'</div>'
+      )
+      +'</td>'))
+      +(d.modoUSD?('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
+      +'<div style="font-size:12px;color:#575756;">'+fUSD((item.tarifa||0)/(item.cantidad||1))+'</div>'
+      +'</td>'):'')
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;white-space:nowrap;vertical-align:top;">'
       +(d.modoCOP
         ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fCOP(item.tarifa||0)+'</div>'
-        :'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(item.tarifa||0)+'</div>'
-         +'<div style="font-size:11px;color:#999;margin-top:3px;">'+fCOP(item.tarifa||0)+'</div>'
+        :d.modoUSD
+          ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(item.tarifa||0)+'</div>'
+          :'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(item.tarifa||0)+'</div>'
+           +'<div style="font-size:11px;color:#999;margin-top:3px;">'+fCOP(item.tarifa||0)+'</div>'
       )
       +'</td>'
       +'</tr>';
@@ -1829,7 +2198,7 @@ function generarPDF(d, soloRetornar=false){
     +'<div style="page-break-before:always;padding-top:20px;">'
     +'<table style="width:100%;margin-bottom:16px;border-bottom:3px solid #80A61B;padding-bottom:12px;">'
     +'<tr>'
-    +'<td style="vertical-align:middle;width:50%"><img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png" alt="AYJ" style="height:36px;width:auto;"></td>'
+    +'<td style="vertical-align:middle;width:50%"><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:36px;width:auto;"></td>'
     +'<td style="text-align:right;vertical-align:middle;font-size:10px;color:#999;">'
     +'<strong style="color:#575756;font-size:11px;">'+d.numOferta+'</strong>'+(d.idSynergy?'<br><span style="color:#80A61B;font-size:10px;font-weight:600;">Synergy: '+d.idSynergy+'</span>':'')+'<br>'+d.cliente+'<br>'
     +'Condiciones Comerciales'
@@ -1841,7 +2210,7 @@ function generarPDF(d, soloRetornar=false){
     +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Entrega</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;">En bodega del cliente sobre plataforma de camión, incluido montaje, puesta en marcha y entrenamiento. Costos de descargue y puesta en sitio no incluidos.</td></tr>'
     +(d.modoCOP?'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Moneda</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>Precio en Pesos Colombianos (COP).</strong> El precio pactado es en moneda local y no está referenciado a dólares ni a la TRM.</td></tr>':'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Moneda / TRM</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;">Ofertas en USD se liquidarán a la TRM negociada con la mesa de dinero del VENDEDOR el día en que giran los recursos. <strong>TRM de referencia: '+fTRM(d.trm)+' COP/USD.</strong></td></tr>')
     +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Condición de pago</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>'+d.condPago+'.</strong> Una vez aceptada la oferta y recibidos los anticipos, el COMPRADOR podrá desistir dentro de los 10 días calendario siguientes, perdiendo el 30% del valor total a título de sanción.</td></tr>'
-    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Garantía</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>'+garantiaTexto+'</strong>, considerando un turno de 8 horas, la condición que se cumpla primero. Cubre defectos de fabricación; excluye desgaste normal, mantenimiento deficiente o negligencia.</td></tr>'
+    +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Garantía</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;"><strong>'+garantiaTexto+'</strong>'+(garantiaTexto.includes('Usada')||(!garantiaTexto.includes('meses o')&&!garantiaTexto.includes('horas'))?'':', considerando un turno de 8 horas, la condición que se cumpla primero. Cubre defectos de fabricación; excluye desgaste normal, mantenimiento deficiente o negligencia.')+'</td></tr>'
     +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;border-bottom:1px solid #eee;">Instalación</td><td style="padding:6px 0;color:#444;border-bottom:1px solid #eee;padding-left:12px;">Personal especializado AYJ con colaboración del COMPRADOR. Si en 15 días desde la entrega física no se puede instalar por causas del COMPRADOR, se da por entregado y se pagan los saldos.</td></tr>'
 
     +'<tr><td style="padding:6px 0;color:#575756;vertical-align:top;font-weight:700;">Validez oferta</td><td style="padding:6px 0;color:#444;padding-left:12px;"><strong>'+d.validez+'</strong> a partir de la fecha de emisión.</td></tr>'
@@ -1861,6 +2230,17 @@ function generarPDF(d, soloRetornar=false){
     +'Consultas: info@ayj.com.co · 601-2688600. El COMPRADOR garantiza que los recursos provienen de actividades lícitas. '
     +'Discrepancias se dirimen en Bogotá D.C., Colombia.'
     +'</div>'
+    +'<div style="margin-top:16px;background:#f5f7f0;border:1px solid #d8e0c0;border-radius:8px;padding:14px 16px;">'
+    +'<div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Datos Bancarios</div>'
+    +'<div style="font-size:11px;color:#444;line-height:2;">'
+    +'<strong>Banco de Bogotá</strong> · Cuenta Corriente No. <strong>095-330239</strong> · Aristizábal y Jinete SAS · NIT 860.079.605-6<br>'
+    +'<strong>Bancolombia</strong> · Cuenta Corriente No. <strong>043 627 135 05</strong> · Aristizábal y Jinete SAS · NIT 860.079.605-6<br>'
+    +'<strong>Link Pagos Online:</strong> <a href="https://portalpagos.davivienda.com/#/comercio/8676/ARISTIZABAL%20Y%20JINETE%20SAS" style="color:#1D9E75">Portal Pagos Davivienda</a>'
+    +'</div>'
+    +'<div style="margin-top:8px;font-size:10px;color:#854F0B;background:#FEF3C7;padding:6px 10px;border-radius:4px;">'
+    +'Una vez realizada la transferencia, favor enviar soporte del pago a <strong>pagos@ayj.com.co</strong>'
+    +'</div>'
+    +'</div>'
     +'<div style="margin-top:32px;display:flex;gap:40px;padding-top:16px;border-top:1px solid #e0e0dc;">'
     +'<div style="flex:1;">'
     +'<div style="border-top:2px solid #575756;padding-top:8px;margin-top:32px;">'
@@ -1878,7 +2258,7 @@ function generarPDF(d, soloRetornar=false){
   const descBase=d.descBase||d.desc||0;
   const tieneEspecial=d.descEspecial||false;
   const descRow=(d.desc||0)>0
-    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">Descuento ('+(d.desc||0)+'%)'+(d.descEspecial?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FAEEDA;color:#854F0B;">+3% especial: '+d.causalEspecial+'</span>':'')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#A32D2D;">Aut. Gerencia</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
+    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">Descuento ('+(d.desc||0)+'%)'+(d.descEspecial?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FAEEDA;color:#854F0B;">+3% especial: '+d.causalEspecial+'</span>':'')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#A32D2D;">Aut. Gerencia</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):d.modoUSD?'-'+fUSD(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
     :'';
   const fleteUSDpdf=d.trm>0?(d.fleteCOP||0)/d.trm:0;
   const fleteRow=(d.fleteCOP||0)>0
@@ -1888,7 +2268,7 @@ function generarPDF(d, soloRetornar=false){
   const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
     +'<title>'+d.numOferta+' - '+d.cliente+'</title>'
     +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Segoe UI",Arial,sans-serif;font-size:13px;color:#2a2a2a;background:#fff;padding:32px 40px;max-width:880px;margin:0 auto}'
-    +'@media print{body{padding:0}.no-print{display:none!important}@page{margin:12mm 14mm;size:A4}}'
+    +'@media print{body{padding:0}.no-print{display:none!important}@page{margin:12mm 14mm;size:A4}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}}'
     +'</style></head><body>'
 
     +'<div class="no-print" style="background:#575756;color:#fff;padding:10px 20px;margin:-32px -40px 24px;display:flex;align-items:center;gap:12px;">'
@@ -1901,7 +2281,7 @@ function generarPDF(d, soloRetornar=false){
     +'<table style="width:100%;margin-bottom:20px;border-bottom:3px solid #80A61B;padding-bottom:18px;">'
     +'<tr>'
     +'<td style="vertical-align:middle;width:50%">'
-    +'<img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png" alt="AYJ Maquinaria" style="width:100%;max-width:480px;height:auto;display:block;margin-bottom:8px;">'
+    +'<img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ Maquinaria" style="width:100%;max-width:480px;height:auto;display:block;margin-bottom:8px;">'
     +'<div style="font-size:10px;color:#aaa;line-height:1.7;">Aristizábal y Jinete S.A.S. · NIT: 860.079.605-6<br>'
     +'BOG: Cra 40 No. 17A-44 · MED: Cl 29C No. 54A-18<br>'
     +'Tel: 313.391.67.95 · info@ayj.com.co · www.ayj.com.co</div>'
@@ -1920,7 +2300,7 @@ function generarPDF(d, soloRetornar=false){
     +'<td style="width:55%;padding:14px 18px;background:#f5f7f0;border-radius:8px 0 0 8px;border:1px solid #d8e0c0;border-right:none;vertical-align:top;">'
     +'<div style="font-size:9px;font-weight:700;color:#80A61B;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Cliente</div>'
     +'<div style="font-size:16px;font-weight:800;color:#575756;">'+d.cliente+'</div>'
-    +(cli.nombre?'<div style="font-size:12px;color:#555;margin-top:4px;"><strong>Contacto:</strong> '+cli.nombre+'</div>':'')
+    +(cli.nombre?'<div style="font-size:12px;color:#555;margin-top:4px;"><strong>Contacto:</strong> '+cli.nombre+(cli.cargo?' · '+cli.cargo:'')+'</div>':'')
     +((cli.ciudad||cli.pais)?'<div style="font-size:11px;color:#777;margin-top:2px;">'+(cli.ciudad||'')+(cli.ciudad&&cli.pais?', ':'')+( cli.pais||'')+'</div>':'')
     +(cli.email?'<div style="font-size:11px;color:#777;margin-top:1px;">'+cli.email+'</div>':'')
     +'</td>'
@@ -1936,7 +2316,9 @@ function generarPDF(d, soloRetornar=false){
     +'<thead><tr style="background:#575756;color:#fff;">'
     +'<th style="padding:10px 8px;text-align:center;font-size:10px;font-weight:600;width:28px;">#</th>'
     +'<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Descripción del Equipo</th>'
-    +(d.modoCOP?'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:160px;text-transform:uppercase;letter-spacing:0.5px;">Precio COP</th>':'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:150px;text-transform:uppercase;letter-spacing:0.5px;">Precio</th>')
+    +'<th style="padding:10px 8px;text-align:center;font-size:10px;font-weight:600;width:50px;text-transform:uppercase;">Cant.</th>'
+    +(d.modoUSD?'':'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;">'+( d.modoCOP?'P. Unit. COP':'P. Unit. USD')+'</th>')
+    +(d.modoCOP?'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:140px;text-transform:uppercase;">Total COP</th>':d.modoUSD?'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;">P. Unit. USD</th><th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:130px;text-transform:uppercase;">Total USD</th>':'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:130px;text-transform:uppercase;">Total USD</th>')
     +'</tr></thead>'
     +'<tbody>'+filas+'</tbody></table>'
 
@@ -1944,18 +2326,25 @@ function generarPDF(d, soloRetornar=false){
     +'<tr>'
     +'<td style="width:52%;vertical-align:top;">'
     +(d.obs?'<div style="padding:12px 16px;background:#fefce8;border-left:3px solid #80A61B;border-radius:0 6px 6px 0;font-size:11px;color:#555;"><strong>Observaciones:</strong> '+d.obs+'</div>':'')
-    +tablaPagos(d.condPago,d.cuotasPago||null,d.totalUSD-(d.fleteCOP>0?d.fleteCOP/d.trm:0),fUSD,fCOP,d.modoCOP,d.fleteCOP||0,d.trm||1)
+    +tablaPagos(d.condPago,d.cuotasPago||null,d.totalUSD-(d.fleteCOP>0?d.fleteCOP/d.trm:0),fUSD,fCOP,d.modoCOP,d.fleteCOP||0,d.trm||1,d.modoUSD||false)
     +'</td>'
     +'<td style="width:48%;padding-left:16px;vertical-align:top;">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
-    +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">Subtotal</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'+(d.modoCOP?fCOP(d.subUSD):fUSD(d.subUSD)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.subUSD)+'</span>')+'</td></tr>'
+    +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">Subtotal</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'
+    +(d.modoCOP?fCOP(d.subUSD):d.modoUSD?fUSD(d.subUSD):fUSD(d.subUSD)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.subUSD)+'</span>')
+    +'</td></tr>'
     +descRow
-    +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">IVA 19%</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'+(d.modoCOP?fCOP(d.ivaUSD||0):fUSD(d.ivaUSD||0)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.ivaUSD||0)+'</span>')+'</td></tr>'
+    +'<tr style="background:#f5f7f0"><td style="padding:6px 10px;color:#575756;font-weight:700;border-bottom:1px solid #eee;">Subtotal s/IVA</td><td style="padding:6px 10px;text-align:right;border-bottom:1px solid #eee;font-weight:700;">'
+    +(d.modoCOP?fCOP((d.subUSD||0)-(d.descUSD||0)):d.modoUSD?fUSD((d.subUSD||0)-(d.descUSD||0)):fUSD((d.subUSD||0)-(d.descUSD||0))+'<br><span style="font-size:10px;color:#aaa;">'+fCOP((d.subUSD||0)-(d.descUSD||0))+'</span>')
+    +'</td></tr>'
+    +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">IVA 19%</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'
+    +(d.modoCOP?fCOP(d.ivaUSD||0):d.modoUSD?fUSD(d.ivaUSD||0):fUSD(d.ivaUSD||0)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.ivaUSD||0)+'</span>')
+    +'</td></tr>'
     +fleteRow
     +'<tr style="background:#80A61B;">'
     +'<td style="padding:12px 10px;font-weight:700;font-size:13px;color:#fff;">TOTAL OFERTA</td>'
     +'<td style="padding:12px 10px;text-align:right;">'
-    +(d.modoCOP?'<div style="font-weight:800;font-size:16px;color:#fff;">'+fCOP(d.totalUSD||0)+'</div>':'<div style="font-weight:800;font-size:16px;color:#fff;">'+fUSD(d.totalUSD||0)+'</div><div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:2px;font-weight:600;">COP '+Math.round(d.totalCOP||0).toLocaleString('es-CO')+'</div><div style="font-size:9px;color:rgba(255,255,255,0.65);margin-top:2px;">TRM ref: '+fTRM(d.trm||0)+' COP/USD</div>')
+    +(d.modoCOP?'<div style="font-weight:800;font-size:16px;color:#fff;">'+fCOP(d.totalUSD||0)+'</div>':d.modoUSD?'<div style="font-weight:800;font-size:16px;color:#fff;">'+fUSD(d.totalUSD||0)+'</div><div style="font-size:9px;color:rgba(255,255,255,0.65);margin-top:2px;">TRM ref: '+fTRM(d.trm||0)+' COP/USD</div>':'<div style="font-weight:800;font-size:16px;color:#fff;">'+fUSD(d.totalUSD||0)+'</div><div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:2px;font-weight:600;">COP '+Math.round(d.totalCOP||0).toLocaleString('es-CO')+'</div><div style="font-size:9px;color:rgba(255,255,255,0.65);margin-top:2px;">TRM ref: '+fTRM(d.trm||0)+' COP/USD</div>')
     +'</td></tr></table></td></tr></table>'
 
 
@@ -1967,17 +2356,14 @@ function generarPDF(d, soloRetornar=false){
     +'<td style="padding:0 12px;border-right:1px solid #ddd;vertical-align:top;"><strong style="color:#575756;">CAT</strong><br>Centro de Asistencia Técnica<br>Tel: 313.391.67.95<br><a href="mailto:cat@ayj.com.co" style="color:#80A61B;text-decoration:none;">cat@ayj.com.co</a></td>'
     +'<td style="padding:0 0 0 12px;vertical-align:top;text-align:right;"><a href="https://www.ayj.com.co" target="_blank" style="color:#80A61B;text-decoration:none;font-weight:700;font-size:10px;">www.ayj.com.co</a><br><span style="color:#aaa;font-size:8px;">Lunes a viernes 7:30–12:30 / 13:30–17:00</span>'+(d.idSynergy?'<br><span style="color:#575756;font-size:9px;font-weight:700;">Synergy: '+d.idSynergy+'</span>':'')+'</td>'
     +'</tr></table></div>'
-
-    +condiciones;
+    +condiciones
+    +'<div style="page-break-before:always;width:100%;margin:0;padding:0;"><img src="https://aristi01ayj.github.io/cotizador-ayj/partners.jpg" style="width:100%;height:auto;display:block;"></div>'
+    +'<div style="page-break-before:always;width:100%;margin:0;padding:0;"><img src="https://aristi01ayj.github.io/cotizador-ayj/somos.jpg" style="width:100%;height:auto;display:block;"></div>';
   return html;
 }
 async function cargarHistorial(){
   if(!siteId||!listIdCotizaciones){document.getElementById('historialBody').innerHTML='<div class="loading-list">Lista no disponible</div>';return;}
   document.getElementById('historialBody').innerHTML='<div class="loading-list"><span class="spinner dark"></span> Cargando...</div>';
-  // Pre-llenar el filtro vendedor con el usuario actual si no está marcado "ver todas"
-  const verTodas=document.getElementById('histVerTodas')?.checked||false;
-  const filtVen=document.getElementById('hFiltVendedor');
-  if(filtVen&&!verTodas&&!filtVen.value) filtVen.value=currentUserName||'';
   try{
     const data=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$orderby=id desc&$top=200`);
     historialData=data.map(i=>{
@@ -1995,22 +2381,53 @@ async function cargarHistorial(){
         linkPDF:f.LinkPDF||'',
         prob:parseFloat(f.Probabilidad||0),
         id:i.id,
+        desc:parseFloat(f.DescBase||f.Descuento||0),
+        descEspecial:parseFloat(f.DescEspecial||0)>0,
+        descEspecialConcepto:f.DescEspecialConcepto||'',
+        condPago:f.CondicionPago||'',
+        garantia:f.Garantia||'',
+        validez:f.Validez||'',
+        idSynergy:f.IDSynergy||'',
       };
     });
     filtrarHistorial();
+    poblarVendedoresHistorial();
   }catch(e){document.getElementById('historialBody').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
 }
 
+function filtrarMisOfertas(checked){
+  const filtVen=document.getElementById('hFiltVendedor');
+  if(filtVen) filtVen.value=checked?(currentUserName||''):'';
+  filtrarHistorial();
+}
+
+let _histOrden={col:'fecha',asc:false};
+
+function poblarVendedoresHistorial(){
+  const sel=document.getElementById('hFiltVendedor');
+  if(!sel) return;
+  const actual=sel.value;
+  const vendedores=[...new Set(historialData.map(r=>r.vendedor.split(' ')[0]).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">Todos</option>'+vendedores.map(v=>`<option value="${v}">${v}</option>`).join('');
+  if(actual) sel.value=actual;
+}
+
+function ordenarHistorial(col){
+  if(_histOrden.col===col) _histOrden.asc=!_histOrden.asc;
+  else {_histOrden.col=col; _histOrden.asc=col==='cliente'||col==='num';}
+  filtrarHistorial();
+}
+
 function filtrarHistorial(){
+  const qNum=(document.getElementById('hFiltNum')?.value||'').toLowerCase();
   const qCli=(document.getElementById('hFiltCliente')?.value||'').toLowerCase();
-  const verTodas=document.getElementById('histVerTodas')?.checked||false;
-  // Por defecto filtra por el usuario logueado
-  const qVen=verTodas?'':(document.getElementById('hFiltVendedor')?.value||currentUserName||'').toLowerCase();
+  const qVen=(document.getElementById('hFiltVendedor')?.value||'').toLowerCase();
   const qEst=document.getElementById('hFiltEstado')?.value||'';
   const desde=document.getElementById('hFiltDesde')?.value?new Date(document.getElementById('hFiltDesde').value):null;
   const hasta=document.getElementById('hFiltHasta')?.value?new Date(document.getElementById('hFiltHasta').value+'T23:59:59'):null;
 
-  window._historialLista=historialData.filter(r=>{
+  let lista=historialData.filter(r=>{
+    if(qNum&&!r.num.toLowerCase().includes(qNum)) return false;
     if(qCli&&!r.cliente.toLowerCase().includes(qCli)) return false;
     if(qVen&&!r.vendedor.toLowerCase().includes(qVen)) return false;
     if(qEst&&r.estado!==qEst) return false;
@@ -2019,16 +2436,36 @@ function filtrarHistorial(){
     return true;
   });
 
+  // Ordenar
+  lista.sort((a,b)=>{
+    let va,vb;
+    if(_histOrden.col==='num'){va=a.num;vb=b.num;}
+    else if(_histOrden.col==='cliente'){va=a.cliente;vb=b.cliente;}
+    else if(_histOrden.col==='vendedor'){va=a.vendedor;vb=b.vendedor;}
+    else if(_histOrden.col==='total'){va=a.total;vb=b.total;}
+    else{va=a.fecha||new Date(0);vb=b.fecha||new Date(0);}
+    if(va<vb) return _histOrden.asc?-1:1;
+    if(va>vb) return _histOrden.asc?1:-1;
+    return 0;
+  });
+
+  window._historialLista=lista;
   const wrap=document.getElementById('historialBody');
-  const lista=window._historialLista||[];
   if(!lista.length){wrap.innerHTML='<div class="loading-list">Sin resultados</div>';return;}
 
   const totalFiltrado=lista.reduce((s,r)=>s+r.total,0);
+  const ico=(col)=>_histOrden.col===col?(_histOrden.asc?' ↑':' ↓'):'';
 
   wrap.innerHTML='<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">'
     +lista.length+' oferta'+(lista.length!==1?'s':'')+' · Total: <strong>USD '+totalFiltrado.toLocaleString('es-CO')+'</strong></div>'
     +'<table class="hist-table"><thead><tr>'
-    +'<th>N° Oferta</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Estado</th><th style="text-align:right">Total USD</th><th style="text-align:center">Acciones</th>'
+    +'<th style="cursor:pointer" onclick="ordenarHistorial(\'num\')">N° Oferta'+ico('num')+'</th>'
+    +'<th style="cursor:pointer" onclick="ordenarHistorial(\'fecha\')">Fecha'+ico('fecha')+'</th>'
+    +'<th style="cursor:pointer" onclick="ordenarHistorial(\'cliente\')">Cliente'+ico('cliente')+'</th>'
+    +'<th style="cursor:pointer" onclick="ordenarHistorial(\'vendedor\')">Vendedor'+ico('vendedor')+'</th>'
+    +'<th>Estado</th>'
+    +'<th style="text-align:right;cursor:pointer" onclick="ordenarHistorial(\'total\')">Total USD'+ico('total')+'</th>'
+    +'<th style="text-align:center">Acciones</th>'
     +'</tr></thead><tbody>'
     +lista.map((r,i)=>{
       const eCfg=ESTADOS_CONFIG[r.estado]||{bg:'var(--amber-light)',text:'var(--amber)',color:'var(--amber)'};
@@ -2158,6 +2595,10 @@ function poblarDatalist(){
 }
 
 function filtrarClienteInput(val){
+  // Verificar si se seleccionó un cliente del datalist
+  const matchCli=clientesData.find(c=>(c.titulo||c.empresa||c.nombre||'').toLowerCase()===val.toLowerCase());
+  if(matchCli) onClienteSeleccionado(matchCli.titulo||matchCli.empresa||matchCli.nombre);
+  else if(!val) document.getElementById('contactoWrap').style.display='none';
   const match=clientesData.find(c=>c.titulo.toLowerCase()===val.toLowerCase());
   const info=document.getElementById('clienteInfo');
   if(match&&val){
@@ -2169,44 +2610,198 @@ function filtrarClienteInput(val){
 function renderTablaClientes(){
   const q=(document.getElementById('clientesBuscador')?.value||'').toLowerCase();
   const ciudad=(document.getElementById('clientesFiltCiudad')?.value||'').toLowerCase();
-  const orden=document.getElementById('clientesOrden')?.value||'az';
+  const orden=document.getElementById('clientesOrden')?.value||'nombre';
   let lista=clientesData.filter(c=>
-    (!q||(c.titulo.toLowerCase().includes(q)||c.nombre.toLowerCase().includes(q)||
-    c.ciudad.toLowerCase().includes(q)||c.email.toLowerCase().includes(q)))
+    (!q||(c.titulo.toLowerCase().includes(q)||c.ciudad.toLowerCase().includes(q)))
     &&(!ciudad||c.ciudad.toLowerCase()===ciudad)
   );
   if(orden==='nombre') lista=[...lista].sort((a,b)=>a.titulo.localeCompare(b.titulo,'es'));
   else if(orden==='ciudad') lista=[...lista].sort((a,b)=>(a.ciudad||'').localeCompare(b.ciudad||'','es'));
-  else if(orden==='contacto') lista=[...lista].sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'','es'));
   _listaFiltradaClientes=lista;
   const wrap=document.getElementById('clientesTablaWrap');
-  if(!wrap)return;
-  if(!lista.length){wrap.innerHTML='<div class="loading-list">Sin clientes que coincidan</div>';return;}
-  wrap.innerHTML=`<table class="cli-table">
-    <thead><tr><th>Razón Social</th><th>Contacto</th><th>Email</th><th>Teléfono</th><th>Ciudad</th><th>NIT/RUT</th><th></th></tr></thead>
-    <tbody>${lista.map((c,idx)=>`<tr>
-      <td><strong>${c.titulo}</strong></td>
-      <td>${c.nombre||'—'}</td>
-      <td style="font-size:12px">${c.email||'—'}</td>
-      <td style="font-size:12px">${c.telefono||'—'}</td>
-      <td>${c.ciudad||'—'}</td>
-      <td style="font-size:12px">${c.nit||'—'}</td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-cli-usar" onclick="usarClienteIdx(${idx})">
-            <i class="ti ti-arrow-right"></i> Usar
-          </button>
-          <button class="btn-cli-usar" style="border-color:var(--blue);color:var(--blue-dark)" onclick="editarClienteIdx(${idx})">
-            <i class="ti ti-pencil"></i>
-          </button>
-          <button class="btn-cli-usar" style="border-color:#EF4444;color:#EF4444" onclick="eliminarClienteIdx(${idx})" title="Eliminar cliente">
-            <i class="ti ti-trash"></i>
-          </button>
-        </div>
-      </td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+  if(!wrap) return;
+  if(!lista.length){wrap.innerHTML='<div class="loading-list">Sin clientes</div>';return;}
+  wrap.innerHTML=lista.map((c,idx)=>`
+    <div onclick="seleccionarClienteDetalle(${idx})" id="cliRow_${idx}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s" onmouseover="this.style.background='#f5f7f0'" onmouseout="this.style.background=_clienteSelIdx===${idx}?'#EDF7E3':'#fff'">
+      <div style="font-weight:600;font-size:13px;color:var(--text)">${c.titulo}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">${c.ciudad||''}${c.ciudad&&c.nit?' · ':''} ${c.nit||''}</div>
+    </div>`).join('');
 }
+
+let _clienteSelIdx = -1;
+
+let _contactosMapa = {}; // mapa por key para editar
+
+async function seleccionarClienteDetalle(idx){
+  _clienteSelIdx = idx;
+  document.querySelectorAll('[id^="cliRow_"]').forEach(el=>{
+    el.style.background = el.id===`cliRow_${idx}` ? '#EDF7E3' : '#fff';
+  });
+  const c = _listaFiltradaClientes[idx];
+  if(!c) return;
+  const panel = document.getElementById('clienteDetallePanel');
+  panel.innerHTML = `<div class="loading-list"><span class="spinner dark"></span> Cargando contactos...</div>`;
+
+  await cargarListaContactos();
+  const contactos = await cargarContactosPorCliente(c.titulo);
+  _contactosMapa = {};
+  contactos.forEach((ct,i)=>{ _contactosMapa[i]=ct; });
+
+  panel.innerHTML = `
+    <div style="max-width:600px">
+      <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text)">${c.titulo}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px">${[c.ciudad,c.pais].filter(Boolean).join(' · ')}${c.nit?' · NIT: '+c.nit:''}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="editarClienteIdx(${idx})" class="btn-sec" style="padding:5px 10px;font-size:12px"><i class="ti ti-pencil"></i></button>
+            <button onclick="eliminarClienteIdx(${idx})" class="btn-sec" style="padding:5px 10px;font-size:12px;border-color:#EF4444;color:#EF4444"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">👤 Contactos <span style="font-size:11px;color:var(--text2);font-weight:400">(${contactos.length})</span></div>
+        <button onclick="abrirModalNuevoContacto('${c.titulo.replace(/'/g,"\\'")}',${idx})" class="btn-primary" style="padding:5px 12px;font-size:12px"><i class="ti ti-user-plus"></i> Agregar</button>
+      </div>
+      <div id="contactosDetalleWrap">
+        ${contactos.length ? contactos.map((ct,ci)=>`
+          <div style="background:#fff;border-radius:var(--radius);border:1px solid var(--border);padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-weight:600;font-size:13px">${ct.nombre}</div>
+              ${ct.cargo?`<div style="font-size:11px;color:var(--text2);margin-top:2px">${ct.cargo}</div>`:''}
+              ${ct.email?`<div style="font-size:11px;color:var(--green-dark);margin-top:2px">${ct.email}</div>`:''}
+              ${ct.telefono?`<div style="font-size:11px;color:var(--text2)">${ct.telefono}</div>`:''}
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px">
+              <button onclick="usarContactoIdx(${ci},'${c.titulo.replace(/'/g,"\\'")}')" class="btn-primary" style="padding:4px 10px;font-size:11px"><i class="ti ti-arrow-right"></i> Usar</button>
+              <button onclick="editarContactoIdx(${ci},'${c.titulo.replace(/'/g,"\\'")}')" class="btn-sec" style="padding:4px 8px;font-size:11px"><i class="ti ti-pencil"></i></button>
+              <button onclick="eliminarContactoIdx(${ci},'${c.titulo.replace(/'/g,"\\'")}')" class="btn-sec" style="padding:4px 8px;font-size:11px;border-color:#EF4444;color:#EF4444"><i class="ti ti-trash"></i></button>
+            </div>
+          </div>`).join('')
+        : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Sin contactos registrados</div>'}
+      </div>
+    </div>`;
+}
+
+async function editarContactoIdx(ci, nombreCliente){
+  const ct = _contactosMapa[ci];
+  if(!ct) return;
+  const nombre=prompt('Nombre:',ct.nombre);
+  if(!nombre?.trim()) return;
+  const cargo=prompt('Cargo:',ct.cargo)||'';
+  const email=prompt('Email:',ct.email)||'';
+  const telefono=prompt('Teléfono:',ct.telefono)||'';
+  await cargarListaContactos();
+  try{
+    const token=await getToken();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items/${ct.id}/fields`,{
+      method:'PATCH',
+      headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({Title:nombre.trim(),Cargo:cargo,Email:email,Telefono:telefono})
+    });
+    showToast('✓ Contacto actualizado','success');
+    seleccionarClienteDetalle(_clienteSelIdx);
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
+async function eliminarContactoIdx(ci, nombreCliente){
+  const ct = _contactosMapa[ci];
+  if(!ct||!confirm(`¿Eliminar contacto "${ct.nombre}"?`)) return;
+  await cargarListaContactos();
+  try{
+    const token=await getToken();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items/${ct.id}`,{
+      method:'DELETE',headers:{Authorization:'Bearer '+token}
+    });
+    showToast('✓ Contacto eliminado','success');
+    seleccionarClienteDetalle(_clienteSelIdx);
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
+async function cargarContactosPorCliente(nombreCliente){
+  if(!listIdContactos) return [];
+  try{
+    const token=await getToken();
+    const r=await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items?expand=fields($select=Title,Cliente,Cargo,Email,Telefono,Activo)&$top=500`,
+      {headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    return (r.value||[])
+      .filter(i=>(i.fields?.Cliente||'').trim().toLowerCase()===nombreCliente.trim().toLowerCase())
+      .map(i=>({
+        id:i.id,
+        nombre:(i.fields?.Title||'').trim(),
+        cargo:(i.fields?.Cargo||'').trim(),
+        email:(i.fields?.Email||'').trim(),
+        telefono:(i.fields?.Telefono||'').trim(),
+      })).filter(c=>c.nombre);
+  }catch(e){return [];}
+}
+
+function abrirModalNuevoContacto(nombreCliente, clienteIdx){
+  // Abrir modal de contacto con cliente pre-llenado
+  document.getElementById('modalContactoClienteNombre').textContent = nombreCliente;
+  document.getElementById('modalContactoClienteIdx').value = clienteIdx;
+  document.getElementById('mc_cont_nombre_new').value = '';
+  document.getElementById('mc_cont_cargo_new').value = '';
+  document.getElementById('mc_cont_email_new').value = '';
+  document.getElementById('mc_cont_tel_new').value = '';
+  document.getElementById('modalNuevoContacto').style.display = 'flex';
+  setTimeout(()=>document.getElementById('mc_cont_nombre_new')?.focus(),100);
+}
+
+async function guardarNuevoContactoModal(){
+  const nombre=document.getElementById('mc_cont_nombre_new')?.value.trim();
+  if(!nombre){showToast('El nombre es obligatorio','error');return;}
+  const nombreCliente=document.getElementById('modalContactoClienteNombre')?.textContent||'';
+  const clienteIdx=parseInt(document.getElementById('modalContactoClienteIdx')?.value||'-1');
+  const datos={
+    nombre,
+    cargo:document.getElementById('mc_cont_cargo_new')?.value.trim()||'',
+    email:document.getElementById('mc_cont_email_new')?.value.trim()||'',
+    telefono:document.getElementById('mc_cont_tel_new')?.value.trim()||'',
+  };
+  document.getElementById('modalNuevoContacto').style.display='none';
+  await _guardarNuevoContacto(nombreCliente, datos, clienteIdx);
+}
+
+
+async function _guardarNuevoContacto(nombreCliente, datos, clienteIdx){
+  await cargarListaContactos();
+  console.log('[AYJ] Guardando contacto para:', nombreCliente, 'lista:', listIdContactos);
+  if(!listIdContactos){showToast('Lista Contactos no encontrada — recarga la página','error');return;}
+  try{
+    const token=await getToken();
+    // Primero consultar el nombre interno del campo Cliente
+    // Campo Cliente es Lookup — necesita el ID del item en lista Clientes
+    let clienteLookupId=null;
+    try{
+      const clientesResp=await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdClientes}/items?expand=fields($select=Title,id)&$top=500`,
+        {headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+      const clienteItem=clientesResp.value?.find(i=>(i.fields?.Title||'').trim().toLowerCase()===nombreCliente.trim().toLowerCase());
+      if(clienteItem) clienteLookupId=parseInt(clienteItem.id);
+      console.log('[AYJ] ClienteLookupId:', clienteLookupId, 'para:', nombreCliente);
+    }catch(e){console.warn('No se pudo obtener ID cliente:',e.message);}
+
+    const fields={Title:datos.nombre,Cargo:datos.cargo,Email:datos.email,Telefono:datos.telefono,Activo:true};
+    if(clienteLookupId) fields.ClienteLookupId=clienteLookupId;
+
+    const resp=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items`,{
+      method:'POST',
+      headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({fields})
+    });
+    const respData=await resp.json();
+    if(!resp.ok) throw new Error(respData?.error?.message||'Error '+resp.status);
+    console.log('[AYJ] Contacto guardado ID:', respData.id);
+    if(!resp.ok) throw new Error(respData?.error?.message||'Error '+resp.status);
+    showToast('✓ Contacto agregado','success');
+    seleccionarClienteDetalle(clienteIdx);
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
 
 async function eliminarClienteIdx(idx){
   const c=_listaFiltradaClientes[idx];
@@ -2223,14 +2818,82 @@ async function eliminarClienteIdx(idx){
   }catch(e){showToast('Error al eliminar: '+e.message,'error');}
 }
 
-function usarClienteIdx(idx){
+async function usarClienteIdx(idx){
   const c=_listaFiltradaClientes[idx];
-  if(c) usarCliente(c.titulo,c.nombre,c.ciudad,c.telefono);
+  if(!c) return;
+
+  // Primero cambiar a vista nueva para que el DOM esté listo
+  switchView('nueva');
+
+  // Rellenar cliente
+  document.getElementById('clienteInput').value=c.titulo;
+  const info=document.getElementById('clienteInfo');
+  info.style.display='block';
+
+  // Cargar contactos
+  await cargarListaContactos();
+  const contactos=await cargarContactosPorCliente(c.titulo);
+
+  let contacto=null;
+  if(contactos.length===1){
+    contacto=contactos[0];
+  } else if(contactos.length>1){
+    const opciones=contactos.map((ct,i)=>`${i+1}. ${ct.nombre}${ct.cargo?' · '+ct.cargo:''}`).join('\n');
+    const selNum=prompt(`${c.titulo} tiene ${contactos.length} contactos:\n${opciones}\n\nIngresa el número del contacto:`);
+    const num=parseInt(selNum);
+    if(num>=1&&num<=contactos.length) contacto=contactos[num-1];
+  }
+
+  // Mostrar info y poblar dropdown
+  let infoText=c.ciudad||'';
+  const wrap=document.getElementById('contactoWrap');
+  const selEl=document.getElementById('contactoSel');
+
+  if(contactos.length>0&&wrap&&selEl){
+    wrap.style.display='block';
+    selEl.innerHTML=contactos.map((ct,i)=>`<option value="${i}">${ct.nombre}${ct.cargo?' · '+ct.cargo:''}</option>`).join('');
+    selEl._contactos=contactos;
+    if(contacto){
+      const selIdx=contactos.findIndex(ct=>ct.nombre===contacto.nombre);
+      if(selIdx>=0) selEl.value=String(selIdx);
+      infoText=`${contacto.nombre}${contacto.cargo?' · '+contacto.cargo:''}${c.ciudad?' · '+c.ciudad:''}`;
+    }
+  }
+
+  info.textContent=infoText||c.titulo;
+  showToast('Cliente: '+c.titulo+(contacto?' · '+contacto.nombre:''),'success');
 }
 function editarClienteIdx(idx){
   const c=_listaFiltradaClientes[idx];
   if(c) editarCliente(c);
 }
+
+function usarContactoIdx(ci, nombreCliente){
+  const ct=_contactosMapa[ci];
+  if(!ct) return;
+  // Cambiar vista primero
+  switchView('nueva');
+  // Rellenar cliente
+  document.getElementById('clienteInput').value=nombreCliente;
+  const info=document.getElementById('clienteInfo');
+  if(info){
+    info.style.display='block';
+    info.textContent=ct.nombre+(ct.cargo?' · '+ct.cargo:'')+(info._ciudad?' · '+info._ciudad:'');
+  }
+  // Poblar y seleccionar en el dropdown
+  const wrap=document.getElementById('contactoWrap');
+  const selEl=document.getElementById('contactoSel');
+  if(wrap&&selEl){
+    wrap.style.display='block';
+    // Construir options con todos los contactos del mapa
+    const allContacts=Object.values(_contactosMapa);
+    selEl.innerHTML=allContacts.map((c,i)=>`<option value="${Object.keys(_contactosMapa)[i]}">${c.nombre}${c.cargo?' · '+c.cargo:''}</option>`).join('');
+    selEl._contactos=allContacts;
+    selEl.value=String(ci);
+  }
+  showToast('Contacto cargado: '+ct.nombre+' — '+nombreCliente,'success');
+}
+
 
 function usarCliente(titulo,nombre,ciudad,telefono){
   document.getElementById('clienteInput').value=titulo;
@@ -2253,14 +2916,14 @@ function abrirModalCliente(){
 function editarCliente(c){
   clienteEditandoId=c.id;
   document.getElementById('mc_titulo').value=c.titulo||'';
-  document.getElementById('mc_nombre').value=c.nombre||'';
-  document.getElementById('mc_email').value=c.email||'';
-  document.getElementById('mc_telefono').value=c.telefono||'';
   document.getElementById('mc_ciudad').value=c.ciudad||'';
   document.getElementById('mc_pais').value=c.pais||'Colombia';
   document.getElementById('mc_nit').value=c.nit||'';
+  document.getElementById('mcContactosWrap').innerHTML='';
+  mcContactosCount=0;
+  mcAgregarContacto(); // campo vacío para agregar nuevo si quiere
   document.getElementById('modalClienteTitulo').textContent='Editar Cliente';
-  document.getElementById('btnGuardarCliente').innerHTML='<i class="ti ti-check"></i> Actualizar Cliente';
+  document.getElementById('btnGuardarCliente').innerHTML='<i class="ti ti-check"></i> Actualizar';
   document.getElementById('modalCliente').style.display='flex';
 }
 function cerrarModalCliente(){document.getElementById('modalCliente').style.display='none';}
@@ -2275,39 +2938,75 @@ async function guardarCliente(){
     const existe=clientesData.find(c=>c.titulo.toLowerCase()===titulo.toLowerCase());
     if(existe){
       const usar=confirm(`Ya existe un cliente con ese nombre:\n"${existe.titulo}"\n\n¿Deseas usarlo en la oferta actual en lugar de crear uno nuevo?`);
-      if(usar){cerrarModalCliente();usarCliente(existe.titulo,existe.nombre,existe.ciudad,existe.telefono);}
+      if(usar){cerrarModalCliente();usarCliente(existe.titulo,'',existe.ciudad,existe.telefono);}
       return;
     }
   }
 
+  // Recopilar contactos del modal
+  const contactos=[];
+  document.querySelectorAll('[id^="mc_cont_nombre_"]').forEach(el=>{
+    const idx=el.id.replace('mc_cont_nombre_','');
+    const nombre=el.value.trim();
+    if(nombre) contactos.push({
+      nombre,
+      cargo:document.getElementById(`mc_cont_cargo_${idx}`)?.value.trim()||'',
+      email:document.getElementById(`mc_cont_email_${idx}`)?.value.trim()||'',
+      telefono:document.getElementById(`mc_cont_tel_${idx}`)?.value.trim()||'',
+    });
+  });
+
   const btn=document.getElementById('btnGuardarCliente');
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Guardando...';
+
   const fields={
     Title:titulo,
-    Nombre:document.getElementById('mc_nombre').value.trim(),
-    Email:document.getElementById('mc_email').value.trim(),
-    Telefono:document.getElementById('mc_telefono').value.trim(),
     Ciudad:document.getElementById('mc_ciudad').value.trim(),
     Pais:document.getElementById('mc_pais').value.trim(),
     Asesor:currentUserName,
   };
+  const nit=document.getElementById('mc_nit')?.value.trim();
+  if(nit) fields.NIT=nit;
+
   try{
+    const token=await getToken();
     if(clienteEditandoId){
-      // PATCH — actualizar existente
-      const token=await getToken();
       await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdClientes}/items/${clienteEditandoId}/fields`,{
         method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(fields)
       });
       showToast('✓ Cliente actualizado','success');
     } else {
       await graphPost(`/sites/${siteId}/lists/${listIdClientes}/items`,{fields});
-      showToast('✓ Cliente guardado: '+titulo,'success');
+      // Guardar contactos en lista Contactos
+      if(contactos.length>0){
+        await cargarListaContactos();
+        if(listIdContactos){
+          for(const c of contactos){
+            try{
+              await fetch(`https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items`,{
+                method:'POST',
+                headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+                body:JSON.stringify({fields:{Title:c.nombre,Cliente:titulo,Cargo:c.cargo,Email:c.email,Telefono:c.telefono,Activo:true}})
+              });
+            }catch(e){console.warn('Error guardando contacto:',e.message);}
+          }
+          showToast(`✓ Cliente + ${contactos.length} contacto(s) guardados`,'success');
+        } else {
+          showToast('✓ Cliente guardado (lista Contactos no encontrada)','success');
+        }
+      } else {
+        showToast('✓ Cliente guardado: '+titulo,'success');
+      }
     }
     cerrarModalCliente();
     await cargarClientes(true);
-    if(!clienteEditandoId) usarCliente(titulo,fields.Nombre,fields.Ciudad,fields.Telefono);
+    if(!clienteEditandoId){
+      const primerContacto=contactos[0];
+      usarCliente(titulo, primerContacto?.nombre||'', fields.Ciudad||'', primerContacto?.telefono||'');
+      if(primerContacto) onClienteSeleccionado(titulo);
+    }
   }catch(e){showToast('Error: '+e.message,'error');}
-  finally{btn.disabled=false;btn.innerHTML='<i class="ti ti-check"></i> Guardar Cliente';}
+  finally{btn.disabled=false;btn.innerHTML='<i class="ti ti-check"></i> Guardar';}
 }
 
 function showToast(msg,type=''){
@@ -2523,28 +3222,115 @@ async function editarOferta(itemId, r){
   if(carrito.length>0){
     if(!confirm('El carrito actual se reemplazará con los datos de esta oferta. ¿Continuar?')) return;
   }
-  // Cargar items
-  carrito=r.items.map(i=>({
-    id:i.nombre,
-    grupoKey:null,
-    tipo:i.tipo||'stock',
-    nombre:i.nombre,
-    marca:'',modelo:'',tipologia:'',
-    tarifa:i.tarifaUSD||i.tarifa||0,
-    descripcion:'',fichaTecnica:'',ytVideo:'',
-    cantidad:i.cantidad||1,
-  }));
+  // Ir a vista de cotización PRIMERO
+  switchView('nueva');
+
+  // Cargar items — buscar en grupos/rawMaquinas para recuperar datos completos
+  carrito=r.items.map(i=>{
+    // Buscar en grupos y rawMaquinas por nombre
+    const g=grupos.find(x=>x.title===i.nombre||x.key===i.nombre);
+    const m=rawMaquinas?.find(x=>x.title===i.nombre);
+    const fuente=g||m||{};
+    return {
+      id:i.nombre+'_edit',
+      grupoKey:g?.key||null,
+      tipo:i.tipo||'stock',
+      nombre:i.nombre,
+      marca:i.marca||fuente.marca||'',
+      modelo:i.modelo||fuente.modelo||'',
+      tipologia:i.tipologia||fuente.tipologia||'',
+      tarifa:i.tarifaUSD||i.tarifa||0,
+      costoAYJ:i.costoAYJ||fuente.costoAYJ||0,
+      descripcion:fuente.descripcion||'',
+      fichaTecnica:fuente.fichaTecnica||'',
+      ytVideo:fuente.ytVideo||'',
+      cantidad:i.cantidad||1,
+      stockCount:fuente.stockCount||0,
+      horasInstalacion:fuente.horasInstalacion||0,
+    };
+  });
 
   // Cargar cliente
   const clienteInput=document.getElementById('clienteInput');
   if(clienteInput) clienteInput.value=r.cliente||'';
 
-  // Cargar condición de pago
-  const condSel=document.getElementById('condPagoSel');
-  if(condSel){
-    const opciones=[...condSel.options].map(o=>o.value);
-    if(opciones.includes(r.estado)) condSel.value=r.estado;
+  // Restaurar descuento
+  if(r.desc>0||r.descEspecial){
+    const descEl=document.getElementById('descInput');
+    if(descEl) descEl.value=r.desc;
+    const chk=document.getElementById('descEspecialChk');
+    if(chk&&r.descEspecial){
+      chk.checked=true;
+      if(typeof onDescEspecial==='function') onDescEspecial(true);
+      // Restaurar concepto
+      if(r.descEspecialConcepto){
+        const concepto=document.getElementById('descEspecialConcepto')||document.getElementById('causalEspecialInput');
+        if(concepto) concepto.value=r.descEspecialConcepto;
+      }
+    }
+    if(typeof calcTotales==='function') calcTotales();
   }
+
+  // Restaurar condición de pago
+  if(r.condPago){
+    const condSel=document.getElementById('condPagoSel');
+    if(condSel){
+      const opts=[...condSel.options].map(o=>o.value);
+      if(opts.includes(r.condPago)) condSel.value=r.condPago;
+    }
+  }
+
+  // Restaurar garantía
+  if(r.garantia){
+    const garSel=document.getElementById('garantiaSel');
+    if(garSel){
+      const opts=[...garSel.options].map(o=>o.value);
+      // Buscar opción que coincida con el texto guardado
+      const match=opts.find(o=>garSel.querySelector(`option[value="${o}"]`)?.textContent?.includes(r.garantia.split('—')[0].trim())||o===r.garantia);
+      if(r.garantia.includes('2.000')||r.garantia.includes('12')) garSel.value='12m';
+      else if(r.garantia.includes('4.000')||r.garantia.includes('24')) garSel.value='24m';
+      else if(r.garantia.includes('Usada')||r.garantia.includes('6 meses')) garSel.value='6m';
+      else{ garSel.value='__custom_garantia__'; window._garantiaPersonalizada=r.garantia; const inp=document.getElementById('garantiaCustomInput'); if(inp){inp.style.display='block';inp.value=r.garantia;} }
+    }
+  }
+
+  // Restaurar validez
+  if(r.validez){
+    const valEl=document.getElementById('validezSel');
+    if(valEl) valEl.value=r.validez;
+  }
+
+  // Restaurar Synergy
+  const idSynInputEdit=document.getElementById('idSynergyInput');
+  if(idSynInputEdit) idSynInputEdit.value=r.idSynergy||'';
+
+  // Restaurar contacto — cargar contactos del cliente y seleccionar
+  if(r.cliente){
+    setTimeout(async()=>{
+      try{
+        await cargarListaContactos();
+        const token=await getToken();
+        const resp=await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items?expand=fields&$top=500`,
+          {headers:{Authorization:'Bearer '+token}}
+        ).then(res=>res.json());
+        const contactosCliente=(resp.value||[])
+          .filter(i=>(i.fields?.Title_x003a_Cliente||i.fields?.ClienteLookupId||i.fields?.Cliente||'').toString().toLowerCase().includes((r.cliente||'').toLowerCase().substring(0,10)))
+          .map(i=>({id:i.id,nombre:i.fields?.Title||'',cargo:i.fields?.Cargo||'',email:i.fields?.Email||'',telefono:i.fields?.Telefono||''}))
+          .filter(c=>c.nombre);
+        const wrap=document.getElementById('contactoWrap');
+        const sel=document.getElementById('contactoSel');
+        if(wrap&&sel&&contactosCliente.length>0){
+          sel.innerHTML='<option value="">— Sin contacto —</option>'+contactosCliente.map((c,i)=>`<option value="${i}">${c.nombre}${c.cargo?' · '+c.cargo:''}</option>`).join('');
+          sel._contactos=contactosCliente;
+          wrap.style.display='flex';
+        }
+      }catch(e){console.warn('No se pudieron cargar contactos al reabrir:',e.message);}
+    },800);
+  }
+
+  // Aviso liquidador
+  showToast('⚠ Liquidador no restaurado — recalcule manualmente si es necesario','error');
 
   // Generar número con sufijo de revisión
   const baseNum=r.num.replace(/-R\d+$/, ''); // quitar revisión anterior si existe
@@ -2571,7 +3357,6 @@ async function editarOferta(itemId, r){
   if(idSynInput) idSynInput.value='';
 
   showToast('Oferta '+r.num+' cargada para editar','success');
-  switchView('nueva');
   renderCarrito();
   calcTotales();
 }
@@ -3034,12 +3819,19 @@ function liqOtrosChange(){
   liqCalc();
 }
 
+function liqToggleModo(){
+  const esFOB=document.getElementById('liqModoFOB').checked;
+  document.getElementById('liqCamposFOB').style.display=esFOB?'block':'none';
+  document.getElementById('liqCamposCostoAYJ').style.display=esFOB?'none':'block';
+  document.getElementById('liqModoDesc').textContent=esFOB
+    ?'FOB + flete int. + arancel + agente calculados desde cero'
+    :'Costo ya incluye flete internacional, arancel y agente';
+  liqCalc();
+}
+
 function liqCalc(){
-  const FOB=parseFloat(document.getElementById('liqFOB')?.value)||0;
+  const esFOB=document.getElementById('liqModoFOB')?.checked||false;
   const TRM=parseFloat(document.getElementById('liqTRM')?.value)||3650;
-  const fleteInt=parseFloat(document.getElementById('liqFleteInt')?.value)||0;
-  const arancel=parseFloat(document.getElementById('liqArancel')?.value)||0;
-  const agente=parseFloat(document.getElementById('liqAgente')?.value)||0.02;
   const fleteNal=parseFloat(document.getElementById('liqFleteNal')?.value)||0;
   const descargue=parseFloat(document.getElementById('liqDescargue')?.value)||0;
   const otros=parseFloat(document.getElementById('liqOtros')?.value)||0;
@@ -3049,16 +3841,39 @@ function liqCalc(){
   const descCliente=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
   const margenPct=parseFloat(document.getElementById('liqMargenSlider')?.value)||50;
 
-  // Todo en USD — conversión vía TRM
-  const CIF=FOB+fleteInt;
-  const arancelUSD=CIF*arancel;
-  const agenteUSD=CIF*agente;
-  const ivaImportUSD=CIF*0.19; // IVA nac. sobre CIF
-  const garantiaUSD=FOB*garantiaPct;
-  const totalCostosUSD=CIF+arancelUSD+agenteUSD+fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros; // SIN IVA (recuperable)
-  const totalConIvaUSD=totalCostosUSD+ivaImportUSD; // total real con IVA
+  let FOB=0, CIF=0, arancelUSD=0, agenteUSD=0, ivaImportUSD=0, garantiaUSD=0;
+  let filasCosto='';
 
-  // Precio venta con margen ajustable: PVN = TC / (1 - margen%)
+  const fU=n=>'USD '+Math.round(n).toLocaleString('es-CO');
+  const fC=n=>'COP '+Math.round(n*TRM).toLocaleString('es-CO');
+  const fila=(l,u,c)=>`<div class="liq-row"><span>${l}</span><span style="text-align:right"><span style="color:#3B82F6;font-size:11px">${u}</span><br><span style="color:#888;font-size:10px">${c}</span></span></div>`;
+
+  if(esFOB){
+    FOB=parseFloat(document.getElementById('liqFOB')?.value)||0;
+    const fleteInt=parseFloat(document.getElementById('liqFleteInt')?.value)||0;
+    const arancel=parseFloat(document.getElementById('liqArancel')?.value)||0;
+    const agenteRaw=document.getElementById('liqAgente')?.value;
+    const agente=agenteRaw===''||agenteRaw===null||agenteRaw===undefined?0.02:parseFloat(agenteRaw)||0;
+    CIF=FOB+fleteInt;
+    arancelUSD=CIF*arancel;
+    agenteUSD=CIF*agente;
+    ivaImportUSD=CIF*0.19;
+    garantiaUSD=FOB*garantiaPct;
+    filasCosto=fila('Precio FOB',fU(FOB),fC(FOB))
+      +fila('Flete + Seguro Int.',fU(fleteInt),fC(fleteInt))
+      +fila('─ Precio CIF','<strong>'+fU(CIF)+'</strong>',fC(CIF))
+      +fila('Arancel ('+Math.round(arancel*100)+'%)',fU(arancelUSD),fC(arancelUSD))
+      +fila('Agente + Gastos ('+Math.round(agente*100)+'%)',fU(agenteUSD),fC(agenteUSD));
+  } else {
+    CIF=parseFloat(document.getElementById('liqCostoAYJ')?.value)||0;
+    FOB=CIF;
+    garantiaUSD=CIF*garantiaPct;
+    ivaImportUSD=CIF*0.19;
+    filasCosto=fila('📦 Costo puesto en AYJ','<strong>'+fU(CIF)+'</strong>',fC(CIF));
+  }
+
+  const totalCostosUSD=CIF+arancelUSD+agenteUSD+fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
+  const totalConIvaUSD=totalCostosUSD+ivaImportUSD;
   const m=margenPct/100;
   const PVN=m<1?totalCostosUSD/(1-m):totalCostosUSD*2;
   const descUSD=PVN*descCliente/100;
@@ -3068,16 +3883,8 @@ function liqCalc(){
   const margenReal=PVD>0?(PVD-totalCostosUSD)/PVD*100:0;
   const utilidadUSD=PVD-totalCostosUSD;
 
-  const fU=n=>'USD '+Math.round(n).toLocaleString('es-CO');
-  const fC=n=>'COP '+Math.round(n*TRM).toLocaleString('es-CO');
-
-  const fila=(l,u,c)=>`<div class="liq-row"><span>${l}</span><span style="text-align:right"><span style="color:#3B82F6;font-size:11px">${u}</span><br><span style="color:#888;font-size:10px">${c}</span></span></div>`;
   document.getElementById('liqCostosTable').innerHTML=
-    fila('Precio FOB',fU(FOB),fC(FOB))
-    +fila('Flete + Seguro Int.',fU(fleteInt),fC(fleteInt))
-    +fila('─ Precio CIF','<strong>'+fU(CIF)+'</strong>',fC(CIF))
-    +fila('Arancel ('+Math.round(arancel*100)+'%)',fU(arancelUSD),fC(arancelUSD))
-    +fila('Agente + Gastos ('+Math.round(agente*100)+'%)',fU(agenteUSD),fC(agenteUSD))
+    filasCosto
     +fila('Flete Nacional',fU(fleteNal),fC(fleteNal))
     +fila('Descargue',fU(descargue),fC(descargue))
     +fila('Garantía ('+Math.round(garantiaPct===0.045?3:4.5)+'% del FOB)',fU(garantiaUSD*2/3),fC(garantiaUSD*2/3))
@@ -3091,14 +3898,13 @@ function liqCalc(){
       +`<span style="text-align:right"><span style="color:#F59E0B;font-size:11px;font-weight:600">${fU(ivaImportUSD)}</span><br><span style="color:#888;font-size:10px">${fC(ivaImportUSD)}</span></span></div>`
     +`<div class="liq-row" style="border-top:2px solid #575756;padding-top:6px;margin-top:2px"><span style="font-weight:700;font-size:12px">TOTAL REAL (con IVA)</span><span style="text-align:right"><strong style="color:#575756;font-size:13px">${fU(totalConIvaUSD)}</strong><br><span style="font-size:10px;color:#999">${fC(totalConIvaUSD)}</span></span></div>`;
 
-  // Comisión asesor usando TABLA_MG
   const descTotal=Math.min(50,Math.round(descCliente));
   const mgRow=TABLA_MG[descTotal]||[0,0];
-  const comPct=mgRow[1];
+  const comPct=Math.max(0,margenReal)*0.15;
   const comUSD=PVD*comPct/100;
 
   document.getElementById('liqResultados').innerHTML=
-    `<div class="liq-kpi"><div class="liq-label">Precio Venta Neto — base: costos sin IVA · ${margenPct}% margen</div><div class="liq-value">${fU(PVN)}</div><div class="liq-sub">${fC(PVN)}</div></div>`
+    `<div class="liq-kpi"><div class="liq-label">Precio Venta Neto — ${margenPct}% margen</div><div class="liq-value">${fU(PVN)}</div><div class="liq-sub">${fC(PVN)}</div></div>`
     +`<div class="liq-kpi" style="border-left-color:#575756"><div class="liq-label">Con Descuento ${descCliente}%</div><div class="liq-value">${fU(PVD)}</div><div class="liq-sub">${fC(PVD)}</div></div>`
     +`<div class="liq-kpi" style="border-left-color:#3B82F6"><div class="liq-label">Con IVA 19%</div><div class="liq-value">${fU(PVIVA)}</div><div class="liq-sub">${fC(PVIVA)}</div></div>`
     +`<div class="liq-kpi" style="border-left-color:${margenReal>=35?'#22C55E':margenReal>=25?'#F59E0B':'#EF4444'}"><div class="liq-label">Margen Real · Utilidad</div><div class="liq-value" style="color:${margenReal>=35?'#166534':margenReal>=25?'#92400E':'#991B1B'}">${margenReal.toFixed(1)}%</div><div class="liq-sub">${fU(utilidadUSD)} · ${fC(utilidadUSD)}</div></div>`
@@ -3107,13 +3913,14 @@ function liqCalc(){
   window._liqPrecioUSD=PVN;
 }
 
+
 // ── NUMERACIÓN LIQUIDACIONES ──────────────────────────
 let liqNumActual='LIQ-2026-001';
 
 async function generarNumLiquidacion(){
   if(!siteId||!listIdLiquidaciones) return 'LIQ-2026-001';
   try{
-    const items=await graphGetAll(`/sites/${siteId}/lists/${listIdLiquidaciones}/items?expand=fields&$select=fields/Title&$top=500`);
+    const items=await graphGetAll(`/sites/${siteId}/lists/${listIdLiquidaciones}/items?expand=fields($select=Title)&$top=500`);
     const anio=new Date().getFullYear();
     const nums=items.map(i=>{
       const t=i.fields?.Title||'';
@@ -3306,6 +4113,7 @@ function liqEnviarAlCarrito(){ liqAgregarAlCarrito(); }
 async function guardarLiquidacion(){
   const precio=window._liqPrecioUSD||0;
   if(!precio){showToast('Calcula primero la liquidación','error');return;}
+  console.log('[LIQ] siteId:', siteId, 'listIdLiquidaciones:', listIdLiquidaciones, 'precio:', precio);
   if(!siteId||!listIdLiquidaciones){showToast('Lista Liquidaciones no encontrada en SP','error');return;}
 
   const num=await generarNumLiquidacion();
@@ -3339,7 +4147,7 @@ async function guardarLiquidacion(){
     // Generar HTML y guardarlo en SharePoint
     const htmlContent=liqGenerarHTML();
     const anio=new Date().getFullYear();
-    const folderPath=`General/AYJ_COTIZADOR/Liquidaciones/${vendedor.split(' ')[0]}/${anio}`;
+    const folderPath=`General/AYJ_COTIZADOR/Liquidaciones/${vendedorFolderName(vendedor)}/${anio}`;
 
     // Crear carpeta si no existe
     const token=await getToken();
@@ -3362,20 +4170,26 @@ async function guardarLiquidacion(){
     const uploadData=await uploadResp.json();
     const linkHTML=uploadData.webUrl||'';
 
-    // Guardar registro en lista
-    const fields={
-      Title:num,
-      Maquina:maqNombre,
-      Vendedor:vendedor,
-      FOB:FOB,
-      TRM:TRM,
-      TotalCostos:Math.round(precio),
-      Margen:margen,
-      Snapshot:JSON.stringify(snapshot),
-      LinkHTML:linkHTML,
-    };
-    await graphPost(`/sites/${siteId}/lists/${listIdLiquidaciones}/items`,{fields});
+    // Guardar registro en lista PRIMERO (sin LinkHTML)
+    const token2=await getToken();
+    const colsResp=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdLiquidaciones}/columns?$select=name,displayName`,
+      {headers:{Authorization:'Bearer '+token2}}).then(r=>r.json());
+    console.log('[LIQ] Columnas disponibles:', colsResp.value?.map(c=>c.name).join(', '));
+    const camposDisp=new Set(colsResp.value?.map(c=>c.name)||[]);
+
+    const fields={Title:num};
+    if(camposDisp.has('Maquina')) fields.Maquina=maqNombre;
+    if(camposDisp.has('Vendedor')) fields.Vendedor=vendedor;
+    if(camposDisp.has('FOB')) fields.FOB=FOB||0;
+    if(camposDisp.has('TRM')) fields.TRM=TRM;
+    if(camposDisp.has('TotalCostos')) fields.TotalCostos=Math.round(precio);
+    if(camposDisp.has('Margen')) fields.Margen=margen;
+    if(camposDisp.has('Snapshot')) fields.Snapshot=JSON.stringify(snapshot).substring(0,900);
+    const itemResp=await graphPost(`/sites/${siteId}/lists/${listIdLiquidaciones}/items`,{fields});
     showToast('✓ Liquidación '+num+' guardada en SharePoint','success');
+    // Abrir para imprimir
+    const htmlLiq=liqImprimir(true);
+    if(htmlLiq){const w=window.open('','_blank');w.document.write(htmlLiq);w.document.close();setTimeout(()=>w.print(),800);}
   }catch(e){
     showToast('Error guardando: '+e.message,'error');
     console.error(e);
@@ -3399,8 +4213,26 @@ function liqSyncInstMaquina(){
   const liqSel=document.getElementById('liqMaquinaSel');
   const instSel=document.getElementById('instMaquina');
   if(!liqSel||!instSel) return;
-  const val=liqSel.value; // ej: "g_af01" o "bp_123"
+  const val=liqSel.value;
   if(!val) return;
+
+  // Autorellenar COSTO_AYJ desde el catálogo
+  const inputCosto=document.getElementById('liqCostoAYJ');
+  if(inputCosto){
+    let costoAYJ=0;
+    if(val.startsWith('g_')){
+      const g=grupos.find(x=>x.key===val.slice(2));
+      costoAYJ=g?.costoAYJ||0;
+    } else if(val.startsWith('bp_')){
+      const m=bajosPedido.find(x=>x.id===val.slice(3));
+      costoAYJ=m?.costoAYJ||0;
+    }
+    if(costoAYJ>0){
+      inputCosto.value=costoAYJ;
+      showToast('✓ COSTO_AYJ cargado: USD '+costoAYJ.toLocaleString('es-CO'),'success');
+      liqCalc();
+    }
+  }
 
   // Buscar opción en instMaquina por value exacto
   let opt=[...instSel.options].find(o=>o.value===val);
@@ -3577,12 +4409,13 @@ function finEnviarALiq(){
 
 
 // ══ IMPRIMIR LIQUIDACIÓN ══════════════════════════════════════════════
-function liqImprimir(){
+function liqImprimir(soloRetornar=false){
   const TRM=parseFloat(document.getElementById('liqTRM')?.value)||3650;
   const FOB=parseFloat(document.getElementById('liqFOB')?.value)||0;
   const fleteInt=parseFloat(document.getElementById('liqFleteInt')?.value)||0;
   const arancel=parseFloat(document.getElementById('liqArancel')?.value)||0;
-  const agente=parseFloat(document.getElementById('liqAgente')?.value)||0.02;
+  const agenteRaw=document.getElementById('liqAgente')?.value;
+  const agente=agenteRaw===''||agenteRaw===null||agenteRaw===undefined?0.02:parseFloat(agenteRaw)||0;
   const fleteNal=parseFloat(document.getElementById('liqFleteNal')?.value)||0;
   const descargue=parseFloat(document.getElementById('liqDescargue')?.value)||0;
   const otros=parseFloat(document.getElementById('liqOtros')?.value)||0;
@@ -3613,14 +4446,26 @@ function liqImprimir(){
   const finTRM=parseFloat(document.getElementById('finTRM')?.value)||3650;
   const finTotal=window._finCosto||0;
 
-  // Cálculos
-  const CIF=FOB+fleteInt;
-  const arancelUSD=CIF*arancel;
-  const agenteUSD=CIF*agente;
-  const ivaImportUSD=CIF*0.19;
-  const garantiaUSD=FOB*garantiaPct;
-  const totalCostosUSD=CIF+arancelUSD+agenteUSD+fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros; // SIN IVA (recuperable)
-  const totalConIvaUSD=totalCostosUSD+ivaImportUSD; // total real con IVA
+  // Cálculos — mismo modo que liqCalc
+  const esFOB=document.getElementById('liqModoFOB')?.checked||false;
+  let CIF=0, arancelUSD=0, agenteUSD=0, ivaImportUSD=0, garantiaUSD=0;
+
+  if(esFOB){
+    CIF=FOB+fleteInt;
+    arancelUSD=CIF*arancel;
+    agenteUSD=CIF*agente;
+    ivaImportUSD=CIF*0.19;
+    garantiaUSD=FOB*garantiaPct;
+  } else {
+    const costoAYJ=parseFloat(document.getElementById('liqCostoAYJ')?.value)||0;
+    CIF=costoAYJ;
+    arancelUSD=0; agenteUSD=0;
+    ivaImportUSD=CIF*0.19;
+    garantiaUSD=CIF*garantiaPct;
+  }
+
+  const totalCostosUSD=CIF+arancelUSD+agenteUSD+fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
+  const totalConIvaUSD=totalCostosUSD+ivaImportUSD;
   const m=margenPct/100;
   const PVN=m<1?totalCostosUSD/(1-m):totalCostosUSD*2;
   const PVD=PVN*(1-descCliente/100);
@@ -3671,7 +4516,7 @@ function liqImprimir(){
   }
 </style></head><body>
 <div class="print-bar">
-  <img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png" style="height:28px">
+  <img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" style="height:28px">
   <span style="font-size:13px;font-weight:600">Liquidación Interna AYJ</span>
   <button onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
   <span style="margin-left:auto;font-size:11px;opacity:0.7">Documento Confidencial</span>
@@ -3695,24 +4540,29 @@ function liqImprimir(){
 
   <div class="grid2">
     <div>
-      <div class="section-title">Variables de Importación</div>
+      <div class="section-title">${esFOB?'🚢 Variables — Modo FOB (desde fábrica)':'📦 Variables — Modo COSTO AYJ (puesto en AYJ)'}</div>
       <table>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">TRM</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">$ ${TRM.toLocaleString('es-CO')} COP/USD</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Precio FOB</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${fU(FOB)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete + Seguro Int.</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteInt)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Precio CIF</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${fU(CIF)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Arancel (${Math.round(arancel*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(arancelUSD)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Agente + Gastos (${Math.round(agente*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(agenteUSD)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">IVA Importación 19%</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(ivaImportUSD)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete Nacional</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteNal)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Descargue</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(descargue)}</td></tr>
+        ${esFOB?`
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Precio FOB</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${fU(FOB)}<br><span style="font-size:10px;color:#aaa">${fC(FOB)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete + Seguro Int.</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteInt)}<br><span style="font-size:10px;color:#aaa">${fC(fleteInt)}</span></td></tr>
+        <tr style="background:#f5f7f0"><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#575756;font-weight:600">Precio CIF</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${fU(CIF)}<br><span style="font-size:10px;color:#aaa">${fC(CIF)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Arancel (${Math.round(arancel*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(arancelUSD)}<br><span style="font-size:10px;color:#aaa">${fC(arancelUSD)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Agente + Gastos (${Math.round(agente*100)}%)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(agenteUSD)}<br><span style="font-size:10px;color:#aaa">${fC(agenteUSD)}</span></td></tr>
+        `:`
+        <tr style="background:#f0f4e8"><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#3d6b0a;font-weight:700">📦 Costo puesto en AYJ</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#3d6b0a">${fU(CIF)}<br><span style="font-size:10px;color:#888">${fC(CIF)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-size:10px" colspan="2">Incluye FOB + flete internacional + arancel + agente</td></tr>
+        `}
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">IVA Importación 19%</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(ivaImportUSD)}<br><span style="font-size:10px;color:#aaa">${fC(ivaImportUSD)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete Nacional</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteNal)}<br><span style="font-size:10px;color:#aaa">${fC(fleteNal)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Descargue</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(descargue)}<br><span style="font-size:10px;color:#aaa">${fC(descargue)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Garantía (${garantiaPct===0.045?3:4.5}% del FOB)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(garantiaUSD*2/3)}<br><span style="font-size:10px;color:#aaa">${fC(garantiaUSD*2/3)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Marketing (1.5% del FOB)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(garantiaUSD/3)}<br><span style="font-size:10px;color:#aaa">${fC(garantiaUSD/3)}</span></td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Instalación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(instalacion)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Costo Financiación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(costoFin)}</td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Otros${document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(otros)}</td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Instalación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(instalacion)}<br><span style="font-size:10px;color:#aaa">${fC(instalacion)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Costo Financiación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(costoFin)}<br><span style="font-size:10px;color:#aaa">${fC(costoFin)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Otros${document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(otros)}<br><span style="font-size:10px;color:#aaa">${fC(otros)}</span></td></tr>
         <tr style="background:#fafafa"><td style="padding:6px 8px;font-weight:700">TOTAL COSTOS (sin IVA)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#EF4444">${fU(totalCostosUSD)}<br><span style="font-size:10px;color:#aaa">${fC(totalCostosUSD)}</span></td></tr>
-        <tr style="background:#FEF3C7"><td style="padding:5px 8px;color:#92400E">⚠ IVA Nacionalización 19% (recuperable)</td><td style="padding:5px 8px;text-align:right;color:#F59E0B;font-weight:600">${fU(ivaImportUSD)}<br><span style="font-size:10px;color:#aaa">${fC(ivaImportUSD)}</span></td></tr>
+        ${esFOB?`<tr style="background:#FEF3C7"><td style="padding:5px 8px;color:#92400E">⚠ IVA Nacionalización 19% (recuperable)</td><td style="padding:5px 8px;text-align:right;color:#F59E0B;font-weight:600">${fU(ivaImportUSD)}<br><span style="font-size:10px;color:#aaa">${fC(ivaImportUSD)}</span></td></tr>`:''}
         <tr style="background:#f0f0f0"><td style="padding:6px 8px;font-weight:700">TOTAL REAL (con IVA)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#575756">${fU(totalConIvaUSD)}<br><span style="font-size:10px;color:#aaa">${fC(totalConIvaUSD)}</span></td></tr>
       </table>
     </div>
@@ -3735,7 +4585,7 @@ function liqImprimir(){
 <!-- PÁGINA 2: INSTALACIÓN -->
 <div class="page">
   <div class="header">
-    <div class="logo-area"><img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png"><div><h1>AYJ Maquinaria</h1><p>Cálculo de Instalación</p></div></div>
+    <div class="logo-area"><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png"><div><h1>AYJ Maquinaria</h1><p>Cálculo de Instalación</p></div></div>
     <div class="meta">Fecha: ${fecha}<br>Asesor: ${asesor}</div>
   </div>
   <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
@@ -3761,7 +4611,7 @@ function liqImprimir(){
 <!-- PÁGINA 3: FINANCIACIÓN -->
 <div class="page">
   <div class="header">
-    <div class="logo-area"><img src="https://aristi01ayj.github.io/cotizador-ayj-v2/logo.png"><div><h1>AYJ Maquinaria</h1><p>Simulación de Financiación</p></div></div>
+    <div class="logo-area"><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png"><div><h1>AYJ Maquinaria</h1><p>Simulación de Financiación</p></div></div>
     <div class="meta">Fecha: ${fecha}<br>Asesor: ${asesor}</div>
   </div>
   <div class="confidencial">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>
@@ -3796,6 +4646,7 @@ function liqImprimir(){
 
 </body></html>`;
 
+  if(soloRetornar) return html;
   const w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
@@ -3863,7 +4714,7 @@ async function guardarHTMLEnSharePoint(numOferta, htmlContent, cliente='', idSyn
     const token=await getToken();
     const vendedor=(document.getElementById('vendedorSel')?.value||currentUserName||'AYJ').split(' ')[0];
     const anio=new Date().getFullYear();
-    const folderPath=`General/AYJ_COTIZADOR/Cotizaciones/${vendedor}/${anio}`;
+    const folderPath=`General/AYJ_COTIZADOR/Cotizaciones/${vendedorFolderName(vendedor)}/${anio}`;
 
     // Crear carpeta si no existe (PUT con @microsoft.graph.conflictBehavior=replace)
     await fetch(
@@ -3955,6 +4806,19 @@ initMsal();
   </div>
   <div style="flex:1;overflow-y:auto;padding:20px">
     <div id="liqPanelLiquidacion">
+      <!-- Toggle de modo -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px 16px">
+        <span style="font-size:12px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px">Modo de cálculo:</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 14px;border-radius:20px;border:2px solid #80A61B;background:#f0f4e8;font-size:12px;font-weight:700;color:#3d6b0a">
+          <input type="radio" name="liqModo" id="liqModoCosto" value="costo" checked onchange="liqToggleModo()" style="cursor:pointer">
+          📦 COSTO_AYJ — Puesto en AYJ
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 14px;border-radius:20px;border:2px solid #ddd;background:#fff;font-size:12px;font-weight:700;color:#888" id="liqLabelFOB">
+          <input type="radio" name="liqModo" id="liqModoFOB" value="fob" onchange="liqToggleModo()" style="cursor:pointer">
+          🚢 FOB — Desde fábrica
+        </label>
+        <span style="font-size:11px;color:#888;margin-left:8px" id="liqModoDesc">Costo ya incluye flete internacional, arancel y agente</span>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
         <div style="background:#fff;border-radius:8px;border:1px solid #ddd;padding:16px">
           <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Variables — Todo en USD</div>
@@ -3965,25 +4829,37 @@ initMsal();
             </select>
           </div>
           <div class="liq-field"><label>TRM (COP/USD)</label><input type="number" id="liqTRM" value="3650" oninput="liqCalc()"></div>
-          <div class="liq-field"><label>Precio FOB (USD)</label><input type="number" id="liqFOB" value="0" oninput="liqCalc()"></div>
-          <div class="liq-field"><label>Flete + Seguro Internacional (USD)</label><input type="number" id="liqFleteInt" value="0" oninput="liqCalc()"></div>
-          <div class="liq-field"><label>Arancel (%)</label>
-            <select id="liqArancel" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
-              <option value="0">0%</option><option value="0.05">5%</option>
-              <option value="0.10">10%</option><option value="0.15">15%</option>
-              <option value="0.20">20%</option><option value="0.25">25%</option>
-              <option value="0.30">30%</option>
-            </select>
+          <!-- Modo COSTO_AYJ -->
+          <div id="liqCamposCostoAYJ">
+            <div class="liq-field" style="background:#f0f4e8;border-radius:6px;padding:8px;border:1px solid #c5d9a0">
+              <label style="color:#3d6b0a;font-weight:700">📦 Costo puesto en AYJ (USD)</label>
+              <input type="number" id="liqCostoAYJ" value="0" oninput="liqCalc()" style="border-color:#c5d9a0">
+              <div style="font-size:10px;color:#888;margin-top:3px">Incluye FOB + flete int. + arancel + agente</div>
+            </div>
           </div>
-          <div class="liq-field"><label>Agente Aduanas + Gastos (%CIF)</label>
-            <select id="liqAgente" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
-              <option value="0">0% — Sin agente</option>
-              <option value="0.005">0.5%</option><option value="0.01">1.0%</option>
-              <option value="0.015">1.5%</option><option value="0.02" selected>2.0%</option>
-              <option value="0.025">2.5%</option><option value="0.03">3.0%</option>
-              <option value="0.04">4.0%</option>
-            </select>
+          <!-- Modo FOB (oculto por defecto) -->
+          <div id="liqCamposFOB" style="display:none">
+            <div class="liq-field"><label>Precio FOB (USD)</label><input type="number" id="liqFOB" value="0" oninput="liqCalc()"></div>
+            <div class="liq-field"><label>Flete + Seguro Internacional (USD)</label><input type="number" id="liqFleteInt" value="0" oninput="liqCalc()"></div>
+            <div class="liq-field"><label>Arancel (%)</label>
+              <select id="liqArancel" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+                <option value="0">0%</option><option value="0.05">5%</option>
+                <option value="0.10">10%</option><option value="0.15">15%</option>
+                <option value="0.20">20%</option><option value="0.25">25%</option>
+                <option value="0.30">30%</option>
+              </select>
+            </div>
+            <div class="liq-field"><label>Agente Aduanas + Gastos (%CIF)</label>
+              <select id="liqAgente" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:13px">
+                <option value="0">0% — Sin agente</option>
+                <option value="0.005">0.5%</option><option value="0.01">1.0%</option>
+                <option value="0.015">1.5%</option><option value="0.02" selected>2.0%</option>
+                <option value="0.025">2.5%</option><option value="0.03">3.0%</option>
+                <option value="0.04">4.0%</option>
+              </select>
+            </div>
           </div>
+          <!-- Costos locales (siempre visibles) -->
           <div class="liq-field"><label>Flete Nacional (USD)</label><input type="number" id="liqFleteNal" value="0" oninput="liqCalc()"></div>
           <div class="liq-field"><label>Descargue en cliente (USD)</label><input type="number" id="liqDescargue" value="0" oninput="liqCalc()"></div>
           <div class="liq-field"><label>Otros costos (USD)</label>
@@ -4112,3 +4988,4 @@ initMsal();
 
 
 </body></html>
+
