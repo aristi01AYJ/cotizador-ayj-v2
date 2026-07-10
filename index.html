@@ -2109,6 +2109,7 @@ function mostrarResumenMargenes(){
     const btnDetalle=esLiq&&item._liqSnapshot?.htmlDetalle
       ?`<div style="margin-top:3px"><button onclick="const r=document.getElementById('detliq_${idx}');r.style.display=r.style.display==='none'?'table-row':'none'" style="font-size:9px;background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;border-radius:6px;padding:1px 6px;cursor:pointer">📋 Ver detalle</button></div>`
       :'';
+    const mc=margen>=35?'#166534':margen>=20?'#92400E':'#991B1B';
     const mb=margen>=35?'#F0FDF4':margen>=20?'#FEF3C7':'#FEF2F2';
     const origenLabel=esLiq?'🔧 Liquidado':'📋 Catálogo';
     const origenColor=esLiq?'#1E3A8A':'#065F46';
