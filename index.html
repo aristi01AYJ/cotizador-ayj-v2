@@ -2101,35 +2101,64 @@ function mostrarResumenMargenes(){
     const detalleLiq=(()=>{
       if(!esLiq||!item._liqSnapshot) return '';
       const s=item._liqSnapshot;
+      const si=item._instSnapshot||{};
+      const sf=item._finSnapshot||{};
       const tieneHTML=s.htmlCostos&&s.htmlCostos.length>10;
-      const instSnap=item._instSnapshot||null;
-      const resumenInst=instSnap?`
-        <div style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 12px">
-          <div style="font-weight:700;color:#166534;font-size:11px;margin-bottom:6px">🔧 Instalación incluida</div>
-          <div style="font-size:11px;color:#333;line-height:1.7">
-            ${instSnap.horas?`<div>⏱ <strong>${instSnap.horas} horas</strong> de instalación</div>`:''}
-            ${instSnap.tecnicos?`<div>👷 <strong>${instSnap.tecnicos} técnico(s)</strong></div>`:''}
-            ${instSnap.dias?`<div>📅 <strong>${instSnap.dias} días</strong></div>`:''}
-            ${instSnap.costoUSD?`<div>💰 Costo: <strong>USD ${Math.round(instSnap.costoUSD).toLocaleString('es-CO')}</strong></div>`:''}
-          </div>
+      if(!tieneHTML) return `<tr id="detliq_${idx}" style="display:none"><td colspan="8" style="padding:12px 20px;background:#F8FAFF;border-left:4px solid #1E3A8A;font-style:italic;color:#888;font-size:11px">Detalle no disponible — re-agrega desde el liquidador.</td></tr>`;
+
+      const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
+      const fC=n=>'COP '+Math.round((n||0)*(s.TRM||trm)).toLocaleString('es-CO');
+      const precioConDesc=precioVenta; // ya calculado con desc del carrito
+      const descMonto_=tarifa*desc;
+
+      // Bloque descuento
+      const bloqueDesc=desc>0?`
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:10px 12px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase;margin-bottom:6px">Descuento Aplicado (desde carrito)</div>
+          <div class="liq-row"><span>Precio sin descuento</span><span><strong>${fU(tarifa)}</strong> <span style="font-size:10px;color:#aaa">${fC(tarifa)}</span></span></div>
+          <div class="liq-row"><span>Descuento ${Math.round(desc*100)}%</span><span style="color:#EF4444"><strong>-${fU(descMonto_)}</strong> <span style="font-size:10px;color:#aaa">-${fC(descMonto_)}</span></span></div>
+          <div class="liq-row" style="font-weight:700;background:#FEF9EC;margin-top:4px;padding:6px 4px"><span>Precio Final al Cliente</span><span style="color:#92400E"><strong>${fU(precioConDesc)}</strong> <span style="font-size:10px">${fC(precioConDesc)}</span></span></div>
         </div>`:'';
-      const contenido=tieneHTML
-        ?`<div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:20px;font-size:12px">
-            <div>
-              <div style="font-weight:700;color:#575756;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Desglose de Costos</div>
-              ${s.htmlCostos}
-              ${resumenInst}
-            </div>
-            <div>
-              <div style="font-weight:700;color:#575756;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Precio de Venta</div>
-              ${s.htmlResultados}
-            </div>
-          </div>`
-        :`<div style="color:#888;font-size:11px;font-style:italic">Detalle no disponible — re-agrega la máquina desde el liquidador para verlo.</div>`;
+
+      // Bloque instalación
+      const bloqueInst=(si.horas>0||si.costoUSD>0)?`
+        <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:6px;padding:10px 12px;margin-top:10px">
+          <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;margin-bottom:6px">🔧 Instalación</div>
+          ${si.horas>0?`<div class="liq-row"><span>Horas de instalación</span><span><strong>${si.horas}h</strong>${si.dias>0?' ('+si.dias+' días)':''}</span></div>`:''}
+          ${si.tiqNal>0?`<div class="liq-row"><span>✈️ Tiquetes nacionales</span><span><strong>${si.tiqNal} tiquete(s)</strong></span></div>`:''}
+          ${si.tiqInt>0?`<div class="liq-row"><span>🌎 Tiquetes internacionales</span><span><strong>${si.tiqInt} tiquete(s)</strong></span></div>`:''}
+          ${si.traslados>0?`<div class="liq-row"><span>🚗 Traslados Cali-Med.</span><span><strong>${si.traslados}</strong></span></div>`:''}
+          ${si.noches>0?`<div class="liq-row"><span>🏨 Noches alojamiento</span><span><strong>${si.noches} noche(s)</strong></span></div>`:''}
+          ${si.diasInt>0?`<div class="liq-row"><span>🌍 Días viaje internacional</span><span><strong>${si.diasInt} día(s)</strong></span></div>`:''}
+          <div class="liq-row" style="font-weight:700;border-top:1px solid #86EFAC;margin-top:4px;padding-top:6px"><span>Costo Total Instalación</span><span style="color:#166534"><strong>${fU(si.costoUSD)}</strong> <span style="font-size:10px;color:#aaa">${fC(si.costoUSD)}</span></span></div>
+        </div>`:'';
+
+      // Bloque financiación
+      const bloqueFin=(sf.costoUSD>0||sf.valor>0)?`
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:10px 12px;margin-top:10px">
+          <div style="font-size:10px;font-weight:700;color:#1E40AF;text-transform:uppercase;margin-bottom:6px">💳 Financiación</div>
+          ${sf.tipo?`<div class="liq-row"><span>Modalidad</span><span><strong>${sf.tipo}</strong></span></div>`:''}
+          ${sf.valor>0?`<div class="liq-row"><span>Valor financiado</span><span><strong>${fU(sf.valor)}</strong></span></div>`:''}
+          ${sf.meses>0?`<div class="liq-row"><span>Plazo</span><span><strong>${sf.meses} meses</strong></span></div>`:''}
+          <div class="liq-row" style="font-weight:700;border-top:1px solid #BFDBFE;margin-top:4px;padding-top:6px"><span>Costo Financiación</span><span style="color:#1E40AF"><strong>${fU(sf.costoUSD)}</strong> <span style="font-size:10px;color:#aaa">${fC(sf.costoUSD)}</span></span></div>
+        </div>`:'';
+
       return `<tr id="detliq_${idx}" style="display:none"><td colspan="8" style="padding:0;background:#F8FAFF">
         <div style="padding:14px 20px;border-left:4px solid #1E3A8A">
-          <div style="font-weight:700;color:#1E3A8A;margin-bottom:10px;font-size:12px">🔧 Detalle Liquidación — ${item.nombre}</div>
-          ${contenido}
+          <div style="font-weight:700;color:#1E3A8A;margin-bottom:12px;font-size:13px">🔧 Detalle Completo — ${item.nombre}</div>
+          <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:20px;font-size:12px">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Desglose de Costos</div>
+              ${s.htmlCostos}
+              ${bloqueInst}
+              ${bloqueFin}
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Precio de Venta</div>
+              ${s.htmlResultados}
+              ${bloqueDesc}
+            </div>
+          </div>
         </div>
       </td></tr>`;
     })();
@@ -4144,13 +4173,26 @@ function liqAgregarAlCarrito(){
     // Snapshot de instalación si hay datos
     const horasInst=parseFloat(document.getElementById('instHoras')?.value)||0;
     const costoInst=parseFloat(document.getElementById('liqInstalacion')?.value)||0;
-    if(horasInst>0||costoInst>0){
-      item._instSnapshot={
-        horas:horasInst,
-        costoUSD:costoInst,
-        htmlDetalle:document.getElementById('instResultados')?.innerHTML||'',
-      };
-    }
+    item._instSnapshot={
+      horas:horasInst,
+      dias:parseFloat(document.getElementById('instDias')?.value)||0,
+      tiqNal:parseFloat(document.getElementById('instCantTiqNal')?.value)||0,
+      tiqInt:parseFloat(document.getElementById('instCantTiqInt')?.value)||0,
+      traslados:parseFloat(document.getElementById('instCantTraslado')?.value)||0,
+      noches:parseFloat(document.getElementById('instNoches')?.value)||0,
+      diasInt:parseFloat(document.getElementById('instDiasInt')?.value)||0,
+      costoUSD:costoInst,
+      htmlDetalle:document.getElementById('instResultados')?.innerHTML||'',
+    };
+    // Snapshot de financiación si hay datos
+    const costoFin=parseFloat(document.getElementById('liqCostoFin')?.value)||0;
+    item._finSnapshot={
+      tipo:document.getElementById('finTipo')?.value||'',
+      valor:parseFloat(document.getElementById('finValor')?.value)||0,
+      meses:parseFloat(document.getElementById('finMeses')?.value)||0,
+      costoUSD:costoFin,
+      htmlDetalle:document.getElementById('finResultados')?.innerHTML||'',
+    };
     carrito.push(item);
     showToast('✓ '+item.nombre+' agregado','success');
   }
