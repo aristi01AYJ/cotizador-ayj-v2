@@ -2076,18 +2076,23 @@ function mostrarResumenMargenes(){
     let margen,costo,comisionPct,comision,origenLabel,origenColor;
     costo=item.costoAYJ||0;
     if(esLiq){
-      // Margen real = (precio con descuento carrito - costo) / precio con descuento
+      // LIQUIDADO: costo = CIF total sin IVA (guardado en costoAYJ desde liqCalc)
+      // Margen real sobre precio con descuento del carrito
       margen=precioOferta>0&&costo>0?((precioOferta-costo)/precioOferta*100):(item.margenLiq||0);
       comisionPct=Math.max(0,margen)*0.15;
       comision=precioOferta*comisionPct/100;
       origenLabel='🔧 Liquidado';
       origenColor='#1E3A8A';
     } else {
+      // TARIFA: margen base 50% (tarifa incluye costos ocultos no visibles en costoAYJ)
+      // Descuento del carrito reduce el margen → TABLA_MG da el margen real y comisión
       const descPct=Math.min(65,Math.round(desc*100));
       const mgRow=TABLA_MG[descPct]||[0,0];
       margen=mgRow[0];
       comisionPct=mgRow[1];
       comision=precioOferta*comisionPct/100;
+      // Costo implícito = tarifa × 50% (no se muestra si costoAYJ no está)
+      if(!costo) costo=item.tarifa*0.50;
       origenLabel='📋 Catálogo';
       origenColor='#065F46';
     }
