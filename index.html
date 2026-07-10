@@ -3835,7 +3835,7 @@ function liqCalc(){
   const garantiaPct=parseFloat(document.getElementById('liqGarantia')?.value)||0.03;
   const instalacion=parseFloat(document.getElementById('liqInstalacion')?.value)||0;
   const costoFin=parseFloat(document.getElementById('liqCostoFin')?.value)||0;
-  const descCliente=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
+  const descCliente=0; // El descuento se define en el carrito, no aquí
   const margenPct=parseFloat(document.getElementById('liqMargenSlider')?.value)||50;
 
   let FOB=0, CIF=0, arancelUSD=0, agenteUSD=0, ivaImportUSD=0, garantiaUSD=0;
@@ -4013,12 +4013,6 @@ function liqAgregarAlCarrito(){
     };
     carrito.push(item);
     showToast('✓ '+item.nombre+' agregado','success');
-  }
-  // Aplicar descuento
-  const descLiq=parseFloat(document.getElementById('liqDescCliente')?.value)||0;
-  if(descLiq>0){
-    document.getElementById('descInput').value=descLiq;
-    validarDescuento(document.getElementById('descInput'));
   }
   renderCarrito();calcTotales();
   liqRefreshChips();
@@ -4961,10 +4955,8 @@ initMsal();
             <label>Margen AYJ: <strong id="liqMargenLabel" style="color:#80A61B">50%</strong></label>
             <input type="range" id="liqMargenSlider" min="25" max="65" value="50" oninput="document.getElementById('liqMargenLabel').textContent=this.value+'%';liqCalc()" style="width:100%;accent-color:#80A61B">
           </div>
-          <div class="liq-field">
-            <label>Descuento al cliente: <strong id="liqDescLabel" style="color:#575756">0%</strong></label>
-            <input type="range" id="liqDescSlider" min="0" max="20" value="0" oninput="document.getElementById('liqDescLabel').textContent=this.value+'%';document.getElementById('liqDescCliente').value=this.value;liqCalc()" style="width:100%;accent-color:#575756">
-            <input type="number" id="liqDescCliente" value="0" min="0" max="20" oninput="document.getElementById('liqDescLabel').textContent=this.value+'%';document.getElementById('liqDescSlider').value=this.value;liqCalc()" style="width:60px;margin-top:4px">
+          <div class="liq-field" style="background:#f0f4e8;border-radius:6px;padding:8px;border:1px solid #c5d9a0">
+            <label style="color:#3d6b0a;font-size:11px">💡 El descuento al cliente se define en el carrito (campo Descuento %). El liquidador calcula el margen sobre el precio de tarifa sin descuento.</label>
           </div>
           <div style="margin-top:12px" id="liqResultados"></div>
         </div>
