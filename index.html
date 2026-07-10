@@ -2061,86 +2061,6 @@ async function guardarCotizacion(){
   finally{btn.disabled=false;}
 }
 
-function mostrarResumenMargenes(){
-  if(!carrito.length){showToast('El carrito está vacío','error');return;}
-  const desc=getDescuento()/100;
-  const trm_=trm||4200;
-  const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
-  const numOferta=document.getElementById('ofertaNum')?.textContent||'';
-  const cliente=document.getElementById('clienteInput')?.value||'';
-
-  let totalCosto=0, totalVenta=0, filas='';
-  carrito.forEach((item,i)=>{
-    const precioOferta=item.tarifa*(1-desc);
-    const costo=item.costoAYJ||0;
-    const utilidad=precioOferta-costo;
-    const margen=precioOferta>0?(utilidad/precioOferta*100):0;
-    // Comisión usando TABLA_MG igual que el liquidador
-    const descPct=Math.min(50,Math.round(desc*100));
-    const mgRow=TABLA_MG[descPct]||[0,0];
-    const comisionPct=mgRow[1];
-    const comision=precioOferta*comisionPct/100;
-    totalCosto+=costo;
-    totalVenta+=precioOferta;
-    const color=margen>=35?'#166534':margen>=20?'#92400E':'#991B1B';
-    const bg=margen>=35?'#F0FDF4':margen>=20?'#FEF3C7':'#FEF2F2';
-    filas+=`<tr style="background:${i%2===0?'#fff':'#f9fafb'}">
-      <td style="padding:8px 12px;font-weight:600">${item.nombre||item.title||'—'}</td>
-      <td style="padding:8px 12px;text-align:right">${item.cantidad||1}</td>
-      <td style="padding:8px 12px;text-align:right;color:#666">${costo>0?'USD '+Math.round(costo).toLocaleString('es-CO'):'—'}</td>
-      <td style="padding:8px 12px;text-align:right">USD ${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
-      <td style="padding:8px 12px;text-align:right;color:#e24b4a">${desc>0?'-'+Math.round(desc*100)+'%':'—'}</td>
-      <td style="padding:8px 12px;text-align:right;font-weight:700">USD ${Math.round(precioOferta).toLocaleString('es-CO')}</td>
-      <td style="padding:8px 12px;text-align:right;background:${bg};color:${color};font-weight:700">${costo>0?margen.toFixed(1)+'%':'—'}</td>
-      <td style="padding:8px 12px;text-align:right;color:#1e40af">${costo>0?'USD '+Math.round(comision).toLocaleString('es-CO'):'—'}</td>
-    </tr>`;
-  });
-
-  const margenTotal=totalVenta>0?((totalVenta-totalCosto)/totalVenta*100):0;
-  const utilidadTotal=totalVenta-totalCosto;
-
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Resumen de Márgenes — ${numOferta}</title>
-  <style>
-    body{font-family:Arial,sans-serif;padding:24px;color:#333;font-size:13px}
-    h2{color:#575756;margin-bottom:4px}
-    .sub{color:#888;font-size:12px;margin-bottom:20px}
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    th{background:#575756;color:#fff;padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
-    th:not(:first-child){text-align:right}
-    .total-row{background:#f0f4e8;font-weight:700;font-size:13px}
-    .total-row td{padding:10px 12px;border-top:2px solid #80A61B}
-    .nota{margin-top:16px;font-size:11px;color:#888;font-style:italic}
-    @media print{.no-print{display:none}}
-  </style></head><body>
-  <div class="no-print" style="margin-bottom:16px">
-    <button onclick="window.print()" style="background:#80A61B;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer">🖨 Imprimir / Guardar PDF</button>
-  </div>
-  <h2>📊 Resumen de Márgenes — ${numOferta}</h2>
-  <div class="sub">${cliente} · ${fecha} · Descuento aplicado: ${Math.round(desc*100)}%</div>
-  <table>
-    <thead><tr>
-      <th>Máquina</th><th>Cant.</th><th>Costo AYJ</th><th>Tarifa Lista</th>
-      <th>Descuento</th><th>P. Venta</th><th>Margen</th><th>Comisión (15%)</th>
-    </tr></thead>
-    <tbody>${filas}</tbody>
-    <tfoot><tr class="total-row">
-      <td colspan="2">TOTAL OFERTA</td>
-      <td style="text-align:right">USD ${Math.round(totalCosto).toLocaleString('es-CO')}</td>
-      <td></td><td></td>
-      <td style="text-align:right">USD ${Math.round(totalVenta).toLocaleString('es-CO')}</td>
-      <td style="text-align:right;color:${margenTotal>=35?'#166534':margenTotal>=20?'#92400E':'#991B1B'}">${totalCosto>0?margenTotal.toFixed(1)+'%':'—'}</td>
-      <td style="text-align:right;color:#1e40af">${totalCosto>0?'USD '+Math.round((totalVenta-totalCosto)*0.15).toLocaleString('es-CO'):'—'}</td>
-    </tr></tfoot>
-  </table>
-  <div class="nota">* Margen calculado sobre precio con descuento. Comisión = 15% de la utilidad. Costo AYJ tomado de SharePoint — "—" indica que no está registrado en el catálogo.</div>
-  <div class="nota">🟢 ≥35% · 🟡 20-34% · 🔴 &lt;20%</div>
-  </body></html>`;
-
-  const w=window.open('','_blank');
-  w.document.write(html);
-  w.document.close();
-}
 
 function mostrarResumenMargenes(){
   if(!carrito.length){showToast('El carrito está vacío','error');return;}
@@ -2150,9 +2070,9 @@ function mostrarResumenMargenes(){
   const cliente=document.getElementById('clienteInput')?.value||'';
   let totalVenta=0,totalCosto=0,totalComision=0,filas='';
   carrito.forEach((item,i)=>{
-    const precioOferta=item.tarifa*(1-desc);
     const esLiq=item.origen==='liquidador';
-    let margen,costo,comisionPct,comision,origenLabel,origenColor;
+    // Liquidadas: precio ya incluye descuento del liquidador — no aplicar desc del carrito
+    const precioOferta=esLiq?item.tarifa:item.tarifa*(1-desc);
     if(esLiq){
       margen=item.margenLiq||0;
       costo=item.costoAYJ||0;
