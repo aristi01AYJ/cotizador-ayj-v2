@@ -2143,6 +2143,37 @@ function mostrarResumenMargenes(){
           <div class="liq-row" style="font-weight:700;border-top:1px solid #BFDBFE;margin-top:4px;padding-top:6px"><span>Costo Financiación</span><span style="color:#1E40AF"><strong>${fU(sf.costoUSD)}</strong> <span style="font-size:10px;color:#aaa">${fC(sf.costoUSD)}</span></span></div>
         </div>`:'';
 
+      // Cuadro resumen margen/comisión con descuento del carrito
+      const margenConDesc=precioConDesc>0&&s.costoTotal>0?((precioConDesc-s.costoTotal)/precioConDesc*100):0;
+      const comPctConDesc=Math.max(0,margenConDesc)*0.15;
+      const comUSDConDesc=precioConDesc*comPctConDesc/100;
+      const cuadroMG=`
+        <div style="background:#FFFBF0;border:2px solid #F59E0B;border-radius:8px;padding:12px 16px;margin-top:12px">
+          <div style="font-size:11px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">🔒 Margen y Comisión — Solo Uso Interno</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center">
+            <div style="background:#fff;border-radius:6px;padding:8px 4px;border:1px solid #FDE68A">
+              <div style="font-size:9px;color:#92400E;font-weight:600;margin-bottom:2px">Descuento</div>
+              <div style="font-size:18px;font-weight:800;color:#DC2626">${Math.round(desc*100)}%</div>
+            </div>
+            <div style="background:#fff;border-radius:6px;padding:8px 4px;border:1px solid #FDE68A">
+              <div style="font-size:9px;color:#92400E;font-weight:600;margin-bottom:2px">Margen Real</div>
+              <div style="font-size:18px;font-weight:800;color:${margenConDesc>=35?'#166534':margenConDesc>=20?'#92400E':'#DC2626'}">${margenConDesc.toFixed(2)}%</div>
+            </div>
+            <div style="background:#fff;border-radius:6px;padding:8px 4px;border:1px solid #FDE68A">
+              <div style="font-size:9px;color:#92400E;font-weight:600;margin-bottom:2px">Comisión %</div>
+              <div style="font-size:18px;font-weight:800;color:#1E40AF">${comPctConDesc.toFixed(3)}%</div>
+            </div>
+            <div style="background:#1E40AF;border-radius:6px;padding:8px 4px">
+              <div style="font-size:9px;color:#BFDBFE;font-weight:600;margin-bottom:2px">Comisión USD</div>
+              <div style="font-size:16px;font-weight:800;color:#fff">USD ${Math.round(comUSDConDesc).toLocaleString('es-CO')}</div>
+            </div>
+            <div style="background:#1E40AF;border-radius:6px;padding:8px 4px">
+              <div style="font-size:9px;color:#BFDBFE;font-weight:600;margin-bottom:2px">Comisión COP</div>
+              <div style="font-size:14px;font-weight:800;color:#fff">COP<br>${Math.round(comUSDConDesc*(s.TRM||trm)).toLocaleString('es-CO')}</div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:#92400E;margin-top:8px">Base: ${fU(precioConDesc)} (precio final con descuento del carrito) · Costo: ${fU(s.costoTotal||0)}</div>
+        </div>`;
       return `<tr id="detliq_${idx}" style="display:none"><td colspan="8" style="padding:0;background:#F8FAFF">
         <div style="padding:14px 20px;border-left:4px solid #1E3A8A">
           <div style="font-weight:700;color:#1E3A8A;margin-bottom:12px;font-size:13px">🔧 Detalle Completo — ${item.nombre}</div>
@@ -2157,6 +2188,7 @@ function mostrarResumenMargenes(){
               <div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Precio de Venta</div>
               ${s.htmlResultados}
               ${bloqueDesc}
+              ${cuadroMG}
             </div>
           </div>
         </div>
