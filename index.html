@@ -1568,7 +1568,7 @@ function renderCarrito(){
     const precioUnit=item.tarifa/(item.cantidad||1);
     const tr=document.createElement('tr');
     tr.innerHTML=`<td style="color:var(--text3);font-size:12px">${i+1}</td>`
-      +`<td><div class="item-name">${item.nombre}</div><div class="item-sub">${item.marca}${item.modelo?' · '+item.modelo:''}</div>${badge}</td>`
+      +`<td><div class="item-name">${item.origen==='liquidador'?'<span title="Liquidador" style="font-size:10px;background:#EFF6FF;color:#1E3A8A;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">🔧 LIQ</span>':'<span title="Tarifa catálogo" style="font-size:10px;background:#F0FDF4;color:#065F46;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">💲 TAR</span>'}${item.nombre}</div><div class="item-sub">${item.marca}${item.modelo?' · '+item.modelo:''}</div>${badge}</td>`
       +`<td style="vertical-align:middle"><span class="item-tipo-badge" style="background:var(--bg);color:var(--text2);font-size:10px">${item.tipologia||'—'}</span></td>`
       +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">${pdfCell}${ytCell}</td>`
       +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">`
@@ -4302,7 +4302,13 @@ function liqFiltrarMaquinas(q){
   if(!dd) return;
   const busq=(q||'').toLowerCase().trim();
   const todas=[
-    ...grupos.map(g=>({key:g.key,titulo:g.title,marca:g.marca,costoAYJ:g.costoAYJ||0,tipo:'disponible'})),
+    ...grupos.map(g=>({
+      key:'g_'+g.key,
+      titulo:g.title,
+      marca:g.marca,
+      costoAYJ:g.costoAYJ||0,
+      tipo:g.stockCount>0?'disponible':g.importCount>0?'importacion':'bp'
+    })),
     ...bajosPedido.map(m=>({key:'bp_'+m.id,titulo:m.title,marca:m.marca,costoAYJ:m.costoAYJ||0,tipo:'bp'}))
   ];
   const filtradas=busq?todas.filter(m=>(m.titulo+' '+(m.marca||'')).toLowerCase().includes(busq)).slice(0,20):todas.slice(0,20);
@@ -4310,7 +4316,9 @@ function liqFiltrarMaquinas(q){
   dd.innerHTML=filtradas.map(m=>{
     const badge=m.tipo==='bp'
       ?'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#FEF3C7;color:#92400E;margin-left:5px">Bajo Pedido</span>'
-      :'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#D1FAE5;color:#065F46;margin-left:5px">Disponible</span>';
+      :m.tipo==='importacion'
+        ?'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#EFF6FF;color:#1E40AF;margin-left:5px">Importación</span>'
+        :'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#D1FAE5;color:#065F46;margin-left:5px">Disponible</span>';
     return `<div onclick="liqSeleccionarMaquina('${m.key.replace(/'/g,"\\'")}','${m.titulo.replace(/'/g,"\\'")}',${m.costoAYJ})"
       style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center"
       onmouseover="this.style.background='#f0f4e8'" onmouseout="this.style.background='#fff'">
