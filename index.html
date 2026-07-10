@@ -2075,8 +2075,8 @@ function mostrarResumenMargenes(){
   carrito.forEach((item,idx)=>{
     const esLiq=item.origen==='liquidador';
     const tarifa=item.tarifa;                      // precio lista
-    const costoAYJ=item.costoAYJ||0;              // COSTO_AYJ del catálogo
-    const costoTotal=esLiq?costoAYJ:tarifa*0.50;  // LIQ: CIF sin IVA | TAR: 50% implícito
+    const costoAYJ=item.costoAYJ||0;              // COSTO_AYJ del catálogo (CIF)
+    const costoTotal=esLiq?(item.costoTotal||costoAYJ):item.tarifa*0.50;  // LIQ: total sin IVA | TAR: 50%
     const descMonto=tarifa*desc;                   // descuento en USD
     const precioVenta=tarifa*(1-desc);             // precio final al cliente
 
@@ -3981,6 +3981,7 @@ function liqCalc(){
   window._liqPrecioUSD=PVN;
   window._liqMargenReal=margenReal;
   window._liqCostoAYJ=CIF;
+  window._liqCostoTotal=totalCostosUSD;
 }
 
 
@@ -4031,6 +4032,7 @@ function liqGetItem(){
   }
   item.origen='liquidador';
   item.costoAYJ=window._liqCostoAYJ||0;
+  item.costoTotal=window._liqCostoTotal||window._liqCostoAYJ||0;
   item.margenLiq=window._liqMargenReal||0;
   return item;
 }
