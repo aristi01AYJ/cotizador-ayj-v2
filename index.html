@@ -2099,7 +2099,17 @@ function mostrarResumenMargenes(){
     totVenta+=precioVenta;
     totComision+=comision;
 
-    const mc=margen>=35?'#166534':margen>=20?'#92400E':'#991B1B';
+    const detalleLiq=esLiq&&item._liqSnapshot?.htmlDetalle
+      ?`<tr id="detliq_${idx}" style="display:none"><td colspan="8" style="padding:0;background:#EFF6FF">
+          <div style="padding:12px 20px;border-left:4px solid #1E3A8A;font-size:11px">
+            <div style="font-weight:700;color:#1E3A8A;margin-bottom:8px">🔧 Detalle Liquidación — ${item.nombre}</div>
+            ${item._liqSnapshot.htmlDetalle}
+          </div>
+        </td></tr>`
+      :'';
+    const btnDetalle=esLiq&&item._liqSnapshot?.htmlDetalle
+      ?`<div style="margin-top:3px"><button onclick="const r=document.getElementById('detliq_${idx}');r.style.display=r.style.display==='none'?'table-row':'none'" style="font-size:9px;background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;border-radius:6px;padding:1px 6px;cursor:pointer">📋 Ver detalle</button></div>`
+      :'';
     const mb=margen>=35?'#F0FDF4':margen>=20?'#FEF3C7':'#FEF2F2';
     const origenLabel=esLiq?'🔧 Liquidado':'📋 Catálogo';
     const origenColor=esLiq?'#1E3A8A':'#065F46';
@@ -2111,6 +2121,7 @@ function mostrarResumenMargenes(){
           <span style="background:#f0f0f0;color:${origenColor};padding:1px 6px;border-radius:8px;font-weight:600">${origenLabel}</span>
           ${item.marca?' · <span style="color:#888">'+item.marca+'</span>':''}
         </div>
+        ${btnDetalle}
       </td>
       <td style="padding:8px 10px;text-align:right;font-size:12px;color:#666">
         ${costoAYJ>0?'USD '+Math.round(costoAYJ).toLocaleString('es-CO'):'—'}
@@ -2134,7 +2145,7 @@ function mostrarResumenMargenes(){
         USD ${Math.round(comision).toLocaleString('es-CO')}
         <div style="font-size:10px;color:#888;font-weight:400">${comisionPct.toFixed(2)}%</div>
       </td>
-    </tr>`;
+    </tr>${detalleLiq}`;
   });
 
   const margenTotal=totVenta>0?((totVenta-totCosto)/totVenta*100):0;
@@ -4081,8 +4092,9 @@ function liqAgregarAlCarrito(){
       instalacion:document.getElementById('liqInstalacion')?.value||0,
       costoFin:document.getElementById('liqCostoFin')?.value||0,
       margen:document.getElementById('liqMargenSlider')?.value||50,
-      desc:document.getElementById('liqDescCliente')?.value||0,
+      desc:0,
       maqSel:document.getElementById('liqMaquinaSel')?.value||'',
+      htmlDetalle:document.getElementById('liqResultados')?.innerHTML||'',
     };
     carrito.push(item);
     showToast('✓ '+item.nombre+' agregado','success');
@@ -4160,9 +4172,21 @@ function liqEditarItem(id){
     const ds=document.getElementById('liqDescSlider'); if(ds)ds.value=s.desc;
     const dn=document.getElementById('liqDescCliente'); if(dn)dn.value=s.desc;
     const dl=document.getElementById('liqDescLabel'); if(dl)dl.textContent=s.desc+'%';
-    // Máquina
+    // Máquina — restaurar en input visible y select oculto
     const sel=document.getElementById('liqMaquinaSel');
-    if(sel&&s.maqSel) sel.value=s.maqSel;
+    if(sel&&s.maqSel){
+      sel.value=s.maqSel;
+      // Restaurar texto en el input de búsqueda
+      const inputMaq=document.getElementById('liqMaquinaInput');
+      if(inputMaq){
+        const optText=sel.options[sel.selectedIndex]?.text||item.nombre||'';
+        inputMaq.value=optText;
+      }
+    } else {
+      // Si no hay maqSel, al menos poner el nombre
+      const inputMaq=document.getElementById('liqMaquinaInput');
+      if(inputMaq) inputMaq.value=item.nombre||'';
+    }
     liqCalc();
   }
   showToast('Editando '+item.nombre+' — ajusta y presiona Actualizar','success');
