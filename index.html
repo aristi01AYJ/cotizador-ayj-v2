@@ -254,7 +254,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
   </div>
 </div>
 
-<div id="appScreen">
+<div id="appScreen" onclick="if(!event.target.closest('#liqMaquinaInput')&&!event.target.closest('#liqMaquinaDropdown')){const d=document.getElementById('liqMaquinaDropdown');if(d)d.style.display='none'}">
   <div class="topbar">
     <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;filter:brightness(0) invert(1)"><span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:400;letter-spacing:0.5px">Cotizador</span> <span style="font-size:13px;color:#fff;font-weight:800;letter-spacing:1px">MAQUINARIA</span></div>
     <div class="nav">
@@ -2552,7 +2552,7 @@ async function cargarClientes(forzar=false){
   if(!siteId||!listIdClientes)return;
   if(clientesData.length>0&&!forzar){poblarDatalist();poblarCiudades();renderTablaClientes();return;}
   try{
-    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdClientes}/items?expand=fields&$select=fields&$top=500`);
+    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdClientes}/items?expand=fields&$top=500`);
     clientesData=todos.map(i=>{
       const f=i.fields;
       return{
@@ -2564,7 +2564,7 @@ async function cargarClientes(forzar=false){
         telefono:(f.Telefono||f.Tel_x00e9_fono||'').trim(),
         ciudad:(f.Ciudad||'').trim(),
         pais:(f.Pais||f.Pa_x00ed_s||'Colombia').trim(),
-        nit:(f['NIT/RUT']||f.NIT_x002f_RUT||f.NIT||'').trim(),
+        nit:(f.NIT_x002f_RUT||f.NIT||f['NIT/RUT']||'').toString().trim(),
         asesor:(f.Asesor||'').trim(),
       };
     }).filter(c=>c.titulo);
@@ -2966,7 +2966,7 @@ async function guardarCliente(){
     Asesor:currentUserName,
   };
   const nit=document.getElementById('mc_nit')?.value.trim();
-  if(nit) fields.NIT=nit;
+  if(nit) fields['NIT_x002f_RUT']=nit;
 
   try{
     const token=await getToken();
@@ -4209,6 +4209,53 @@ function liqGenerarHTML(){
 }
 
 // ── INSTALACIÓN ──────────────────────────────────────
+function liqFiltrarMaquinas(q){
+  const dd=document.getElementById('liqMaquinaDropdown');
+  if(!dd) return;
+  const busq=(q||'').toLowerCase().trim();
+  const todas=[
+    ...grupos.map(g=>({key:g.key,titulo:g.title,marca:g.marca,costoAYJ:g.costoAYJ||0,tipo:'disponible'})),
+    ...bajosPedido.map(m=>({key:'bp_'+m.id,titulo:m.title,marca:m.marca,costoAYJ:m.costoAYJ||0,tipo:'bp'}))
+  ];
+  const filtradas=busq?todas.filter(m=>(m.titulo+' '+(m.marca||'')).toLowerCase().includes(busq)).slice(0,20):todas.slice(0,20);
+  if(!filtradas.length){dd.innerHTML='<div style="padding:10px 12px;color:#999;font-size:12px">Sin resultados</div>';dd.style.display='block';return;}
+  dd.innerHTML=filtradas.map(m=>{
+    const badge=m.tipo==='bp'
+      ?'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#FEF3C7;color:#92400E;margin-left:5px">Bajo Pedido</span>'
+      :'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#D1FAE5;color:#065F46;margin-left:5px">Disponible</span>';
+    return `<div onclick="liqSeleccionarMaquina('${m.key.replace(/'/g,"\\'")}','${m.titulo.replace(/'/g,"\\'")}',${m.costoAYJ})"
+      style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center"
+      onmouseover="this.style.background='#f0f4e8'" onmouseout="this.style.background='#fff'">
+      <div>
+        <div style="font-weight:600;color:#333">${m.titulo}${badge}</div>
+        ${m.marca?`<div style="font-size:10px;color:#888">${m.marca}</div>`:''}
+      </div>
+      ${m.costoAYJ>0?`<span style="font-size:10px;color:#80A61B;font-weight:600">USD ${m.costoAYJ.toLocaleString('es-CO')}</span>`:''}
+    </div>`;
+  }).join('');
+  dd.style.display='block';
+}
+
+function liqSeleccionarMaquina(key,titulo,costoAYJ){
+  const input=document.getElementById('liqMaquinaInput');
+  const sel=document.getElementById('liqMaquinaSel');
+  const dd=document.getElementById('liqMaquinaDropdown');
+  if(input) input.value=titulo;
+  if(dd) dd.style.display='none';
+  if(sel){
+    let opt=[...sel.options].find(o=>o.value===key);
+    if(!opt){opt=document.createElement('option');opt.value=key;opt.text=titulo;sel.appendChild(opt);}
+    sel.value=key;
+    sel.dispatchEvent(new Event('change'));
+  }
+  if(costoAYJ>0){
+    const inp=document.getElementById('liqCostoAYJ');
+    if(inp){inp.value=costoAYJ;liqCalc();}
+    showToast('✓ COSTO_AYJ: USD '+costoAYJ.toLocaleString('es-CO'),'success');
+  }
+}
+
+
 function liqSyncInstMaquina(){
   const liqSel=document.getElementById('liqMaquinaSel');
   const instSel=document.getElementById('instMaquina');
@@ -4824,7 +4871,12 @@ initMsal();
           <div style="font-size:11px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #80A61B">Variables — Todo en USD</div>
           <div class="liq-field">
             <label>Máquina del catálogo (para enviar al carrito)</label>
-            <select id="liqMaquinaSel" onchange="liqSyncInstMaquina()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px">
+            <div style="position:relative">
+              <input type="text" id="liqMaquinaInput" placeholder="🔍 Buscar por nombre o código..." oninput="liqFiltrarMaquinas(this.value)" onfocus="liqFiltrarMaquinas(this.value)" autocomplete="off"
+                style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px">
+              <div id="liqMaquinaDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #c5d9a0;border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.12)"></div>
+            </div>
+            <select id="liqMaquinaSel" onchange="liqSyncInstMaquina()" style="display:none">
               <option value="">— Seleccionar máquina (opcional) —</option>
             </select>
           </div>
