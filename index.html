@@ -2102,12 +2102,30 @@ function mostrarResumenMargenes(){
       if(!esLiq||!item._liqSnapshot) return '';
       const s=item._liqSnapshot;
       const tieneHTML=s.htmlCostos&&s.htmlCostos.length>10;
+      const instSnap=item._instSnapshot||null;
+      const resumenInst=instSnap?`
+        <div style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 12px">
+          <div style="font-weight:700;color:#166534;font-size:11px;margin-bottom:6px">🔧 Instalación incluida</div>
+          <div style="font-size:11px;color:#333;line-height:1.7">
+            ${instSnap.horas?`<div>⏱ <strong>${instSnap.horas} horas</strong> de instalación</div>`:''}
+            ${instSnap.tecnicos?`<div>👷 <strong>${instSnap.tecnicos} técnico(s)</strong></div>`:''}
+            ${instSnap.dias?`<div>📅 <strong>${instSnap.dias} días</strong></div>`:''}
+            ${instSnap.costoUSD?`<div>💰 Costo: <strong>USD ${Math.round(instSnap.costoUSD).toLocaleString('es-CO')}</strong></div>`:''}
+          </div>
+        </div>`:'';
       const contenido=tieneHTML
-        ?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-            <div><div style="font-weight:700;color:#575756;font-size:11px;margin-bottom:6px;text-transform:uppercase">Desglose de Costos</div>${s.htmlCostos}</div>
-            <div><div style="font-weight:700;color:#575756;font-size:11px;margin-bottom:6px;text-transform:uppercase">Precio de Venta</div>${s.htmlResultados}</div>
+        ?`<div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:20px;font-size:12px">
+            <div>
+              <div style="font-weight:700;color:#575756;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Desglose de Costos</div>
+              ${s.htmlCostos}
+              ${resumenInst}
+            </div>
+            <div>
+              <div style="font-weight:700;color:#575756;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">Precio de Venta</div>
+              ${s.htmlResultados}
+            </div>
           </div>`
-        :`<div style="color:#888;font-size:11px">Detalle no disponible — re-agrega la máquina desde el liquidador para verlo.</div>`;
+        :`<div style="color:#888;font-size:11px;font-style:italic">Detalle no disponible — re-agrega la máquina desde el liquidador para verlo.</div>`;
       return `<tr id="detliq_${idx}" style="display:none"><td colspan="8" style="padding:0;background:#F8FAFF">
         <div style="padding:14px 20px;border-left:4px solid #1E3A8A">
           <div style="font-weight:700;color:#1E3A8A;margin-bottom:10px;font-size:12px">🔧 Detalle Liquidación — ${item.nombre}</div>
@@ -2176,6 +2194,16 @@ function mostrarResumenMargenes(){
     th:not(:first-child){text-align:right} th:nth-child(5){text-align:center} th:nth-child(7){text-align:center}
     .tf{background:#f0f4e8;font-weight:700} .tf td{padding:10px;border-top:3px solid #80A61B;font-size:13px}
     .conf{background:#FEF3C7;border:1px solid #F59E0B;padding:8px 16px;font-size:11px;color:#92400E;font-weight:600;text-align:center}
+    /* Estilos del liquidador */
+    .liq-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12px;gap:8px}
+    .liq-row .total-row{font-weight:700}
+    .liq-kpi{background:#f5f7f0;border-radius:6px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #80A61B}
+    .liq-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px}
+    .liq-value{font-size:18px;font-weight:800;color:#575756}
+    .liq-sub{font-size:11px;color:#aaa;margin-top:2px}
+    .total-row{font-weight:700!important}
+    .detalle-liq{display:none;background:#F8FAFF}
+    .detalle-liq.open{display:table-row}
     @media print{.bar{display:none}}
   </style></head><body>
   <div class="bar">
@@ -4113,6 +4141,16 @@ function liqAgregarAlCarrito(){
       htmlCostos:document.getElementById('liqCostosTable')?.innerHTML||'',
       htmlResultados:document.getElementById('liqResultados')?.innerHTML||'',
     };
+    // Snapshot de instalación si hay datos
+    const horasInst=parseFloat(document.getElementById('instHoras')?.value)||0;
+    const costoInst=parseFloat(document.getElementById('liqInstalacion')?.value)||0;
+    if(horasInst>0||costoInst>0){
+      item._instSnapshot={
+        horas:horasInst,
+        costoUSD:costoInst,
+        htmlDetalle:document.getElementById('instResultados')?.innerHTML||'',
+      };
+    }
     carrito.push(item);
     showToast('✓ '+item.nombre+' agregado','success');
   }
