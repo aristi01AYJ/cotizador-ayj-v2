@@ -2101,36 +2101,17 @@ function mostrarResumenMargenes(){
     const detalleLiq=(()=>{
       if(!esLiq||!item._liqSnapshot) return '';
       const s=item._liqSnapshot;
-      const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
-      const fC=n=>'COP '+Math.round((n||0)*(s.TRM||trm)).toLocaleString('es-CO');
-      const linea=(lbl,val,sub)=>val>0?`<tr><td style="padding:4px 8px;color:#555">${lbl}</td><td style="padding:4px 8px;text-align:right;font-weight:600">${fU(val)}</td><td style="padding:4px 8px;text-align:right;color:#888;font-size:10px">${fC(val)}</td></tr>`:'';
-      const FOB=parseFloat(s.FOB)||0;
-      const arancelUSD=FOB*(parseFloat(s.arancel)||0)/100;
-      const agenteUSD=FOB*(parseFloat(s.agente)||0.02);
-      const garantiaUSD=FOB*(parseFloat(s.garantia)||0.03);
-      const marketingUSD=FOB*(parseFloat(s.marketing)||0.015);
+      const tieneHTML=s.htmlCostos&&s.htmlCostos.length>10;
+      const contenido=tieneHTML
+        ?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div><div style="font-weight:700;color:#575756;font-size:11px;margin-bottom:6px;text-transform:uppercase">Desglose de Costos</div>${s.htmlCostos}</div>
+            <div><div style="font-weight:700;color:#575756;font-size:11px;margin-bottom:6px;text-transform:uppercase">Precio de Venta</div>${s.htmlResultados}</div>
+          </div>`
+        :`<div style="color:#888;font-size:11px">Detalle no disponible — re-agrega la máquina desde el liquidador para verlo.</div>`;
       return `<tr id="detliq_${idx}" style="display:none"><td colspan="8" style="padding:0;background:#F8FAFF">
-        <div style="padding:12px 20px;border-left:4px solid #1E3A8A">
-          <div style="font-weight:700;color:#1E3A8A;margin-bottom:8px;font-size:12px">🔧 Desglose Liquidación — ${item.nombre}</div>
-          <table style="width:100%;font-size:11px;border-collapse:collapse">
-            <tr style="background:#E8F0FE"><th style="padding:4px 8px;text-align:left;color:#1E3A8A">Concepto</th><th style="padding:4px 8px;text-align:right;color:#1E3A8A">USD</th><th style="padding:4px 8px;text-align:right;color:#1E3A8A">COP</th></tr>
-            ${linea('FOB (Precio fábrica)',FOB)}
-            ${linea('Flete Internacional',parseFloat(s.fleteInt)||0)}
-            ${linea('Arancel ('+Math.round((parseFloat(s.arancel)||0))+'%)',arancelUSD)}
-            ${linea('Agente Aduanero ('+(parseFloat(s.agente)||0.02)*100+'%)',agenteUSD)}
-            <tr style="background:#EFF6FF;font-weight:700"><td style="padding:4px 8px;color:#1E3A8A">CIF (Puesto en AYJ)</td><td style="padding:4px 8px;text-align:right">${fU(s.CIF||0)}</td><td style="padding:4px 8px;text-align:right;font-size:10px;color:#888">${fC(s.CIF||0)}</td></tr>
-            ${linea('Flete Nacional',parseFloat(s.fleteNal)||0)}
-            ${linea('Descargue',parseFloat(s.descargue)||0)}
-            ${linea('Garantía ('+(parseFloat(s.garantia)||0.03)*100+'%)',garantiaUSD)}
-            ${linea('Marketing ('+(parseFloat(s.marketing)||0.015)*100+'%)',marketingUSD)}
-            ${linea('Instalación',parseFloat(s.instalacion)||0)}
-            ${linea('Financiación',parseFloat(s.financiacion)||0)}
-            ${linea('Costo Fin./Otros',parseFloat(s.costoFin)||0)}
-            ${parseFloat(s.otros)>0?linea('Otros',parseFloat(s.otros)||0):''}
-            <tr style="background:#FEF3C7;font-weight:700"><td style="padding:5px 8px;color:#92400E">TOTAL COSTOS (sin IVA)</td><td style="padding:5px 8px;text-align:right;color:#c0392b">${fU(s.costoTotal||0)}</td><td style="padding:5px 8px;text-align:right;font-size:10px;color:#888">${fC(s.costoTotal||0)}</td></tr>
-            <tr style="background:#F0FDF4"><td style="padding:5px 8px;color:#065F46;font-weight:700">Precio Venta (tarifa)</td><td style="padding:5px 8px;text-align:right;font-weight:700;color:#166534">${fU(s.precioVenta||0)}</td><td style="padding:5px 8px;text-align:right;font-size:10px;color:#888">${fC(s.precioVenta||0)}</td></tr>
-            <tr><td style="padding:5px 8px;color:#1E3A8A;font-weight:700">Margen s/IVA · Comisión (${(s.margenReal||0).toFixed(1)}%)</td><td style="padding:5px 8px;text-align:right;color:#1E3A8A;font-weight:700">${fU((s.precioVenta||0)*(s.margenReal||0)*0.15/100)}</td><td style="padding:5px 8px;text-align:right;font-size:10px;color:#888">${fC((s.precioVenta||0)*(s.margenReal||0)*0.15/100)}</td></tr>
-          </table>
+        <div style="padding:14px 20px;border-left:4px solid #1E3A8A">
+          <div style="font-weight:700;color:#1E3A8A;margin-bottom:10px;font-size:12px">🔧 Detalle Liquidación — ${item.nombre}</div>
+          ${contenido}
         </div>
       </td></tr>`;
     })();
@@ -4129,6 +4110,8 @@ function liqAgregarAlCarrito(){
       margenReal:window._liqMargenReal||0,
       desc:0,
       maqSel:document.getElementById('liqMaquinaSel')?.value||'',
+      htmlCostos:document.getElementById('liqCostosTable')?.innerHTML||'',
+      htmlResultados:document.getElementById('liqResultados')?.innerHTML||'',
     };
     carrito.push(item);
     showToast('✓ '+item.nombre+' agregado','success');
