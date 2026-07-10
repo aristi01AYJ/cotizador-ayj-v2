@@ -2065,77 +2065,142 @@ async function guardarCotizacion(){
 function mostrarResumenMargenes(){
   if(!carrito.length){showToast('El carrito está vacío','error');return;}
   const desc=getDescuento()/100;
+  const descEsp=document.getElementById('descEspecialChk')?.checked;
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
   const numOferta=document.getElementById('ofertaNum')?.textContent||'';
   const cliente=document.getElementById('clienteInput')?.value||'';
-  let totalVenta=0,totalCosto=0,totalComision=0,filas='';
-  carrito.forEach((item,i)=>{
+
+  let totTarifa=0, totCosto=0, totVenta=0, totComision=0, filas='';
+
+  carrito.forEach((item,idx)=>{
     const esLiq=item.origen==='liquidador';
-    const precioBase=item.tarifa;
-    const precioOferta=precioBase*(1-desc);
-    let margen,costo,comisionPct,comision,origenLabel,origenColor;
-    costo=item.costoAYJ||0;
+    const tarifa=item.tarifa;                      // precio lista
+    const costoAYJ=item.costoAYJ||0;              // COSTO_AYJ del catálogo
+    const costoTotal=esLiq?costoAYJ:tarifa*0.50;  // LIQ: CIF sin IVA | TAR: 50% implícito
+    const descMonto=tarifa*desc;                   // descuento en USD
+    const precioVenta=tarifa*(1-desc);             // precio final al cliente
+
+    // Margen y comisión sobre precio de venta
+    let margen, comisionPct, comision;
     if(esLiq){
-      // LIQUIDADO: costo = CIF total sin IVA (guardado en costoAYJ desde liqCalc)
-      // Margen real sobre precio con descuento del carrito
-      margen=precioOferta>0&&costo>0?((precioOferta-costo)/precioOferta*100):(item.margenLiq||0);
+      margen=precioVenta>0&&costoTotal>0?((precioVenta-costoTotal)/precioVenta*100):(item.margenLiq||0);
       comisionPct=Math.max(0,margen)*0.15;
-      comision=precioOferta*comisionPct/100;
-      origenLabel='🔧 Liquidado';
-      origenColor='#1E3A8A';
+      comision=precioVenta*comisionPct/100;
     } else {
-      // TARIFA: margen base 50% (tarifa incluye costos ocultos no visibles en costoAYJ)
-      // Descuento del carrito reduce el margen → TABLA_MG da el margen real y comisión
       const descPct=Math.min(65,Math.round(desc*100));
       const mgRow=TABLA_MG[descPct]||[0,0];
       margen=mgRow[0];
       comisionPct=mgRow[1];
-      comision=precioOferta*comisionPct/100;
-      // Costo implícito = tarifa × 50% (no se muestra si costoAYJ no está)
-      if(!costo) costo=item.tarifa*0.50;
-      origenLabel='📋 Catálogo';
-      origenColor='#065F46';
+      comision=precioVenta*comisionPct/100;
     }
-    totalVenta+=precioOferta;totalCosto+=costo;totalComision+=comision;
+
+    totTarifa+=tarifa;
+    totCosto+=costoTotal;
+    totVenta+=precioVenta;
+    totComision+=comision;
+
     const mc=margen>=35?'#166534':margen>=20?'#92400E':'#991B1B';
     const mb=margen>=35?'#F0FDF4':margen>=20?'#FEF3C7':'#FEF2F2';
-    filas+=`<tr style="background:${i%2===0?'#fff':'#f9fafb'}">
-      <td style="padding:8px 10px"><div style="font-weight:600;font-size:12px">${item.nombre||'—'}</div>
-        <div style="font-size:10px;margin-top:2px"><span style="background:#f0f0f0;color:${origenColor};padding:1px 6px;border-radius:8px;font-weight:600">${origenLabel}</span>${item.marca?' · '+item.marca:''}</div></td>
-      <td style="padding:8px 10px;text-align:right;font-size:12px">${costo>0?'USD '+Math.round(costo).toLocaleString('es-CO'):'—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:12px">USD ${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
-      <td style="padding:8px 10px;text-align:center;font-size:12px;color:#e24b4a">${desc>0?'-'+Math.round(desc*100)+'%':'—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:12px;font-weight:700">USD ${Math.round(precioOferta).toLocaleString('es-CO')}</td>
-      <td style="padding:8px 10px;text-align:center;background:${mb};color:${mc};font-weight:700;font-size:12px">${margen.toFixed(1)}%</td>
-      <td style="padding:8px 10px;text-align:right;font-size:12px;color:#1e40af">USD ${Math.round(comision).toLocaleString('es-CO')}<div style="font-size:10px;color:#888">${comisionPct.toFixed(2)}%</div></td>
+    const origenLabel=esLiq?'🔧 Liquidado':'📋 Catálogo';
+    const origenColor=esLiq?'#1E3A8A':'#065F46';
+
+    filas+=`<tr style="background:${idx%2===0?'#fff':'#f9fafb'}">
+      <td style="padding:8px 10px">
+        <div style="font-weight:600;font-size:12px">${item.nombre||'—'}</div>
+        <div style="font-size:10px;margin-top:2px">
+          <span style="background:#f0f0f0;color:${origenColor};padding:1px 6px;border-radius:8px;font-weight:600">${origenLabel}</span>
+          ${item.marca?' · <span style="color:#888">'+item.marca+'</span>':''}
+        </div>
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:12px;color:#666">
+        ${costoAYJ>0?'USD '+Math.round(costoAYJ).toLocaleString('es-CO'):'—'}
+        ${esLiq?'':'<div style="font-size:10px;color:#aaa">Ref.</div>'}
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:12px;color:#c0392b;font-weight:600">
+        USD ${Math.round(costoTotal).toLocaleString('es-CO')}
+        <div style="font-size:10px;color:#aaa">${esLiq?'CIF sin IVA':'50% Tarifa'}</div>
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:12px">USD ${Math.round(tarifa).toLocaleString('es-CO')}</td>
+      <td style="padding:8px 10px;text-align:center;font-size:12px;color:#e24b4a">
+        ${desc>0?'-'+Math.round(desc*100)+'%<div style="font-size:10px">-USD '+Math.round(descMonto).toLocaleString('es-CO')+'</div>':'—'}
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#2C2C2C">
+        USD ${Math.round(precioVenta).toLocaleString('es-CO')}
+      </td>
+      <td style="padding:8px 10px;text-align:center;background:${mb};color:${mc};font-weight:700;font-size:13px">
+        ${margen.toFixed(1)}%
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:12px;color:#1e40af;font-weight:600">
+        USD ${Math.round(comision).toLocaleString('es-CO')}
+        <div style="font-size:10px;color:#888;font-weight:400">${comisionPct.toFixed(2)}%</div>
+      </td>
     </tr>`;
   });
-  const mt=totalVenta>0?((totalVenta-totalCosto)/totalVenta*100):0;
-  const mtc=mt>=35?'#166534':mt>=20?'#92400E':'#991B1B';
-  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Márgenes — ${numOferta}</title>
-  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#333;font-size:13px}
-  .bar{background:#575756;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0}
-  .bar button{background:#80A61B;border:none;color:#fff;padding:7px 18px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer}
-  table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#575756;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase}
-  .tr{background:#f0f4e8;font-weight:700}.tr td{padding:10px;border-top:2px solid #80A61B;font-size:13px}
-  @media print{.bar{display:none}}</style></head><body>
-  <div class="bar"><span style="font-weight:700">📊 Márgenes — ${numOferta}</span><button onclick="window.print()">🖨 Imprimir / PDF</button><span style="margin-left:auto;font-size:11px;opacity:.7">Confidencial · AYJ</span></div>
-  <div style="padding:14px 16px;border-bottom:2px solid #80A61B"><strong style="color:#575756;font-size:15px">📊 Resumen de Márgenes — ${numOferta}</strong><div style="color:#888;font-size:11px;margin-top:3px">${cliente} · ${fecha} · Descuento: ${Math.round(desc*100)}%</div></div>
-  <div style="padding:0 16px"><table><thead><tr>
-    <th>Máquina</th><th style="text-align:right">Costo AYJ</th><th style="text-align:right">Tarifa Lista</th>
-    <th style="text-align:center">Desc.</th><th style="text-align:right">P. Venta</th>
-    <th style="text-align:center">Margen</th><th style="text-align:right">Comisión</th>
-  </tr></thead><tbody>${filas}</tbody>
-  <tfoot><tr class="tr"><td>TOTAL OFERTA</td>
-    <td style="text-align:right">${totalCosto>0?'USD '+Math.round(totalCosto).toLocaleString('es-CO'):'—'}</td>
-    <td></td><td></td><td style="text-align:right">USD ${Math.round(totalVenta).toLocaleString('es-CO')}</td>
-    <td style="text-align:center;color:${mtc}">${totalCosto>0?mt.toFixed(1)+'%':'—'}</td>
-    <td style="text-align:right;color:#1e40af">USD ${Math.round(totalComision).toLocaleString('es-CO')}</td>
-  </tr></tfoot></table></div>
-  <div style="font-size:10px;color:#888;padding:8px 16px;line-height:1.7">
-    * 🔧 <strong>Liquidado</strong>: margen real del liquidador. * 📋 <strong>Catálogo (50%)</strong>: margen base fijo (tarifa incluye instalación y otros costos).<br>
-    🟢 ≥35% · 🟡 20-34% · 🔴 &lt;20%
+
+  const margenTotal=totVenta>0?((totVenta-totCosto)/totVenta*100):0;
+  const mtc=margenTotal>=35?'#166534':margenTotal>=20?'#92400E':'#991B1B';
+  const descTotal=totTarifa*desc;
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Márgenes — ${numOferta}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;color:#333;font-size:13px}
+    .bar{background:#2C2C2C;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:99}
+    .bar button{background:#80A61B;border:none;color:#fff;padding:7px 18px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer}
+    .hdr{padding:14px 20px;border-bottom:3px solid #80A61B;background:#fff}
+    .hdr h2{color:#2C2C2C;font-size:15px;font-weight:700}
+    .hdr .sub{color:#888;font-size:11px;margin-top:3px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#2C2C2C;color:#fff;padding:9px 10px;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap}
+    th:not(:first-child){text-align:right} th:nth-child(5){text-align:center} th:nth-child(7){text-align:center}
+    .tf{background:#f0f4e8;font-weight:700} .tf td{padding:10px;border-top:3px solid #80A61B;font-size:13px}
+    .conf{background:#FEF3C7;border:1px solid #F59E0B;padding:8px 16px;font-size:11px;color:#92400E;font-weight:600;text-align:center}
+    @media print{.bar{display:none}}
+  </style></head><body>
+  <div class="bar">
+    <span style="font-weight:700">📊 Resumen de Márgenes — ${numOferta}</span>
+    <button onclick="window.print()">🖨 Imprimir / PDF</button>
+    <span style="margin-left:auto;font-size:11px;opacity:.7">⚠ Confidencial · AYJ</span>
+  </div>
+  <div class="hdr">
+    <h2>📊 Resumen de Márgenes — ${numOferta}</h2>
+    <div class="sub">${cliente} · ${fecha} · Descuento carrito: ${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</div>
+  </div>
+  <div class="conf">⚠ DOCUMENTO CONFIDENCIAL — USO EXCLUSIVO INTERNO AYJ MAQUINARIA</div>
+  <div style="padding:0 12px 16px">
+  <table>
+    <thead><tr>
+      <th style="text-align:left;min-width:160px">Máquina</th>
+      <th>COSTO_AYJ</th>
+      <th>Costo Total s/IVA</th>
+      <th>Tarifa Lista</th>
+      <th style="text-align:center">Descuento</th>
+      <th>Precio Venta</th>
+      <th style="text-align:center">Margen</th>
+      <th>Comisión</th>
+    </tr></thead>
+    <tbody>${filas}</tbody>
+    <tfoot><tr class="tf">
+      <td>TOTAL OFERTA</td>
+      <td style="text-align:right"></td>
+      <td style="text-align:right;color:#c0392b">USD ${Math.round(totCosto).toLocaleString('es-CO')}</td>
+      <td style="text-align:right">USD ${Math.round(totTarifa).toLocaleString('es-CO')}</td>
+      <td style="text-align:center;color:#e24b4a">${desc>0?'-'+Math.round(desc*100)+'%<br>-USD '+Math.round(descTotal).toLocaleString('es-CO'):'—'}</td>
+      <td style="text-align:right;font-size:14px">USD ${Math.round(totVenta).toLocaleString('es-CO')}</td>
+      <td style="text-align:center;color:${mtc};font-size:14px">${margenTotal.toFixed(1)}%</td>
+      <td style="text-align:right;color:#1e40af;font-size:14px">USD ${Math.round(totComision).toLocaleString('es-CO')}</td>
+    </tr></tfoot>
+  </table>
+  <div style="font-size:10px;color:#888;padding:10px 4px;line-height:1.8;border-top:1px solid #eee;margin-top:4px">
+    * <strong>COSTO_AYJ</strong>: costo del catálogo (referencial para tarifa). &nbsp;
+    * <strong>Costo Total s/IVA</strong>: 🔧 Liquidado = CIF sin IVA del liquidador · 📋 Catálogo = 50% de la tarifa (incluye costos ocultos).<br>
+    * <strong>Margen</strong> = (Precio Venta − Costo Total) / Precio Venta. &nbsp;
+    * <strong>Comisión</strong>: 🔧 Margen × 0.15 · 📋 Según TABLA_MG por descuento aplicado.<br>
+    🟢 ≥35% &nbsp; 🟡 20–34% &nbsp; 🔴 &lt;20%
+  </div>
   </div></body></html>`;
+
   const w=window.open('','_blank');
   if(!w){showToast('Permite popups para imprimir','error');return;}
   w.document.write(html);w.document.close();
