@@ -2071,11 +2071,13 @@ function mostrarResumenMargenes(){
   let totalVenta=0,totalCosto=0,totalComision=0,filas='';
   carrito.forEach((item,i)=>{
     const esLiq=item.origen==='liquidador';
-    // Liquidadas: precio ya incluye descuento del liquidador — no aplicar desc del carrito
-    const precioOferta=esLiq?item.tarifa:item.tarifa*(1-desc);
+    const precioBase=item.tarifa;
+    const precioOferta=precioBase*(1-desc);
+    let margen,costo,comisionPct,comision,origenLabel,origenColor;
+    costo=item.costoAYJ||0;
     if(esLiq){
-      margen=item.margenLiq||0;
-      costo=item.costoAYJ||0;
+      // Margen real = (precio con descuento carrito - costo) / precio con descuento
+      margen=precioOferta>0&&costo>0?((precioOferta-costo)/precioOferta*100):(item.margenLiq||0);
       comisionPct=Math.max(0,margen)*0.15;
       comision=precioOferta*comisionPct/100;
       origenLabel='🔧 Liquidado';
@@ -2086,8 +2088,7 @@ function mostrarResumenMargenes(){
       margen=mgRow[0];
       comisionPct=mgRow[1];
       comision=precioOferta*comisionPct/100;
-      costo=item.costoAYJ||0;
-      origenLabel='📋 Catálogo (50%)';
+      origenLabel='📋 Catálogo';
       origenColor='#065F46';
     }
     totalVenta+=precioOferta;totalCosto+=costo;totalComision+=comision;
