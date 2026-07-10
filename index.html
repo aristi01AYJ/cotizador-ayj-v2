@@ -4033,7 +4033,11 @@ function liqGetItem(){
     const m=bajosPedido.find(x=>x.id===id);
     if(m) item={grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo||'',tipologia:m.tipologia||'',tarifa:precio,descripcion:m.descripcion||'',fichaTecnica:m.fichaTecnica||'',ytVideo:m.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
   }
-  if(!item) item={grupoKey:null,tipo:'pedido',nombre:'Máquina — Liquidador',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
+  if(!item){
+    // Fallback: usar texto del input de búsqueda como nombre
+    const inputText=document.getElementById('liqMaquinaInput')?.value?.trim()||'';
+    item={grupoKey:null,tipo:'pedido',nombre:inputText||'Máquina — Liquidador',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
+  }
   item.origen='liquidador';
   item.costoAYJ=window._liqCostoAYJ||0;
   item.margenLiq=window._liqMargenReal||0;
@@ -4108,6 +4112,8 @@ function liqLimpiarCampos(){
   });
   const sel=document.getElementById('liqMaquinaSel');
   if(sel) sel.value='';
+  const inp=document.getElementById('liqMaquinaInput');
+  if(inp) inp.value='';
   const ds=document.getElementById('liqDescSlider'); if(ds) ds.value=0;
   const dn=document.getElementById('liqDescCliente'); if(dn) dn.value=0;
   const dl=document.getElementById('liqDescLabel'); if(dl) dl.textContent='0%';
