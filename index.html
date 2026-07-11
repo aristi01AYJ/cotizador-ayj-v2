@@ -5193,15 +5193,13 @@ function getIniciales(vendedor){
   return key?VENDEDOR_INICIALES[key]:'AYJ';
 }
 
-// Cerrar dropdown máquina liquidador al clicar fuera — listener global
-document.addEventListener('mousedown', function(e){
-  const input=document.getElementById('liqMaquinaInput');
+// Cerrar dropdown máquina liquidador al clicar fuera
+document.addEventListener('click', function(e){
   const dd=document.getElementById('liqMaquinaDropdown');
   if(!dd||dd.style.display==='none') return;
-  if(input&&input.contains(e.target)) return;
-  if(dd.contains(e.target)) return;
+  if(e.target.closest('#liqMaquinaInput')||e.target.closest('#liqMaquinaDropdown')) return;
   dd.style.display='none';
-}, true);
+});
 
 initMsal();
 </script>
@@ -5281,7 +5279,7 @@ initMsal();
           <div class="liq-field">
             <label>Máquina del catálogo (para enviar al carrito)</label>
             <div style="position:relative">
-              <input type="text" id="liqMaquinaInput" placeholder="🔍 Buscar por nombre o código..." oninput="liqFiltrarMaquinas(this.value)" onfocus="liqFiltrarMaquinas(this.value)" autocomplete="off"
+              <input type="text" id="liqMaquinaInput" placeholder="🔍 Buscar por nombre o código..." oninput="liqFiltrarMaquinas(this.value)" autocomplete="off"
                 style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-family:inherit;font-size:12px">
               <div id="liqMaquinaDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #c5d9a0;border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.12)"></div>
             </div>
