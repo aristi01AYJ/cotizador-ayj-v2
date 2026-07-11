@@ -4246,25 +4246,67 @@ function liqAgregarAlCarrito(){
   const item=liqGetItem();
   if(!item) return;
   if(liqEditandoId){
-    // Modo edición — actualizar item existente
+    // Modo edición — actualizar item existente con snapshot completo
     const idx=carrito.findIndex(i=>i.id===liqEditandoId);
     if(idx>=0){
-      const snap={
-        FOB:document.getElementById('liqFOB')?.value||0,
-        fleteInt:document.getElementById('liqFleteInt')?.value||0,
-        arancel:document.getElementById('liqArancel')?.value||0,
-        agente:document.getElementById('liqAgente')?.value||0.02,
-        fleteNal:document.getElementById('liqFleteNal')?.value||0,
-        descargue:document.getElementById('liqDescargue')?.value||0,
-        otros:document.getElementById('liqOtros')?.value||0,
-        garantia:document.getElementById('liqGarantia')?.value||0.03,
-        instalacion:document.getElementById('liqInstalacion')?.value||0,
-        costoFin:document.getElementById('liqCostoFin')?.value||0,
-        margen:document.getElementById('liqMargenSlider')?.value||50,
-        desc:document.getElementById('liqDescCliente')?.value||0,
+      // Aplicar nombre/marca personalizados si el panel está abierto
+      const panelAbierto=document.getElementById('liqPersonalizarWrap')?.style?.display!=='none';
+      const customNombre=document.getElementById('liqCustomNombre')?.value?.trim()||'';
+      const customMarca=document.getElementById('liqCustomMarca')?.value?.trim()||'';
+      if(panelAbierto&&customNombre){ item.nombre=customNombre; item.marca=customMarca||item.marca; }
+
+      // Snapshot completo igual que modo nuevo
+      item._liqSnapshot={
+        FOB:parseFloat(document.getElementById('liqFOB')?.value)||0,
+        fleteInt:parseFloat(document.getElementById('liqFleteInt')?.value)||0,
+        arancel:parseFloat(document.getElementById('liqArancel')?.value)||0,
+        agente:parseFloat(document.getElementById('liqAgente')?.value)||0.02,
+        fleteNal:parseFloat(document.getElementById('liqFleteNal')?.value)||0,
+        descargue:parseFloat(document.getElementById('liqDescargue')?.value)||0,
+        otros:parseFloat(document.getElementById('liqOtros')?.value)||0,
+        garantia:parseFloat(document.getElementById('liqGarantia')?.value)||0.03,
+        instalacion:parseFloat(document.getElementById('liqInstalacion')?.value)||0,
+        costoFin:parseFloat(document.getElementById('liqCostoFin')?.value)||0,
+        financiacion:parseFloat(document.getElementById('liqFinanciacion')?.value)||0,
+        marketing:parseFloat(document.getElementById('liqMarketing')?.value)||0,
+        margen:parseFloat(document.getElementById('liqMargenSlider')?.value)||50,
+        TRM:parseFloat(document.getElementById('liqTRM')?.value)||trm,
+        CIF:window._liqCostoAYJ||0,
+        costoTotal:window._liqCostoTotal||0,
+        precioVenta:window._liqPrecioUSD||0,
+        margenReal:window._liqMargenReal||0,
+        desc:0,
         maqSel:document.getElementById('liqMaquinaSel')?.value||'',
+        htmlCostos:document.getElementById('liqCostosTable')?.innerHTML||'',
+        htmlResultados:document.getElementById('liqResultados')?.innerHTML||'',
       };
-      carrito[idx]={...item,id:liqEditandoId,_liqSnapshot:snap};
+      // Snapshot instalación actualizado
+      const horasInst=parseFloat(document.getElementById('instHoras')?.value)||0;
+      item._instSnapshot={
+        horas:horasInst,
+        dias:parseFloat(document.getElementById('instDias')?.value)||0,
+        tiqNal:parseFloat(document.getElementById('instCantTiqNal')?.value)||0,
+        tiqInt:parseFloat(document.getElementById('instCantTiqInt')?.value)||0,
+        traslados:parseFloat(document.getElementById('instCantTraslado')?.value)||0,
+        noches:parseFloat(document.getElementById('instNoches')?.value)||0,
+        diasInt:parseFloat(document.getElementById('instDiasInt')?.value)||0,
+        costoUSD:parseFloat(document.getElementById('liqInstalacion')?.value)||0,
+        htmlDetalle:document.getElementById('instResultados')?.innerHTML||'',
+      };
+      // Snapshot financiación actualizado
+      item._finSnapshot={
+        tipo:document.getElementById('finTipo')?.value||'',
+        valor:parseFloat(document.getElementById('finValor')?.value)||0,
+        meses:parseFloat(document.getElementById('finMeses')?.value)||0,
+        costoUSD:parseFloat(document.getElementById('liqCostoFin')?.value)||0,
+        htmlDetalle:document.getElementById('finResultados')?.innerHTML||'',
+      };
+      // Actualizar campos del item
+      item.origen='liquidador';
+      item.costoAYJ=window._liqCostoAYJ||0;
+      item.costoTotal=window._liqCostoTotal||window._liqCostoAYJ||0;
+      item.margenLiq=window._liqMargenReal||0;
+      carrito[idx]={...carrito[idx],...item,id:liqEditandoId};
       showToast('✓ '+item.nombre+' actualizado','success');
     }
     liqEditandoId=null;
