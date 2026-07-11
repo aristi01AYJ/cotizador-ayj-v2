@@ -2071,10 +2071,25 @@ function pedirClaveMargenes(){
   }
 }
 
+
+function pedirClaveMargenes(){
+  const clave=prompt('🔒 Ingresa la clave para ver márgenes:');
+  if(clave===null) return;
+  if(clave==='AYJ860'){
+    mostrarResumenMargenes();
+  } else {
+    showToast('Clave incorrecta','error');
+  }
+}
+
 function mostrarResumenMargenes(){
   if(!carrito.length){showToast('El carrito está vacío','error');return;}
-  const desc=getDescuento()/100;
+  const descBase=parseFloat(document.getElementById('descInput')?.value)||0;
   const descEsp=document.getElementById('descEspecialChk')?.checked;
+  const descEspPct=descEsp?3:0;
+  const desc=(descBase+descEspPct)/100;
+  const descLabel=descBase+'%'+(descEsp?' + 3% especial':'');
+  const TRM_global=trm||4200;
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
   const numOferta=document.getElementById('ofertaNum')?.textContent||'';
   const cliente=document.getElementById('clienteInput')?.value||'';
@@ -2309,28 +2324,73 @@ function mostrarResumenMargenes(){
       <div class="obs">${obs||'<span style="color:#666;font-style:italic">Sin observaciones</span>'}</div>
     </div>
     <div class="p-bloque" style="margin-top:12px">
-      <div class="p-lbl">Resumen Ejecutivo</div>
+      <div class="p-lbl">Resumen Ejecutivo · TRM: ${TRM_global.toLocaleString('es-CO')} COP/USD</div>
       <div class="eje-grid">
         <div class="eje-c" style="background:rgba(255,255,255,0.08)">
           <div class="eje-lbl" style="color:#80A61B">Total Tarifa</div>
           <div class="eje-val">USD ${Math.round(totTarifa).toLocaleString('es-CO')}</div>
+          <div style="font-size:9px;color:#888;margin-top:2px">COP ${Math.round(totTarifa*TRM_global).toLocaleString('es-CO')}</div>
         </div>
         <div class="eje-c" style="background:rgba(255,255,255,0.08)">
           <div class="eje-lbl" style="color:#EF4444">Total Costos</div>
           <div class="eje-val">USD ${Math.round(totCosto).toLocaleString('es-CO')}</div>
+          <div style="font-size:9px;color:#888;margin-top:2px">COP ${Math.round(totCosto*TRM_global).toLocaleString('es-CO')}</div>
         </div>
         <div class="eje-c" style="background:rgba(128,166,27,0.2);border:1px solid #80A61B">
           <div class="eje-lbl" style="color:#80A61B">Precio Venta</div>
           <div class="eje-val">USD ${Math.round(totVenta).toLocaleString('es-CO')}</div>
+          <div style="font-size:9px;color:#aaa;margin-top:2px">COP ${Math.round(totVenta*TRM_global).toLocaleString('es-CO')}</div>
         </div>
         <div class="eje-c" style="background:rgba(30,64,175,0.25);border:1px solid #BFDBFE">
           <div class="eje-lbl" style="color:#BFDBFE">Comisión Total</div>
           <div class="eje-val">USD ${Math.round(totComision).toLocaleString('es-CO')}</div>
+          <div style="font-size:9px;color:#aaa;margin-top:2px">COP ${Math.round(totComision*TRM_global).toLocaleString('es-CO')}</div>
         </div>
       </div>
-      <div style="text-align:center;margin-top:10px;font-size:12px;color:#aaa">
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:#aaa">
         Margen promedio: <strong style="color:${mtc};font-size:18px">${margenTotal.toFixed(1)}%</strong>
       </div>
+    </div>
+    <div class="p-bloque" style="margin-top:12px">
+      <div class="p-lbl">Listado de Máquinas</div>
+      <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:10px">
+        <thead><tr style="background:rgba(128,166,27,0.2)">
+          <th style="padding:4px 6px;text-align:left;color:#80A61B">#</th>
+          <th style="padding:4px 6px;text-align:left;color:#80A61B">Máquina</th>
+          <th style="padding:4px 6px;text-align:center;color:#80A61B">Tipo</th>
+          <th style="padding:4px 6px;text-align:right;color:#80A61B">Tarifa USD</th>
+          <th style="padding:4px 6px;text-align:right;color:#80A61B">P. Venta USD</th>
+          <th style="padding:4px 6px;text-align:right;color:#80A61B">P. Venta COP</th>
+          <th style="padding:4px 6px;text-align:center;color:#80A61B">Margen</th>
+          <th style="padding:4px 6px;text-align:right;color:#80A61B">Comisión</th>
+        </tr></thead>
+        <tbody>${carrito.map((item,i)=>{
+          const esL=item.origen==='liquidador';
+          const ct=esL?(item.costoTotal||item.costoAYJ||0):item.tarifa*0.50;
+          const pv=item.tarifa*(1-desc);
+          const mg=pv>0&&ct>0?((pv-ct)/pv*100):0;
+          const com=pv*Math.max(0,mg)*0.15/100;
+          const mgc=mg>=35?'#80A61B':mg>=20?'#F59E0B':'#EF4444';
+          return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);background:${i%2===0?'rgba(255,255,255,0.03)':'transparent'}">
+            <td style="padding:3px 6px;color:#888">${i+1}</td>
+            <td style="padding:3px 6px;font-weight:600;color:#fff">${item.nombre||'—'}<span style="font-size:9px;color:#888;margin-left:4px">${item.marca||''}</span></td>
+            <td style="padding:3px 6px;text-align:center"><span style="background:${esL?'#1E3A8A':'#166534'};color:#fff;padding:1px 5px;border-radius:4px;font-size:9px">${esL?'LIQ':'TAR'}</span></td>
+            <td style="padding:3px 6px;text-align:right;color:#aaa">${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
+            <td style="padding:3px 6px;text-align:right;color:#80A61B;font-weight:700">${Math.round(pv).toLocaleString('es-CO')}</td>
+            <td style="padding:3px 6px;text-align:right;color:#aaa">${Math.round(pv*TRM_global).toLocaleString('es-CO')}</td>
+            <td style="padding:3px 6px;text-align:center;color:${mgc};font-weight:700">${mg.toFixed(1)}%</td>
+            <td style="padding:3px 6px;text-align:right;color:#BFDBFE">${Math.round(com).toLocaleString('es-CO')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr style="background:rgba(128,166,27,0.15);font-weight:700">
+          <td colspan="3" style="padding:4px 6px;color:#80A61B">TOTAL</td>
+          <td style="padding:4px 6px;text-align:right;color:#aaa">USD ${Math.round(totTarifa).toLocaleString('es-CO')}</td>
+          <td style="padding:4px 6px;text-align:right;color:#80A61B">USD ${Math.round(totVenta).toLocaleString('es-CO')}</td>
+          <td style="padding:4px 6px;text-align:right;color:#aaa">COP ${Math.round(totVenta*TRM_global).toLocaleString('es-CO')}</td>
+          <td style="padding:4px 6px;text-align:center;color:${mtc}">${margenTotal.toFixed(1)}%</td>
+          <td style="padding:4px 6px;text-align:right;color:#BFDBFE">USD ${Math.round(totComision).toLocaleString('es-CO')}</td>
+        </tr></tfoot>
+      </table>
     </div>
   </div>
 
