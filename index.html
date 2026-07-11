@@ -445,7 +445,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
               oninput="validarDescuento(this)">
             <span style="font-size:11px;color:var(--text2)" id="descMaxLabel">máx 20%</span>
             <button onclick="solicitarClaveDesc()" id="descLockBtn" title="Desbloquear descuento especial" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1">🔒</button>
-            <button onclick="toggleMGPanel()" id="mgBtn" title="Ver Margen y Comisión" style="background:#f0f4e8;border:1.5px solid var(--green);color:var(--green-dark);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:0.5px">MG</button>
+            <button onclick="toggleMGPanel()" id="mgBtn" title="Ver Margen y Comisión" style="display:none;background:#f0f4e8;border:1.5px solid var(--green);color:var(--green-dark);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:0.5px">MG</button>
             <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;margin-left:4px;">
               <input type="checkbox" id="descEspecialChk" onchange="toggleDescEspecial(this.checked)" style="cursor:pointer">
               <span id="descEspecialLabel" style="color:var(--text2)">+3% especial</span>
@@ -536,7 +536,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
           <button class="btn-sec" onclick="abrirItemLibre()" style="border-color:var(--amber);color:#92400E" title="Agregar ítem personalizado"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
           <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
-          <button id="btnMargenes" onclick="mostrarResumenMargenes()" style="display:none;background:#575756;border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;gap:5px;align-items:center"><i class="ti ti-chart-bar"></i> Márgenes</button>
+          <button id="btnMargenes" onclick="pedirClaveMargenes()" style="display:none;background:#575756;border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;gap:5px;align-items:center"><i class="ti ti-lock"></i> MG</button>
         </div>
       </div>
     </div>
@@ -2061,6 +2061,16 @@ async function guardarCotizacion(){
 }
 
 
+function pedirClaveMargenes(){
+  const clave=prompt('🔒 Ingresa la clave para ver márgenes:');
+  if(clave===null) return;
+  if(clave==='AYJ2024'){
+    mostrarResumenMargenes();
+  } else {
+    showToast('Clave incorrecta','error');
+  }
+}
+
 function mostrarResumenMargenes(){
   if(!carrito.length){showToast('El carrito está vacío','error');return;}
   const desc=getDescuento()/100;
@@ -2252,6 +2262,7 @@ function mostrarResumenMargenes(){
       .portada{page-break-after:always}
       .pagina{page-break-after:always}
       @page{margin:15mm 12mm;size:A4}
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
     }
   </style></head><body>
   <div class="bar no-print">
