@@ -2082,21 +2082,17 @@ function mostrarResumenMargenes(){
   const condPago=document.getElementById('condPagoSel')?.value||'—';
   const validez=document.getElementById('validezSel')?.value||'—';
   const obs=document.getElementById('obsInput')?.value||'';
-  // Contacto
   const contactoSel=document.getElementById('contactoSel');
-  const contactoIdx=contactoSel?.value;
-  const contacto=contactoSel?._contactos?.[parseInt(contactoIdx)]||null;
-  // Info cliente
-  const cliInfo=document.getElementById('clienteInfo');
-  const cliEmail=cliInfo?.querySelector?.('[href^="mailto"]')?.textContent||'';
+  const contacto=contactoSel?._contactos?.[parseInt(contactoSel?.value)]||null;
 
-  let totTarifa=0, totCosto=0, totVenta=0, totComision=0, paginas='';
+  let totTarifa=0,totCosto=0,totVenta=0,totComision=0,paginas='';
 
   carrito.forEach((item,idx)=>{
     const esLiq=item.origen==='liquidador';
     const s=item._liqSnapshot||{};
     const si=item._instSnapshot||{};
     const sf=item._finSnapshot||{};
+    const TRM_=parseFloat(s.TRM)||trm||4200;
     const tarifa=item.tarifa;
     const costoAYJ=item.costoAYJ||0;
     const costoTotal=esLiq?(item.costoTotal||costoAYJ):tarifa*0.50;
@@ -2105,226 +2101,240 @@ function mostrarResumenMargenes(){
     const margenConDesc=precioVenta>0&&costoTotal>0?((precioVenta-costoTotal)/precioVenta*100):0;
     const comPct=Math.max(0,margenConDesc)*0.15;
     const comUSD=precioVenta*comPct/100;
-    const TRM_=parseFloat(s.TRM)||trm||4200;
 
-    totTarifa+=tarifa; totCosto+=costoTotal; totVenta+=precioVenta; totComision+=comUSD;
+    totTarifa+=tarifa;totCosto+=costoTotal;totVenta+=precioVenta;totComision+=comUSD;
 
     const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
     const fC=n=>'COP '+Math.round((n||0)*TRM_).toLocaleString('es-CO');
     const mc=margenConDesc>=35?'#166534':margenConDesc>=20?'#92400E':'#DC2626';
-    const mb=margenConDesc>=35?'#F0FDF4':margenConDesc>=20?'#FEF3C7':'#FEF2F2';
 
-    // Bloque costos
-    const bloqueCostos=esLiq&&s.htmlCostos?`
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:12px">
-        <div class="sec-title">📦 Desglose de Costos</div>
-        ${s.htmlCostos}
-      </div>`:`
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:12px">
-        <div class="sec-title">📦 Costo</div>
-        <div class="liq-row"><span>COSTO_AYJ (catálogo)</span><span><strong>${fU(costoAYJ)}</strong></span></div>
-        <div class="liq-row"><span>Costo implícito (50% tarifa)</span><span><strong>${fU(costoTotal)}</strong></span></div>
-      </div>`;
+    // ── COSTOS (columna izquierda) ──
+    const bloqueCostos=esLiq&&s.htmlCostos
+      ?`<div class="bloque">
+          <div class="bloque-tit">📦 Desglose de Costos</div>
+          ${s.htmlCostos}
+        </div>`
+      :`<div class="bloque">
+          <div class="bloque-tit">📦 Costo</div>
+          <div class="fila"><span>COSTO_AYJ</span><span>${fU(costoAYJ)}</span></div>
+          <div class="fila total-fila"><span>Costo base (50% tarifa)</span><span>${fU(costoTotal)}</span></div>
+        </div>`;
 
-    // Bloque instalación
+    // ── INSTALACIÓN compacta ──
     const bloqueInst=(si.costoUSD>0||si.horas>0)?`
-      <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:14px 16px;margin-bottom:12px">
-        <div class="sec-title" style="color:#166534">🔧 Instalación</div>
-        ${si.horas>0?`<div class="liq-row"><span>Horas</span><span><strong>${si.horas}h</strong>${si.dias>0?' · '+si.dias+' días':''}</span></div>`:''}
-        ${si.tiqNal>0?`<div class="liq-row"><span>✈️ Tiquetes nacionales</span><span><strong>${si.tiqNal}</strong></span></div>`:''}
-        ${si.tiqInt>0?`<div class="liq-row"><span>🌎 Tiquetes internacionales</span><span><strong>${si.tiqInt}</strong></span></div>`:''}
-        ${si.traslados>0?`<div class="liq-row"><span>🚗 Traslados</span><span><strong>${si.traslados}</strong></span></div>`:''}
-        ${si.noches>0?`<div class="liq-row"><span>🏨 Noches alojamiento</span><span><strong>${si.noches}</strong></span></div>`:''}
-        ${si.diasInt>0?`<div class="liq-row"><span>🌍 Días viaje int.</span><span><strong>${si.diasInt}</strong></span></div>`:''}
-        ${si.htmlDetalle?si.htmlDetalle:''}
-        <div class="liq-row total-r"><span>Total Instalación</span><span><strong style="color:#166534">${fU(si.costoUSD)}</strong> <small>${fC(si.costoUSD)}</small></span></div>
-      </div>`:'' ;
+      <div class="bloque verde">
+        <div class="bloque-tit" style="color:#166534">🔧 Instalación</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px">
+          ${si.horas>0?`<div class="fila-mini"><span>Horas</span><span><b>${si.horas}h${si.dias>0?' · '+si.dias+' días':''}</b></span></div>`:''}
+          ${si.tiqNal>0?`<div class="fila-mini"><span>✈️ Tiquetes nal.</span><span><b>${si.tiqNal}</b></span></div>`:''}
+          ${si.tiqInt>0?`<div class="fila-mini"><span>🌎 Tiquetes int.</span><span><b>${si.tiqInt}</b></span></div>`:''}
+          ${si.traslados>0?`<div class="fila-mini"><span>🚗 Traslados</span><span><b>${si.traslados}</b></span></div>`:''}
+          ${si.noches>0?`<div class="fila-mini"><span>🏨 Noches</span><span><b>${si.noches}</b></span></div>`:''}
+          ${si.diasInt>0?`<div class="fila-mini"><span>🌍 Días int.</span><span><b>${si.diasInt}</b></span></div>`:''}
+        </div>
+        <div class="fila total-fila" style="margin-top:4px"><span>Total Instalación</span><span style="color:#166534"><b>${fU(si.costoUSD)}</b> <small>${fC(si.costoUSD)}</small></span></div>
+      </div>`:'';
 
-    // Bloque financiación
+    // ── FINANCIACIÓN compacta ──
     const bloqueFin=(sf.costoUSD>0||sf.valor>0)?`
-      <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin-bottom:12px">
-        <div class="sec-title" style="color:#1E40AF">💳 Financiación</div>
-        ${sf.tipo?`<div class="liq-row"><span>Modalidad</span><span><strong>${sf.tipo}</strong></span></div>`:''}
-        ${sf.valor>0?`<div class="liq-row"><span>Valor financiado</span><span><strong>${fU(sf.valor)}</strong></span></div>`:''}
-        ${sf.meses>0?`<div class="liq-row"><span>Plazo</span><span><strong>${sf.meses} meses</strong></span></div>`:''}
-        ${sf.htmlDetalle?sf.htmlDetalle:''}
-        <div class="liq-row total-r"><span>Costo Financiación</span><span><strong style="color:#1E40AF">${fU(sf.costoUSD)}</strong> <small>${fC(sf.costoUSD)}</small></span></div>
-      </div>`:'' ;
+      <div class="bloque azul">
+        <div class="bloque-tit" style="color:#1E40AF">💳 Financiación</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px">
+          ${sf.tipo?`<div class="fila-mini"><span>Modalidad</span><span><b>${sf.tipo}</b></span></div>`:''}
+          ${sf.valor>0?`<div class="fila-mini"><span>Valor</span><span><b>${fU(sf.valor)}</b></span></div>`:''}
+          ${sf.meses>0?`<div class="fila-mini"><span>Plazo</span><span><b>${sf.meses} meses</b></span></div>`:''}
+        </div>
+        <div class="fila total-fila" style="margin-top:4px"><span>Costo Financiación</span><span style="color:#1E40AF"><b>${fU(sf.costoUSD)}</b> <small>${fC(sf.costoUSD)}</small></span></div>
+      </div>`:'';
 
-    // Cuadro MG
+    // ── PRECIO + DESCUENTO (columna derecha) ──
+    const bloquePrecios=`<div class="bloque">
+      <div class="bloque-tit">💰 Precio de Venta</div>
+      ${esLiq?`
+        <div class="kpi-mini"><div class="kpi-lbl">Precio Neto (${s.margen||50}% margen)</div><div class="kpi-val">${fU(tarifa)}</div><div class="kpi-sub">${fC(tarifa)}</div></div>
+        ${si.costoUSD>0?`<div class="fila"><span>+ Instalación</span><span>${fU(si.costoUSD)}</span></div>`:''}
+        ${sf.costoUSD>0?`<div class="fila"><span>+ Financiación</span><span>${fU(sf.costoUSD)}</span></div>`:''}
+      `:`
+        <div class="kpi-mini"><div class="kpi-lbl">Tarifa lista</div><div class="kpi-val">${fU(tarifa)}</div><div class="kpi-sub">${fC(tarifa)}</div></div>
+      `}
+      ${desc>0?`
+        <div class="fila" style="color:#DC2626"><span>Descuento ${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</span><span>-${fU(descMonto)}</span></div>
+        <div class="kpi-mini" style="border-left-color:#DC2626;background:#FEF2F2">
+          <div class="kpi-lbl" style="color:#991B1B">Precio Final al Cliente</div>
+          <div class="kpi-val" style="color:#991B1B">${fU(precioVenta)}</div>
+          <div class="kpi-sub">${fC(precioVenta)}</div>
+        </div>`:`
+        <div class="kpi-mini" style="border-left-color:#166534;background:#F0FDF4">
+          <div class="kpi-lbl" style="color:#166534">Precio Final al Cliente</div>
+          <div class="kpi-val" style="color:#166534">${fU(precioVenta)}</div>
+          <div class="kpi-sub">${fC(precioVenta)}</div>
+        </div>`}
+    </div>`;
+
+    // ── CUADRO MG ──
     const cuadroMG=`
-      <div style="background:#FFFBF0;border:2px solid #F59E0B;border-radius:8px;padding:12px 16px;margin-top:12px">
-        <div class="sec-title" style="color:#92400E">🔒 Margen y Comisión — Solo Uso Interno</div>
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;margin-top:8px">
-          <div class="mg-cell"><div class="mg-lbl">Descuento</div><div class="mg-val" style="color:#DC2626">${Math.round(desc*100)}%</div></div>
-          <div class="mg-cell"><div class="mg-lbl">Margen Real</div><div class="mg-val" style="color:${mc}">${margenConDesc.toFixed(2)}%</div></div>
-          <div class="mg-cell"><div class="mg-lbl">Comisión %</div><div class="mg-val" style="color:#1E40AF">${comPct.toFixed(3)}%</div></div>
-          <div class="mg-cell-dark"><div class="mg-lbl" style="color:#BFDBFE">Comisión USD</div><div class="mg-val" style="color:#fff;font-size:15px">${fU(comUSD)}</div></div>
-          <div class="mg-cell-dark"><div class="mg-lbl" style="color:#BFDBFE">Comisión COP</div><div style="font-size:12px;font-weight:800;color:#fff;margin-top:2px">COP ${Math.round(comUSD*TRM_).toLocaleString('es-CO')}</div></div>
+      <div class="bloque amarillo" style="margin-top:8px">
+        <div class="bloque-tit" style="color:#92400E">🔒 Margen y Comisión — Solo Uso Interno</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center;margin-top:6px">
+          <div class="mg-c"><div class="mg-l">Descuento</div><div class="mg-v" style="color:#DC2626">${Math.round(desc*100)}%${descEsp?'+3%':''}</div></div>
+          <div class="mg-c"><div class="mg-l">Margen Real</div><div class="mg-v" style="color:${mc}">${margenConDesc.toFixed(2)}%</div></div>
+          <div class="mg-c"><div class="mg-l">Comisión %</div><div class="mg-v" style="color:#1E40AF">${comPct.toFixed(3)}%</div></div>
+          <div class="mg-c" style="background:#1E40AF;border-color:#1E40AF"><div class="mg-l" style="color:#BFDBFE">Com. USD</div><div class="mg-v" style="color:#fff;font-size:13px">${fU(comUSD)}</div></div>
+          <div class="mg-c" style="background:#1E40AF;border-color:#1E40AF"><div class="mg-l" style="color:#BFDBFE">Com. COP</div><div style="font-size:10px;font-weight:800;color:#fff;margin-top:2px">${Math.round(comUSD*TRM_).toLocaleString('es-CO')}</div></div>
         </div>
-        <div style="font-size:10px;color:#92400E;margin-top:6px">Precio final: ${fU(precioVenta)} · Costo total: ${fU(costoTotal)} · TRM: ${TRM_.toLocaleString('es-CO')}</div>
+        <div style="font-size:9px;color:#92400E;margin-top:4px">Precio final: ${fU(precioVenta)} · Costo: ${fU(costoTotal)} · TRM: ${TRM_.toLocaleString('es-CO')}</div>
       </div>`;
 
-    // Precio de venta
-    const bloquePrecios=esLiq&&s.htmlResultados?`
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:12px">
-        <div class="sec-title">💰 Precio de Venta (sin descuento)</div>
-        ${s.htmlResultados}
-      </div>`:'';
-
-    // Bloque descuento
-    const bloqueDesc=desc>0?`
-      <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin-bottom:12px">
-        <div class="sec-title" style="color:#991B1B">🏷️ Descuento Aplicado (desde cotización)</div>
-        <div class="liq-row"><span>Precio sin descuento</span><span><strong>${fU(tarifa)}</strong> <small>${fC(tarifa)}</small></span></div>
-        <div class="liq-row"><span>Descuento ${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</span><span style="color:#EF4444"><strong>-${fU(descMonto)}</strong> <small>-${fC(descMonto)}</small></span></div>
-        <div class="liq-row total-r"><span>Precio Final al Cliente</span><span style="color:#92400E"><strong>${fU(precioVenta)}</strong> <small>${fC(precioVenta)}</small></span></div>
-      </div>`:'';
-
-    paginas+=`
-      <div class="pagina">
-        <div class="maq-header">
-          <div>
-            <div class="maq-nombre">${item.nombre||'—'}</div>
-            <div class="maq-sub">${item.marca?'<span class="badge-marca">'+item.marca+'</span>':''} <span class="badge-origen ${esLiq?'liq':'tar'}">${esLiq?'🔧 Liquidado':'📋 Catálogo'}</span></div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:11px;color:#888">${numOferta} · ${fecha}</div>
-            <div style="font-size:11px;color:#888">${cliente}</div>
-          </div>
+    paginas+=`<div class="pagina">
+      <div class="maq-header">
+        <div>
+          <div class="maq-nombre">${item.nombre||'—'} <span class="badge-${esLiq?'liq':'tar'}">${esLiq?'🔧 Liquidado':'📋 Catálogo'}</span></div>
+          <div style="font-size:11px;color:#888;margin-top:2px">${item.marca||''}</div>
         </div>
-        <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:16px">
-          <div>
-            ${bloqueCostos}
-            ${bloqueInst}
-            ${bloqueFin}
-          </div>
-          <div>
-            ${bloquePrecios}
-            ${bloqueDesc}
-          </div>
+        <div style="text-align:right;font-size:10px;color:#888">
+          <div>${numOferta} · ${fecha}</div>
+          <div>${cliente}</div>
         </div>
-        ${cuadroMG}
-      </div>`;
+      </div>
+      <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:12px">
+        <div>
+          ${bloqueCostos}
+          ${bloqueInst}
+          ${bloqueFin}
+        </div>
+        <div>
+          ${bloquePrecios}
+        </div>
+      </div>
+      ${cuadroMG}
+    </div>`;
   });
 
   const margenTotal=totVenta>0?((totVenta-totCosto)/totVenta*100):0;
-  const mtc=margenTotal>=35?'#166534':margenTotal>=20?'#92400E':'#DC2626';
+  const mtc=margenTotal>=35?'#80A61B':margenTotal>=20?'#F59E0B':'#EF4444';
 
   const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
   <title>Liquidación Interna — ${numOferta}</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;color:#333;font-size:12px;background:#f3f4f6}
-    .bar{background:#2C2C2C;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:99;print-color-adjust:exact}
-    .bar button{background:#80A61B;border:none;color:#fff;padding:7px 18px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    body{font-family:Arial,sans-serif;color:#333;font-size:11px;background:#e5e7eb}
+    /* Barra */
+    .bar{background:#2C2C2C;color:#fff;padding:8px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:99}
+    .bar button{background:#80A61B;border:none;color:#fff;padding:5px 14px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer}
+    .conf{background:#F59E0B;color:#7C2D12;padding:6px 16px;font-size:10px;font-weight:700;text-align:center}
     /* Portada */
-    .portada{background:#2C2C2C;color:#fff;padding:32px 40px;margin-bottom:16px;page-break-after:always}
-    .portada h1{font-size:22px;font-weight:800;color:#80A61B;margin-bottom:4px}
-    .portada .sub{font-size:13px;color:#aaa;margin-bottom:20px}
-    .portada-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
-    .portada-bloque{background:rgba(255,255,255,0.08);border-radius:8px;padding:14px 16px}
-    .portada-bloque .lbl{font-size:10px;color:#80A61B;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;font-weight:700}
-    .portada-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px}
-    .portada-row:last-child{border-bottom:none}
-    .portada-val{font-weight:600;color:#fff}
-    .obs-box{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:12px;margin-top:12px;font-size:12px;color:#ddd;min-height:60px;line-height:1.6}
-    .conf-banner{background:#F59E0B;color:#7C2D12;padding:8px 16px;font-size:11px;font-weight:700;text-align:center;letter-spacing:0.5px}
-    /* Páginas por máquina */
-    .pagina{background:#fff;margin:0 0 16px 0;padding:20px 24px;page-break-after:always;border-radius:0}
+    .portada{background:#1e1e1e;color:#fff;padding:28px 32px;margin-bottom:12px;page-break-after:always}
+    .portada h1{font-size:24px;font-weight:800;color:#80A61B}
+    .portada .sub{font-size:12px;color:#888;margin-bottom:16px}
+    .p-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px}
+    .p-bloque{background:rgba(255,255,255,0.07);border-radius:6px;padding:12px 14px}
+    .p-lbl{font-size:9px;color:#80A61B;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;font-weight:700}
+    .p-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:11px}
+    .p-val{font-weight:600}
+    .obs{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:10px;font-size:11px;color:#ccc;min-height:40px;line-height:1.5;margin-top:4px}
+    .eje-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+    .eje-c{border-radius:6px;padding:10px;text-align:center}
+    .eje-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+    .eje-val{font-size:15px;font-weight:800;margin-top:3px}
+    /* Páginas máquina */
+    .pagina{background:#fff;padding:16px 20px;margin-bottom:12px;page-break-after:always;page-break-inside:avoid}
     .pagina:last-child{page-break-after:auto}
-    .maq-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:10px;border-bottom:3px solid #80A61B}
-    .maq-nombre{font-size:18px;font-weight:800;color:#2C2C2C}
-    .maq-sub{margin-top:4px}
-    .badge-marca{background:#DBEAFE;color:#1E3A8A;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
-    .badge-origen.liq{background:#EFF6FF;color:#1E40AF;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
-    .badge-origen.tar{background:#F0FDF4;color:#166534;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
-    /* Secciones */
-    .sec-title{font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #e5e7eb}
-    /* Liq rows */
-    .liq-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:12px;gap:8px}
-    .liq-kpi{background:#f5f7f0;border-radius:6px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #80A61B}
-    .liq-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px}
-    .liq-value{font-size:17px;font-weight:800;color:#575756}
-    .liq-sub{font-size:11px;color:#aaa;margin-top:2px}
-    .total-r{font-weight:700;background:#f9fafb;padding:6px 4px;margin-top:4px}
+    .maq-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding-bottom:8px;border-bottom:3px solid #80A61B}
+    .maq-nombre{font-size:16px;font-weight:800;color:#1e1e1e}
+    .badge-liq{background:#DBEAFE;color:#1E3A8A;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:700}
+    .badge-tar{background:#F0FDF4;color:#166534;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:700}
+    /* Bloques */
+    .bloque{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin-bottom:8px}
+    .bloque.verde{background:#F0FDF4;border-color:#86EFAC}
+    .bloque.azul{background:#EFF6FF;border-color:#BFDBFE}
+    .bloque.amarillo{background:#FFFBF0;border-color:#F59E0B}
+    .bloque-tit{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#575756;border-bottom:1px solid #e5e7eb;padding-bottom:5px;margin-bottom:7px}
+    /* Filas */
+    .fila{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #f0f0f0;font-size:11px;gap:4px}
+    .fila-mini{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;color:#555;gap:4px}
+    .total-fila{font-weight:700;background:#f0f0f0;padding:4px 4px;margin-top:2px;border-radius:3px}
+    /* liq-row del HTML capturado */
+    .liq-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:11px;gap:6px}
+    .liq-kpi{background:#f5f7f0;border-radius:5px;padding:7px 10px;margin-bottom:6px;border-left:3px solid #80A61B}
+    .liq-label{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.4px}
+    .liq-value{font-size:14px;font-weight:800;color:#575756}
+    .liq-sub{font-size:10px;color:#aaa;margin-top:1px}
+    /* KPIs compactos */
+    .kpi-mini{background:#f5f7f0;border-left:3px solid #80A61B;border-radius:4px;padding:7px 10px;margin-bottom:6px}
+    .kpi-lbl{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.4px}
+    .kpi-val{font-size:16px;font-weight:800;color:#1e1e1e;line-height:1.2}
+    .kpi-sub{font-size:10px;color:#aaa;margin-top:1px}
     /* MG */
-    .mg-cell{background:#fff;border:1px solid #FDE68A;border-radius:6px;padding:8px 4px}
-    .mg-cell-dark{background:#1E40AF;border-radius:6px;padding:8px 4px}
-    .mg-lbl{font-size:9px;font-weight:600;color:#92400E;margin-bottom:2px}
-    .mg-val{font-size:16px;font-weight:800;color:#575756}
-    /* Resumen final */
-    .resumen-final{background:#2C2C2C;color:#fff;padding:20px 24px;margin-top:16px;border-radius:0}
+    .mg-c{background:#fff;border:1px solid #FDE68A;border-radius:5px;padding:6px 4px}
+    .mg-l{font-size:8px;font-weight:700;color:#92400E;margin-bottom:2px}
+    .mg-v{font-size:14px;font-weight:800}
     @media print{
       body{background:#fff}
-      .bar,.no-print{display:none}
-      .pagina,.portada{margin:0;border-radius:0;box-shadow:none}
+      .bar,.no-print{display:none!important}
+      .portada,.pagina{margin:0;border-radius:0;box-shadow:none;padding:14px 16px}
       .portada{page-break-after:always}
-      .pagina{page-break-after:always}
-      @page{margin:15mm 12mm;size:A4}
-      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+      .pagina{page-break-after:always;page-break-inside:avoid}
+      @page{margin:8mm 8mm;size:A4}
     }
   </style></head><body>
   <div class="bar no-print">
     <span style="font-weight:700">🔒 Liquidación Interna — ${numOferta}</span>
     <button onclick="window.print()">🖨 Imprimir / PDF</button>
-    <span style="margin-left:auto;font-size:11px;opacity:.7">⚠ Confidencial · AYJ Maquinaria</span>
+    <span style="margin-left:auto;font-size:10px;opacity:.6">⚠ Confidencial · AYJ</span>
   </div>
-  <div class="conf-banner">⚠ DOCUMENTO CONFIDENCIAL — USO EXCLUSIVO INTERNO AYJ MAQUINARIA S.A.S.</div>
+  <div class="conf">⚠ DOCUMENTO CONFIDENCIAL — USO EXCLUSIVO INTERNO AYJ MAQUINARIA S.A.S.</div>
 
-  <!-- PORTADA -->
   <div class="portada">
     <h1>Liquidación Interna</h1>
     <div class="sub">${numOferta} · ${fecha}</div>
-    <div class="portada-grid">
-      <div class="portada-bloque">
-        <div class="lbl">Cliente</div>
-        <div class="portada-row"><span>Empresa</span><span class="portada-val">${cliente||'—'}</span></div>
-        ${contacto?`<div class="portada-row"><span>Contacto</span><span class="portada-val">${contacto.nombre||'—'}</span></div>`:''}
-        ${contacto?.cargo?`<div class="portada-row"><span>Cargo</span><span class="portada-val">${contacto.cargo}</span></div>`:''}
-        ${contacto?.email?`<div class="portada-row"><span>Email</span><span class="portada-val">${contacto.email}</span></div>`:''}
-        ${cliEmail?`<div class="portada-row"><span>Email</span><span class="portada-val">${cliEmail}</span></div>`:''}
+    <div class="p-grid">
+      <div class="p-bloque">
+        <div class="p-lbl">Cliente</div>
+        <div class="p-row"><span>Empresa</span><span class="p-val">${cliente||'—'}</span></div>
+        ${contacto?`<div class="p-row"><span>Contacto</span><span class="p-val">${contacto.nombre||'—'}</span></div>`:''}
+        ${contacto?.cargo?`<div class="p-row"><span>Cargo</span><span class="p-val">${contacto.cargo}</span></div>`:''}
+        ${contacto?.email?`<div class="p-row"><span>Email</span><span class="p-val">${contacto.email}</span></div>`:''}
       </div>
-      <div class="portada-bloque">
-        <div class="lbl">Condiciones de la Oferta</div>
-        <div class="portada-row"><span>Asesor</span><span class="portada-val">${vendedor}</span></div>
-        <div class="portada-row"><span>Condición de pago</span><span class="portada-val">${condPago}</span></div>
-        <div class="portada-row"><span>Validez</span><span class="portada-val">${validez}</span></div>
-        <div class="portada-row"><span>Descuento</span><span class="portada-val">${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</span></div>
-        <div class="portada-row"><span>N° máquinas</span><span class="portada-val">${carrito.length}</span></div>
+      <div class="p-bloque">
+        <div class="p-lbl">Condiciones</div>
+        <div class="p-row"><span>Asesor</span><span class="p-val">${vendedor}</span></div>
+        <div class="p-row"><span>Condición pago</span><span class="p-val">${condPago}</span></div>
+        <div class="p-row"><span>Validez</span><span class="p-val">${validez}</span></div>
+        <div class="p-row"><span>Descuento</span><span class="p-val">${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</span></div>
+        <div class="p-row"><span>N° máquinas</span><span class="p-val">${carrito.length}</span></div>
       </div>
     </div>
-    ${obs?`<div class="portada-bloque"><div class="lbl">Observaciones</div><div class="obs-box">${obs}</div></div>`:'<div class="portada-bloque"><div class="lbl">Observaciones</div><div class="obs-box" style="color:#666;font-style:italic">Sin observaciones</div></div>'}
-    <!-- Resumen ejecutivo -->
-    <div class="portada-bloque" style="margin-top:12px">
-      <div class="lbl">Resumen Ejecutivo</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px;text-align:center">
-        <div style="background:rgba(255,255,255,0.08);border-radius:6px;padding:10px">
-          <div style="font-size:10px;color:#80A61B;font-weight:600">TOTAL TARIFA</div>
-          <div style="font-size:16px;font-weight:800;color:#fff;margin-top:4px">USD ${Math.round(totTarifa).toLocaleString('es-CO')}</div>
+    <div class="p-bloque">
+      <div class="p-lbl">Observaciones</div>
+      <div class="obs">${obs||'<span style="color:#666;font-style:italic">Sin observaciones</span>'}</div>
+    </div>
+    <div class="p-bloque" style="margin-top:12px">
+      <div class="p-lbl">Resumen Ejecutivo</div>
+      <div class="eje-grid">
+        <div class="eje-c" style="background:rgba(255,255,255,0.08)">
+          <div class="eje-lbl" style="color:#80A61B">Total Tarifa</div>
+          <div class="eje-val">USD ${Math.round(totTarifa).toLocaleString('es-CO')}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.08);border-radius:6px;padding:10px">
-          <div style="font-size:10px;color:#EF4444;font-weight:600">TOTAL COSTOS</div>
-          <div style="font-size:16px;font-weight:800;color:#fff;margin-top:4px">USD ${Math.round(totCosto).toLocaleString('es-CO')}</div>
+        <div class="eje-c" style="background:rgba(255,255,255,0.08)">
+          <div class="eje-lbl" style="color:#EF4444">Total Costos</div>
+          <div class="eje-val">USD ${Math.round(totCosto).toLocaleString('es-CO')}</div>
         </div>
-        <div style="background:rgba(128,166,27,0.25);border-radius:6px;padding:10px;border:1px solid #80A61B">
-          <div style="font-size:10px;color:#80A61B;font-weight:600">PRECIO VENTA</div>
-          <div style="font-size:16px;font-weight:800;color:#fff;margin-top:4px">USD ${Math.round(totVenta).toLocaleString('es-CO')}</div>
+        <div class="eje-c" style="background:rgba(128,166,27,0.2);border:1px solid #80A61B">
+          <div class="eje-lbl" style="color:#80A61B">Precio Venta</div>
+          <div class="eje-val">USD ${Math.round(totVenta).toLocaleString('es-CO')}</div>
         </div>
-        <div style="background:rgba(30,64,175,0.3);border-radius:6px;padding:10px;border:1px solid #BFDBFE">
-          <div style="font-size:10px;color:#BFDBFE;font-weight:600">COMISIÓN TOTAL</div>
-          <div style="font-size:16px;font-weight:800;color:#fff;margin-top:4px">USD ${Math.round(totComision).toLocaleString('es-CO')}</div>
+        <div class="eje-c" style="background:rgba(30,64,175,0.25);border:1px solid #BFDBFE">
+          <div class="eje-lbl" style="color:#BFDBFE">Comisión Total</div>
+          <div class="eje-val">USD ${Math.round(totComision).toLocaleString('es-CO')}</div>
         </div>
       </div>
-      <div style="margin-top:10px;text-align:center;font-size:13px;color:#aaa">
-        Margen promedio: <strong style="color:${margenTotal>=35?'#80A61B':margenTotal>=20?'#F59E0B':'#EF4444'};font-size:16px">${margenTotal.toFixed(1)}%</strong>
+      <div style="text-align:center;margin-top:10px;font-size:12px;color:#aaa">
+        Margen promedio: <strong style="color:${mtc};font-size:18px">${margenTotal.toFixed(1)}%</strong>
       </div>
     </div>
   </div>
 
-  <!-- UNA PÁGINA POR MÁQUINA -->
   ${paginas}
-
   </body></html>`;
 
   const w=window.open('','_blank');
