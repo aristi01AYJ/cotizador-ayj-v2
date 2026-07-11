@@ -254,7 +254,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
   </div>
 </div>
 
-<div id="appScreen" onclick="if(!event.target.closest('#liqMaquinaInput')&&!event.target.closest('#liqMaquinaDropdown')){const d=document.getElementById('liqMaquinaDropdown');if(d)d.style.display='none'}">
+<div id="appScreen">
   <div class="topbar">
     <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;filter:brightness(0) invert(1)"><span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:400;letter-spacing:0.5px">Cotizador</span> <span style="font-size:13px;color:#fff;font-weight:800;letter-spacing:1px">MAQUINARIA</span></div>
     <div class="nav">
@@ -5150,6 +5150,16 @@ function getIniciales(vendedor){
   const key=Object.keys(VENDEDOR_INICIALES).find(k=>vendedor.toLowerCase().includes(k.toLowerCase()));
   return key?VENDEDOR_INICIALES[key]:'AYJ';
 }
+
+// Cerrar dropdown máquina liquidador al clicar fuera — listener global
+document.addEventListener('mousedown', function(e){
+  const input=document.getElementById('liqMaquinaInput');
+  const dd=document.getElementById('liqMaquinaDropdown');
+  if(!dd||dd.style.display==='none') return;
+  if(input&&input.contains(e.target)) return;
+  if(dd.contains(e.target)) return;
+  dd.style.display='none';
+}, true);
 
 initMsal();
 </script>
