@@ -4222,10 +4222,19 @@ function liqGetItem(){
     if(m) item={grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo||'',tipologia:m.tipologia||'',tarifa:precio,descripcion:m.descripcion||'',fichaTecnica:m.fichaTecnica||'',ytVideo:m.ytVideo||'',cantidad:1,stockCount:0,importCount:0};
   }
   if(!item){
-    // Fallback: usar texto del input de búsqueda como nombre
+    // Fallback: usar nombre personalizado o texto del input
+    const customNombre=document.getElementById('liqCustomNombre')?.value?.trim()||'';
+    const customMarca=document.getElementById('liqCustomMarca')?.value?.trim()||'';
     const inputText=document.getElementById('liqMaquinaInput')?.value?.trim()||'';
-    item={grupoKey:null,tipo:'pedido',nombre:inputText||'Máquina — Liquidador',marca:'',modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
+    const nombre=customNombre||inputText||'Máquina — Liquidador';
+    const marca=customMarca||'';
+    item={grupoKey:null,tipo:'pedido',nombre,marca,modelo:'',tipologia:'',tarifa:precio,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0};
   }
+  // Si hay personalización activa, sobreescribir nombre y marca
+  const customNombre=document.getElementById('liqCustomNombre')?.value?.trim()||'';
+  const customMarca=document.getElementById('liqCustomMarca')?.value?.trim()||'';
+  const panelAbierto=document.getElementById('liqPersonalizarWrap')?.style?.display!=='none';
+  if(panelAbierto&&customNombre) { item.nombre=customNombre; item.marca=customMarca||item.marca; }
   item.origen='liquidador';
   item.costoAYJ=window._liqCostoAYJ||0;
   item.costoTotal=window._liqCostoTotal||window._liqCostoAYJ||0;
@@ -4329,6 +4338,11 @@ function liqLimpiarCampos(){
   if(sel) sel.value='';
   const inp=document.getElementById('liqMaquinaInput');
   if(inp) inp.value='';
+  // Limpiar y cerrar panel personalizar
+  const wrap=document.getElementById('liqPersonalizarWrap');
+  if(wrap) wrap.style.display='none';
+  const cn=document.getElementById('liqCustomNombre'); if(cn) cn.value='';
+  const cm=document.getElementById('liqCustomMarca'); if(cm) cm.value='';
   const ds=document.getElementById('liqDescSlider'); if(ds) ds.value=0;
   const dn=document.getElementById('liqDescCliente'); if(dn) dn.value=0;
   const dl=document.getElementById('liqDescLabel'); if(dl) dl.textContent='0%';
@@ -4524,6 +4538,26 @@ function liqGenerarHTML(){
 }
 
 // ── INSTALACIÓN ──────────────────────────────────────
+function liqTogglePersonalizar(){
+  const wrap=document.getElementById('liqPersonalizarWrap');
+  const inp=document.getElementById('liqMaquinaInput');
+  if(!wrap) return;
+  const abierto=wrap.style.display!=='none';
+  wrap.style.display=abierto?'none':'block';
+  if(!abierto){
+    // Al abrir: limpiar el buscador y enfocar el campo manual
+    if(inp) inp.value='';
+    const sel=document.getElementById('liqMaquinaSel');
+    if(sel) sel.value='';
+    setTimeout(()=>document.getElementById('liqCustomNombre')?.focus(),100);
+  } else {
+    // Al cerrar: limpiar campos manuales
+    document.getElementById('liqCustomNombre').value='';
+    document.getElementById('liqCustomMarca').value='';
+  }
+}
+
+
 function liqFiltrarMaquinas(q){
   const dd=document.getElementById('liqMaquinaDropdown');
   if(!dd) return;
@@ -5202,6 +5236,23 @@ initMsal();
             <select id="liqMaquinaSel" onchange="liqSyncInstMaquina()" style="display:none">
               <option value="">— Seleccionar máquina (opcional) —</option>
             </select>
+            <!-- Personalizar nombre/marca si no está en catálogo -->
+            <div id="liqPersonalizarWrap" style="margin-top:6px;display:none;background:#f8f4e8;border:1px solid #e0c97a;border-radius:6px;padding:8px">
+              <div style="font-size:10px;font-weight:700;color:#92400E;margin-bottom:6px">✏️ Máquina no encontrada — ingresa manualmente</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                <div>
+                  <label style="font-size:10px;color:#666">Nombre / Modelo</label>
+                  <input type="text" id="liqCustomNombre" placeholder="Ej: NCG3021L" oninput="liqCalc()"
+                    style="width:100%;padding:4px 6px;border:1px solid #e0c97a;border-radius:4px;font-family:inherit;font-size:12px;margin-top:2px">
+                </div>
+                <div>
+                  <label style="font-size:10px;color:#666">Marca</label>
+                  <input type="text" id="liqCustomMarca" placeholder="Ej: Nanxing" oninput="liqCalc()"
+                    style="width:100%;padding:4px 6px;border:1px solid #e0c97a;border-radius:4px;font-family:inherit;font-size:12px;margin-top:2px">
+                </div>
+              </div>
+            </div>
+            <button onclick="liqTogglePersonalizar()" style="font-size:10px;background:none;border:none;color:#80A61B;cursor:pointer;padding:2px 0;margin-top:4px;font-family:inherit">✏️ No está en el catálogo</button>
           </div>
           <div class="liq-field"><label>TRM (COP/USD)</label><input type="number" id="liqTRM" value="3650" oninput="liqCalc()"></div>
           <!-- Modo COSTO_AYJ -->
