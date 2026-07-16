@@ -1073,7 +1073,6 @@ function tablaPagos(condPago, cuotas, totalUSD, fmtUSD, fmtCOP, mCOP=false, flet
     +'<tfoot><tr style="background:#f5f7f0;">'
     +'<td style="padding:6px 12px;font-weight:700;font-size:11px;color:#575756;">TOTAL</td>'
     +(esCOP?'':'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtUSD(totalConFlete)+'</td>')
-    +(esCOP?'':'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtUSD(totalConFlete)+'</td>')
     +(esUSD?'':'<td style="padding:6px 12px;text-align:right;font-weight:700;color:#80A61B;">'+fmtCOP(totalConFlete)+'</td>')
     +'</table></div>';
 }
