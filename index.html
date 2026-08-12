@@ -2162,27 +2162,52 @@ function mostrarResumenMargenes(){
       </div>`:'';
 
     // ── PRECIO + DESCUENTO (columna derecha) ──
+    const impocostoItem=esLiq?(s.costoTotal||0)-(s.CIF||0):0;
+    const precioBase=tarifa;
+    const descMonto_=precioBase*desc;
+    const precioFinal_=precioBase*(1-desc);
+    const margenUSD_=precioFinal_-costoTotal;
+    const comUSD_=comision;
+
     const bloquePrecios=`<div class="bloque">
-      <div class="bloque-tit">💰 Precio de Venta</div>
-      ${esLiq?`
-        <div class="kpi-mini"><div class="kpi-lbl">Precio Neto (${s.margen||50}% margen)</div><div class="kpi-val">${fU(tarifa)}</div><div class="kpi-sub">${fC(tarifa)}</div></div>
-        ${si.costoUSD>0?`<div class="fila"><span>+ Instalación</span><span>${fU(si.costoUSD)}</span></div>`:''}
-        ${sf.costoUSD>0?`<div class="fila"><span>+ Financiación</span><span>${fU(sf.costoUSD)}</span></div>`:''}
-      `:`
-        <div class="kpi-mini"><div class="kpi-lbl">Tarifa lista</div><div class="kpi-val">${fU(tarifa)}</div><div class="kpi-sub">${fC(tarifa)}</div></div>
-      `}
+      <div class="bloque-tit">💰 Precio y Resultado</div>
+
+      <div class="kpi-mini"><div class="kpi-lbl">Precio Venta (${esLiq?s.margen||50:50}% Margen)</div><div class="kpi-val">${fU(precioBase)}</div><div class="kpi-sub">${fC(precioBase)}</div></div>
+
       ${desc>0?`
-        <div class="fila" style="color:#DC2626"><span>Descuento ${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</span><span>-${fU(descMonto)}</span></div>
+        <div class="fila" style="color:#DC2626"><span>Descuento ${Math.round(desc*100)}%${descEsp?' + 3% esp.':''}</span><span>-${fU(descMonto_)}</span></div>
         <div class="kpi-mini" style="border-left-color:#DC2626;background:#FEF2F2">
-          <div class="kpi-lbl" style="color:#991B1B">Precio Final al Cliente</div>
-          <div class="kpi-val" style="color:#991B1B">${fU(precioVenta)}</div>
-          <div class="kpi-sub">${fC(precioVenta)}</div>
+          <div class="kpi-lbl" style="color:#991B1B">TOTAL AL CLIENTE</div>
+          <div class="kpi-val" style="color:#991B1B">${fU(precioFinal_)}</div>
+          <div class="kpi-sub">${fC(precioFinal_)}</div>
         </div>`:`
         <div class="kpi-mini" style="border-left-color:#166534;background:#F0FDF4">
-          <div class="kpi-lbl" style="color:#166534">Precio Final al Cliente</div>
-          <div class="kpi-val" style="color:#166534">${fU(precioVenta)}</div>
-          <div class="kpi-sub">${fC(precioVenta)}</div>
+          <div class="kpi-lbl" style="color:#166534">TOTAL AL CLIENTE</div>
+          <div class="kpi-val" style="color:#166534">${fU(precioFinal_)}</div>
+          <div class="kpi-sub">${fC(precioFinal_)}</div>
         </div>`}
+
+      <div style="border-top:1px solid #e5e7eb;margin:8px 0"></div>
+
+      <div class="kpi-mini" style="border-left-color:${mc};background:${mb}">
+        <div class="kpi-lbl">Margen AYJ (${margenConDesc.toFixed(1)}%)</div>
+        <div class="kpi-val" style="color:${mc}">${fU(margenUSD_)}</div>
+        <div class="kpi-sub">${fC(margenUSD_)}</div>
+      </div>
+
+      <div class="kpi-mini" style="border-left-color:#F59E0B;background:#FFFBF0">
+        <div class="kpi-lbl">Comisión Vendedor (${comisionPct.toFixed(3)}%)</div>
+        <div class="kpi-val" style="color:#92400E">${fU(comUSD_)}</div>
+        <div class="kpi-sub">${fC(comUSD_)}</div>
+      </div>
+
+      ${esLiq&&impocostoItem>0?`
+        <div style="border-top:1px solid #e5e7eb;margin:8px 0"></div>
+        <div class="kpi-mini" style="border-left-color:#3B82F6;background:#EFF6FF">
+          <div class="kpi-lbl" style="color:#1E40AF">📦 Impocosto sin IVA (Total − FOB)</div>
+          <div class="kpi-val" style="color:#1E40AF">${fU(impocostoItem)}</div>
+          <div class="kpi-sub">${fC(impocostoItem)}</div>
+        </div>`:''}
     </div>`;
 
     // ── CUADRO MG ──
