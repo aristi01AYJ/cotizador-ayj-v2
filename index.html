@@ -2169,6 +2169,8 @@ function mostrarResumenMargenes(){
     const precioFinal_=precioBase*(1-desc);
     const margenUSD_=precioFinal_-costoTotal;
     const comUSD_=comUSD;
+    const mc_=margenConDesc>=35?'#166534':margenConDesc>=20?'#92400E':'#991B1B';
+    const mb_=margenConDesc>=35?'#F0FDF4':margenConDesc>=20?'#FEF3C7':'#FEF2F2';
 
     const bloquePrecios=`<div class="bloque">
       <div class="bloque-tit">💰 Precio y Resultado</div>
@@ -2190,9 +2192,9 @@ function mostrarResumenMargenes(){
 
       <div style="border-top:1px solid #e5e7eb;margin:8px 0"></div>
 
-      <div class="kpi-mini" style="border-left-color:${mc};background:${mb}">
+      <div class="kpi-mini" style="border-left-color:${mc_};background:${mb_}">
         <div class="kpi-lbl">Margen AYJ (${margenConDesc.toFixed(1)}%)</div>
-        <div class="kpi-val" style="color:${mc}">${fU(margenUSD_)}</div>
+        <div class="kpi-val" style="color:${mc_}">${fU(margenUSD_)}</div>
         <div class="kpi-sub">${fC(margenUSD_)}</div>
       </div>
 
