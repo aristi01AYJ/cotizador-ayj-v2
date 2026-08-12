@@ -2083,6 +2083,7 @@ function pedirClaveMargenes(){
 
 function mostrarResumenMargenes(){
   if(!carrito.length){showToast('El carrito está vacío','error');return;}
+  try{
   const descBase=parseFloat(document.getElementById('descInput')?.value)||0;
   const descEsp=document.getElementById('descEspecialChk')?.checked;
   const descEspPct=descEsp?3:0;
@@ -2424,6 +2425,7 @@ function mostrarResumenMargenes(){
   const w=window.open('','_blank');
   if(!w){showToast('Permite popups para imprimir','error');return;}
   w.document.write(html);w.document.close();
+  }catch(err){showToast('Error generando MG: '+err.message,'error');console.error(err);}
 }
 
 
