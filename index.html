@@ -4155,6 +4155,10 @@ function liqCalc(){
     +fila('🔧 Instalación',fU(instalacion),fC(instalacion))
     +fila('💳 Financiación',fU(costoFin),fC(costoFin))
     +fila('Otros',fU(otros),fC(otros))
+    +(()=>{
+      const impocosto=fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
+      return impocosto>0?`<div class="liq-row" style="background:#EFF6FF;border-radius:4px;padding:5px 4px;margin:4px 0;border-left:3px solid #3B82F6"><span style="color:#1E40AF;font-weight:600;font-size:11px">📦 IMPOCOSTO (sin IVA)</span><span style="text-align:right"><strong style="color:#1E40AF">${fU(impocosto)}</strong><br><span style="font-size:10px;color:#888">${fC(impocosto)}</span></span></div>`:'';
+    })()
     +`<div class="liq-row total-row"><span>TOTAL COSTOS (sin IVA)</span><span style="text-align:right"><strong style="color:#EF4444">${fU(totalCostosUSD)}</strong><br><span style="font-size:10px;color:#999">${fC(totalCostosUSD)}</span></span></div>`
     +`<div class="liq-row" style="background:#FEF3C7;padding:5px 4px;border-radius:4px;margin:4px 0">`
       +`<span style="color:#92400E;font-size:11px">⚠ IVA Nacionalización 19% (recuperable)</span>`
@@ -4201,6 +4205,7 @@ function liqCalc(){
   window._liqMargenReal=margenReal;
   window._liqCostoAYJ=CIF;
   window._liqCostoTotal=totalCostosUSD;
+  window._liqImpocosto=fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
 }
 
 
