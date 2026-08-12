@@ -4175,31 +4175,59 @@ function liqCalc(){
   const finUSD=costoFin||0;
   const otrosUSD=otros||0;
 
+  const impocosto=fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
+  const precioTarifa=PVN+instUSD+finUSD+otrosUSD;
+  const descMonto=precioTarifa*descCliente/100;
+  const precioFinal=precioTarifa-descMonto; // = PVD
+
   document.getElementById('liqResultados').innerHTML=
-    `<div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #80A61B">💰 Precio de Venta</div>`
-    // Precio neto base
-    +`<div class="liq-kpi"><div class="liq-label">Precio Neto (${margenPct}% Margen)</div><div class="liq-value">${fU(PVN)}</div><div class="liq-sub">${fC(PVN)}</div></div>`
-    // Extras sumados
-    +(instUSD>0?`<div class="liq-row" style="padding:4px 2px"><span>+ Instalación</span><span style="font-weight:600">${fU(instUSD)}</span></div>`:'')
-    +(finUSD>0?`<div class="liq-row" style="padding:4px 2px"><span>+ Financiación</span><span style="font-weight:600">${fU(finUSD)}</span></div>`:'')
-    +(otrosUSD>0?`<div class="liq-row" style="padding:4px 2px"><span>+ ${otrosDesc||'Otros costos'}</span><span style="font-weight:600">${fU(otrosUSD)}</span></div>`:'')
-    // Precio tarifa total (base + extras)
-    +((instUSD+finUSD+otrosUSD)>0?`<div class="liq-row total-row" style="padding:5px 4px;background:#f5f7f0;border-radius:4px;margin:4px 0"><span style="font-weight:700">Precio Tarifa Total</span><span style="font-weight:700;color:#575756">${fU(PVN+instUSD+finUSD+otrosUSD)}</span></div>`:'')
-    // Separador
-    +`<div style="border-top:1px dashed #ddd;margin:8px 0"></div>`
-    // Descuento (siempre visible, 0% si no aplica)
-    +`<div class="liq-row" style="padding:4px 2px;color:#DC2626"><span>Descuento ${descCliente}%</span><span style="font-weight:600">-${fU((PVN+instUSD+finUSD+otrosUSD)*descCliente/100)}</span></div>`
-    // Subtotal
-    +`<div class="liq-row" style="padding:4px 2px"><span>Subtotal s/IVA</span><span style="font-weight:600">${fU(PVD)}</span></div>`
-    // IVA
-    +`<div class="liq-row" style="padding:4px 2px;color:#3B82F6"><span>IVA Nacionalización 19% <span style="font-size:9px">(recuperable)</span></span><span style="font-weight:600">${fU(ivaImportUSD)}</span></div>`
-    // Total final
-    +`<div class="liq-kpi" style="border-left-color:#DC2626;background:#FEF2F2;margin-top:6px"><div class="liq-label" style="color:#991B1B">Precio Final al Cliente</div><div class="liq-value" style="color:#991B1B">${fU(PVD)}</div><div class="liq-sub">${fC(PVD)}</div></div>`
-    // Separador
-    +`<div style="border-top:1px dashed #ddd;margin:8px 0"></div>`
-    // Margen y comisión
-    +`<div class="liq-kpi" style="border-left-color:${margenReal>=35?'#22C55E':margenReal>=25?'#F59E0B':'#EF4444'}"><div class="liq-label">Margen Real · Utilidad</div><div class="liq-value" style="color:${margenReal>=35?'#166534':margenReal>=25?'#92400E':'#991B1B'}">${margenReal.toFixed(1)}%</div><div class="liq-sub">${fU(utilidadUSD)} · ${fC(utilidadUSD)}</div></div>`
-    +`<div class="liq-kpi" style="border-left-color:#F59E0B;background:#fffbf0"><div class="liq-label">Comisión Asesor (${comPct.toFixed(3)}%)</div><div class="liq-value" style="color:#92400E">${fU(comUSD)}</div><div class="liq-sub">${fC(comUSD)}</div></div>`;
+    `<div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;padding-bottom:4px;border-bottom:2px solid #80A61B">💰 Resumen de Precio</div>`
+
+    // PRECIO VENTA
+    +`<div class="liq-kpi"><div class="liq-label">Precio Venta (${margenPct}% Margen)</div><div class="liq-value">${fU(precioTarifa)}</div><div class="liq-sub">${fC(precioTarifa)}</div></div>`
+
+    // DESCUENTO
+    +(descCliente>0
+      ?`<div class="liq-row" style="padding:5px 4px;color:#DC2626"><span style="font-weight:600">Descuento ${descCliente}%</span><span style="text-align:right"><strong>-${fU(descMonto)}</strong><br><span style="font-size:10px;color:#EF9999">-${fC(descMonto)}</span></span></div>`
+      :`<div class="liq-row" style="padding:5px 4px;color:#aaa"><span>Descuento</span><span>0%</span></div>`)
+
+    // TOTAL AL CLIENTE
+    +`<div class="liq-kpi" style="border-left-color:${descCliente>0?'#DC2626':'#80A61B'};background:${descCliente>0?'#FEF2F2':'#f5f7f0'}">
+        <div class="liq-label" style="color:${descCliente>0?'#991B1B':'#575756'}">TOTAL AL CLIENTE</div>
+        <div class="liq-value" style="color:${descCliente>0?'#991B1B':'#2C2C2C'}">${fU(precioFinal)}</div>
+        <div class="liq-sub">${fC(precioFinal)}</div>
+      </div>`
+
+    // SEPARADOR
+    +`<div style="border-top:2px solid #e5e7eb;margin:10px 0"></div>`
+
+    // MARGEN AYJ
+    +`<div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">📊 Margen y Comisión</div>`
+    +`<div class="liq-kpi" style="border-left-color:${margenReal>=35?'#22C55E':margenReal>=25?'#F59E0B':'#EF4444'}">
+        <div class="liq-label">Margen AYJ (${margenReal.toFixed(1)}%)</div>
+        <div class="liq-value" style="color:${margenReal>=35?'#166534':margenReal>=25?'#92400E':'#991B1B'}">${fU(utilidadUSD)}</div>
+        <div class="liq-sub">${fC(utilidadUSD)}</div>
+      </div>`
+
+    // COMISIÓN VENDEDOR
+    +`<div class="liq-kpi" style="border-left-color:#F59E0B;background:#fffbf0">
+        <div class="liq-label">Comisión Vendedor (${comPct.toFixed(3)}%)</div>
+        <div class="liq-value" style="color:#92400E">${fU(comUSD)}</div>
+        <div class="liq-sub">${fC(comUSD)}</div>
+      </div>`
+
+    // SEPARADOR
+    +`<div style="border-top:2px solid #e5e7eb;margin:10px 0"></div>`
+
+    // IMPOCOSTO
+    +`<div style="font-size:10px;font-weight:700;color:#575756;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">📦 Impocosto</div>`
+    +`<div class="liq-row" style="padding:4px 2px;font-size:11px"><span>FOB / Costo AYJ</span><span style="color:#333">${fU(CIF)}</span></div>`
+    +`<div class="liq-row" style="padding:4px 2px;font-size:11px"><span>Total Costos (sin IVA)</span><span style="color:#EF4444">${fU(totalCostosUSD)}</span></div>`
+    +`<div class="liq-kpi" style="border-left-color:#3B82F6;background:#EFF6FF;margin-top:4px">
+        <div class="liq-label" style="color:#1E40AF">IMPOCOSTO SIN IVA (Total − FOB)</div>
+        <div class="liq-value" style="color:#1E40AF">${fU(impocosto)}</div>
+        <div class="liq-sub">${fC(impocosto)}</div>
+      </div>`;
 
   window._liqPrecioUSD=PVN;
   window._liqMargenReal=margenReal;
