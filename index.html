@@ -1590,9 +1590,9 @@ function renderCarrito(){
         ?`<div style="text-align:center"><span style="color:#92400E;font-weight:700;font-size:12px">USD 0</span><div style="font-size:9px;color:#aaa;text-decoration:line-through">${fmtUSD(item.tarifa)}</div></div>`
         :(window.precioDesbloqueado
           ?`<div style="display:flex;align-items:center;gap:3px;justify-content:center"><span style="font-size:10px;color:var(--text2)">USD</span><input type="number" min="0" value="${Math.round(item.tarifa/(item.cantidad||1))}" onchange="editarPrecioItem(${i},this.value)" style="width:70px;padding:2px 4px;border:1px solid #F59E0B;border-radius:3px;font-size:12px;font-family:inherit;text-align:right;background:#fffbf0"></div>`
-          :`<div class="price-usd-item" id="pusd_${i}">${fmtUSD(item.tarifa)}</div>`))
+          :`<div class="price-usd-item" id="pusd_${i}">${fmtUSD(tarifaConHijos)}</div>`))
       +`</td>`
-      +`<td class="price-cell" style="vertical-align:middle"><div class="price-cop-item" id="pcop_${i}">${esIncluido?'COP 0':fmtCOP(item.tarifa)}</div></td>`
+      +`<td class="price-cell" style="vertical-align:middle"><div class="price-cop-item" id="pcop_${i}">${esIncluido?'COP 0':fmtCOP(tarifaConHijos)}</div></td>`
       +`<td style="vertical-align:middle;white-space:nowrap">`
         +(esIncluido
           ?`<button onclick="desincluirItem(${i})" title="Quitar inclusión" style="background:none;border:1px solid #F59E0B;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;color:#92400E;margin-right:3px">📎×</button>`
