@@ -2108,9 +2108,10 @@ function mostrarResumenMargenes(){
     const si=item._instSnapshot||{};
     const sf=item._finSnapshot||{};
     const TRM_=parseFloat(s.TRM)||trm||4200;
-    const tarifa=item.tarifa;
-    const costoAYJ=item.costoAYJ||0;
-    const costoTotal=esLiq?(item.costoTotal||costoAYJ):tarifa*0.50;
+    const cant=item.cantidad||1;
+    const tarifa=item.tarifa*cant;
+    const costoAYJ=(item.costoAYJ||0)*cant;
+    const costoTotal=esLiq?((item.costoTotal||item.costoAYJ||0)*cant):tarifa*0.50;
     const descMonto=tarifa*desc;
     const precioVenta=tarifa*(1-desc);
     const margenConDesc=precioVenta>0&&costoTotal>0?((precioVenta-costoTotal)/precioVenta*100):0;
@@ -2400,7 +2401,7 @@ function mostrarResumenMargenes(){
           const mgc=mg>=35?'#80A61B':mg>=20?'#F59E0B':'#EF4444';
           return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);background:${i%2===0?'rgba(255,255,255,0.03)':'transparent'}">
             <td style="padding:3px 6px;color:#888">${i+1}</td>
-            <td style="padding:3px 6px;font-weight:600;color:#fff">${item.nombre||'—'}<span style="font-size:9px;color:#888;margin-left:4px">${item.marca||''}</span></td>
+            <td style="padding:3px 6px;font-weight:600;color:#fff">${cant>1?`<span style="background:#1E40AF;color:#fff;border-radius:6px;padding:0px 5px;font-size:9px;margin-right:3px">${cant}×</span>`:''} ${item.nombre||'—'}<span style="font-size:9px;color:#888;margin-left:4px">${item.marca||''}</span></td>
             <td style="padding:3px 6px;text-align:center"><span style="background:${esL?'#1E3A8A':'#166534'};color:#fff;padding:1px 5px;border-radius:4px;font-size:9px">${esL?'LIQ':'TAR'}</span></td>
             <td style="padding:3px 6px;text-align:right;color:#aaa">${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
             <td style="padding:3px 6px;text-align:right;color:#80A61B;font-weight:700">${Math.round(pv).toLocaleString('es-CO')}</td>
