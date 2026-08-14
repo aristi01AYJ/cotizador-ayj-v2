@@ -4779,11 +4779,14 @@ function liqSyncInstMaquina(){
 
   if(opt){
     instSel.value=opt.value;
-    instSelMaquina();
+    const liqInstVal=parseFloat(document.getElementById('liqInstalacion')?.value)||0;
+    if(liqInstVal===0){
+      instSelMaquina();
+    }
     const horas=parseFloat(opt.dataset?.horas)||0;
     const tab2=document.getElementById('liqTab2');
     if(tab2) tab2.innerHTML='🔧 Instalación'+(horas?` <span style="background:#80A61B;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px">${horas}h</span>`:'');
-    if(horas) showToast('✓ Instalación cargada: '+horas+'h','success');
+    if(horas&&liqInstVal===0) showToast('✓ Instalación cargada: '+horas+'h','success');
   }
 }
 
