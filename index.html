@@ -4747,9 +4747,10 @@ function liqSyncInstMaquina(){
   const val=liqSel.value;
   if(!val) return;
 
-  // Autorellenar COSTO_AYJ desde el catálogo
+  // Autorellenar COSTO_AYJ desde el catálogo — solo si el campo está vacío o en 0
   const inputCosto=document.getElementById('liqCostoAYJ');
   if(inputCosto){
+    const valorActual=parseFloat(inputCosto.value)||0;
     let costoAYJ=0;
     if(val.startsWith('g_')){
       const g=grupos.find(x=>x.key===val.slice(2));
@@ -4758,7 +4759,8 @@ function liqSyncInstMaquina(){
       const m=bajosPedido.find(x=>x.id===val.slice(3));
       costoAYJ=m?.costoAYJ||0;
     }
-    if(costoAYJ>0){
+    // Solo autorellenar si el campo está en 0 — no sobreescribir valor ingresado manualmente
+    if(costoAYJ>0 && valorActual===0){
       inputCosto.value=costoAYJ;
       showToast('✓ COSTO_AYJ cargado: USD '+costoAYJ.toLocaleString('es-CO'),'success');
       liqCalc();
