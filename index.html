@@ -2344,7 +2344,7 @@ function mostrarResumenMargenes(){
         <div class="p-row"><span>Condición pago</span><span class="p-val">${condPago}</span></div>
         <div class="p-row"><span>Validez</span><span class="p-val">${validez}</span></div>
         <div class="p-row"><span>Descuento</span><span class="p-val">${Math.round(desc*100)}%${descEsp?' + 3% especial':''}</span></div>
-        <div class="p-row"><span>N° máquinas</span><span class="p-val">${carrito.length}</span></div>
+        <div class="p-row"><span>N° máquinas</span><span class="p-val">${carrito.reduce((s,i)=>s+(i.cantidad||1),0)}</span></div>
       </div>
     </div>
     <div class="p-bloque">
