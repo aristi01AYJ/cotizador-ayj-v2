@@ -1563,10 +1563,15 @@ function renderCarrito(){
         :item.tipo==='importacion'
           ?'<span class="item-tipo-badge importacion">🚢 En Importación</span>'
           :'<span class="item-tipo-badge pedido">📦 Bajo Pedido</span>';
-    const precioUnit=item.tarifa/(item.cantidad||1);
+    const esIncluido=!!item.incluidoEn;
+    const padreIdx=esIncluido?carrito.findIndex(x=>x.id===item.incluidoEn):-1;
+    const padreNombre=padreIdx>=0?carrito[padreIdx].nombre:'';
+    const precioMostrar=esIncluido?0:item.tarifa;
+    const precioUnit=esIncluido?0:(item.tarifa/(item.cantidad||1));
     const tr=document.createElement('tr');
+    tr.style.opacity=esIncluido?'0.75':'1';
     tr.innerHTML=`<td style="color:var(--text3);font-size:12px">${i+1}</td>`
-      +`<td><div class="item-name">${item.origen==='liquidador'?'<span title="Liquidador" style="font-size:10px;background:#EFF6FF;color:#1E3A8A;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">🔧 LIQ</span>':'<span title="Tarifa catálogo" style="font-size:10px;background:#F0FDF4;color:#065F46;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">💲 TAR</span>'}${item.nombre}</div><div class="item-sub">${item.marca}${item.modelo?' · '+item.modelo:''}</div>${badge}</td>`
+      +`<td><div class="item-name">${item.origen==='liquidador'?'<span title="Liquidador" style="font-size:10px;background:#EFF6FF;color:#1E3A8A;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">🔧 LIQ</span>':'<span title="Tarifa catálogo" style="font-size:10px;background:#F0FDF4;color:#065F46;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">💲 TAR</span>'}${item.nombre}</div><div class="item-sub">${item.marca}${item.modelo?' · '+item.modelo:''}</div>${esIncluido?`<span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:1px 6px;border-radius:6px;font-weight:600">📎 Incluido en: ${padreNombre||'—'}</span>`:''} ${badge}</td>`
       +`<td style="vertical-align:middle"><span class="item-tipo-badge" style="background:var(--bg);color:var(--text2);font-size:10px">${item.tipologia||'—'}</span></td>`
       +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">${pdfCell}${ytCell}</td>`
       +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">`
@@ -1575,18 +1580,62 @@ function renderCarrito(){
           +`<span style="min-width:18px;text-align:center;font-weight:600;font-size:13px">${item.cantidad||1}</span>`
           +`<button onclick="cambiarCantCarrito(${i},1)" style="width:20px;height:20px;border:1px solid var(--green);border-radius:3px;background:var(--green-light);cursor:pointer;font-size:12px;line-height:1;color:var(--green-dark);font-family:inherit">+</button>`
         +`</div>`
-        +`<div style="font-size:9px;color:var(--text3);margin-top:1px">${fmtUSD(precioUnit)}/u</div>`
+        +`<div style="font-size:9px;color:var(--text3);margin-top:1px">${esIncluido?'Incluido':fmtUSD(precioUnit)+'/u'}</div>`
       +`</td>`
       +`<td class="price-cell" style="vertical-align:middle">`
-      +(window.precioDesbloqueado
-        ?`<div style="display:flex;align-items:center;gap:3px;justify-content:center"><span style="font-size:10px;color:var(--text2)">USD</span><input type="number" min="0" value="${Math.round(item.tarifa/(item.cantidad||1))}" onchange="editarPrecioItem(${i},this.value)" style="width:70px;padding:2px 4px;border:1px solid #F59E0B;border-radius:3px;font-size:12px;font-family:inherit;text-align:right;background:#fffbf0"></div>`
-        :`<div class="price-usd-item" id="pusd_${i}">${fmtUSD(item.tarifa)}</div>`)
+      +(esIncluido
+        ?`<div style="text-align:center"><span style="color:#92400E;font-weight:700;font-size:12px">USD 0</span><div style="font-size:9px;color:#aaa;text-decoration:line-through">${fmtUSD(item.tarifa)}</div></div>`
+        :(window.precioDesbloqueado
+          ?`<div style="display:flex;align-items:center;gap:3px;justify-content:center"><span style="font-size:10px;color:var(--text2)">USD</span><input type="number" min="0" value="${Math.round(item.tarifa/(item.cantidad||1))}" onchange="editarPrecioItem(${i},this.value)" style="width:70px;padding:2px 4px;border:1px solid #F59E0B;border-radius:3px;font-size:12px;font-family:inherit;text-align:right;background:#fffbf0"></div>`
+          :`<div class="price-usd-item" id="pusd_${i}">${fmtUSD(item.tarifa)}</div>`))
       +`</td>`
-      +`<td class="price-cell" style="vertical-align:middle"><div class="price-cop-item" id="pcop_${i}">${fmtCOP(item.tarifa)}</div></td>`
-      +`<td style="vertical-align:middle"><button class="btn-remove" onclick="removerItem(${i})"><i class="ti ti-x"></i></button></td>`;
+      +`<td class="price-cell" style="vertical-align:middle"><div class="price-cop-item" id="pcop_${i}">${esIncluido?'COP 0':fmtCOP(item.tarifa)}</div></td>`
+      +`<td style="vertical-align:middle;white-space:nowrap">`
+        +(esIncluido
+          ?`<button onclick="desincluirItem(${i})" title="Quitar inclusión" style="background:none;border:1px solid #F59E0B;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;color:#92400E;margin-right:3px">📎×</button>`
+          :(carrito.length>1?`<button onclick="abrirModalIncluir(${i})" title="Incluir en otro ítem" style="background:none;border:1px solid #ddd;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;color:#666;margin-right:3px">📎</button>`:''))
+        +`<button class="btn-remove" onclick="removerItem(${i})"><i class="ti ti-x"></i></button>`
+      +`</td>`;
     tbody.appendChild(tr);
   });
 }
+function abrirModalIncluir(idx){
+  const item=carrito[idx];
+  const opciones=carrito.map((x,i)=>i!==idx&&!x.incluidoEn?`<option value="${x.id}">${i+1}. ${x.nombre}</option>`:'').join('');
+  if(!opciones){showToast('No hay ítems disponibles para incluir','error');return;}
+  const sel=`<select id="inclSelectPadre" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-family:inherit;font-size:13px;margin-top:8px">${opciones}</select>`;
+  const div=document.createElement('div');
+  div.id='modalIncluir';
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;display:flex;align-items:center;justify-content:center';
+  div.innerHTML=`<div style="background:#fff;border-radius:10px;padding:24px;width:400px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+    <div style="font-weight:700;font-size:15px;margin-bottom:4px">📎 Incluir en otro ítem</div>
+    <div style="font-size:12px;color:#666;margin-bottom:12px">El precio de <strong>${item.nombre}</strong> se mostrará como USD 0 en la oferta y quedará incluido en el ítem seleccionado.</div>
+    ${sel}
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="document.getElementById('modalIncluir').remove()" class="btn-sec">Cancelar</button>
+      <button onclick="confirmarIncluir(${idx})" class="btn-primary">📎 Incluir</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+}
+
+function confirmarIncluir(idx){
+  const sel=document.getElementById('inclSelectPadre');
+  if(!sel) return;
+  const padreId=sel.value;
+  carrito[idx].incluidoEn=padreId;
+  document.getElementById('modalIncluir')?.remove();
+  renderCarrito();calcTotales();
+  showToast('📎 '+carrito[idx].nombre+' incluido en el ítem padre','success');
+}
+
+function desincluirItem(idx){
+  delete carrito[idx].incluidoEn;
+  renderCarrito();calcTotales();
+  showToast('Inclusión eliminada','success');
+}
+
+
 function cambiarCantCarrito(idx, delta){
   if(!carrito[idx]) return;
   const precioUnit=carrito[idx].tarifa/(carrito[idx].cantidad||1);
@@ -1603,7 +1652,7 @@ function calcTotales(){
   const descEspecial=document.getElementById('descEspecialChk').checked;
   const fleteCOP=parseFloat(document.getElementById('fleteVal').value)||0;
   const ivaPct=19;
-  const subUSD=carrito.reduce((s,i)=>s+i.tarifa,0);
+  const subUSD=carrito.reduce((s,i)=>s+(i.incluidoEn?0:i.tarifa),0);
   const descUSD=subUSD*desc/100;
   const baseUSD=subUSD-descUSD;
   const ivaUSD=baseUSD*ivaPct/100;
@@ -2446,12 +2495,18 @@ function generarPDF(d, soloRetornar=false){
     const tipoLabel=esUltimaUnidad?'🔥 ÚLTIMA UNIDAD':item.tipo==='stock'?'En Stock':item.tipo==='importacion'?'En Importación':'Bajo Pedido';
     const tipoBg=esUltimaUnidad?'#FEE2E2':item.tipo==='stock'?'#eaf2d7':item.tipo==='importacion'?'#e8eef7':'#faeeda';
     const tipoColor=esUltimaUnidad?'#991B1B':item.tipo==='stock'?'#4a6a0a':item.tipo==='importacion'?'#2a4a7a':'#854F0B';
+    // Items incluidos en otro: precio 0
+    const esIncluido=!!item.incluidoEn;
+    const padreItem=esIncluido?d.items.find(x=>x.id===item.incluidoEn):null;
+    const tarifaMostrar=esIncluido?0:(item.tarifa||0);
+    const unitMostrar=esIncluido?0:(item.tarifa||0)/(item.cantidad||1);
     return '<tr>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;font-size:11px;color:#999;text-align:center;">'+(idx+1)+'</td>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;">'
       +'<div style="font-weight:700;font-size:13px;color:#2a2a2a;">'+item.nombre+'</div>'
       +(item.marca||item.modelo?'<div style="font-size:11px;color:#777;margin-top:2px;">'+(item.marca||'')+(item.modelo?' · '+item.modelo:'')+'</div>':'')
       +(item.tipologia?'<div style="font-size:11px;color:#777;margin-top:3px;font-weight:500;">'+item.tipologia+'</div>':'')
+      +(esIncluido?'<div style="margin-top:4px;"><span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-weight:600;">📎 Incluido'+(padreItem?' en '+padreItem.nombre:'')+'</span></div>':'')
     +(item.fichaTecnica||item.ytVideo||tipoLabel?
       '<div style="margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
       +(item.fichaTecnica?'<a href="'+item.fichaTecnica+'" target="_blank" style="font-size:10px;color:#c0392b;text-decoration:none;display:inline-flex;align-items:center;gap:2px;border:1px solid #f5c6c6;border-radius:4px;padding:1px 6px;background:#fff8f8"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Ficha Técnica</a>':'')
@@ -2467,22 +2522,24 @@ function generarPDF(d, soloRetornar=false){
       +'</td>'
       +(d.modoUSD?'':('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
       +(d.modoCOP
-        ?'<div style="font-size:12px;color:#575756;">'+fCOP((item.tarifa||0)/(item.cantidad||1))+'</div>'
-        :'<div style="font-size:12px;color:#575756;">'+fUSD((item.tarifa||0)/(item.cantidad||1))+'</div>'
-         +'<div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP((item.tarifa||0)/(item.cantidad||1))+'</div>'
+        ?'<div style="font-size:12px;color:#575756;">'+fCOP(unitMostrar)+'</div>'
+        :'<div style="font-size:12px;color:#575756;">'+fUSD(unitMostrar)+'</div>'
+         +'<div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP(unitMostrar)+'</div>'
       )
       +'</td>'))
       +(d.modoUSD?('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
-      +'<div style="font-size:12px;color:#575756;">'+fUSD((item.tarifa||0)/(item.cantidad||1))+'</div>'
+      +'<div style="font-size:12px;color:#575756;">'+fUSD(unitMostrar)+'</div>'
       +'</td>'):'')
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;white-space:nowrap;vertical-align:top;">'
-      +(d.modoCOP
-        ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fCOP(item.tarifa||0)+'</div>'
-        :d.modoUSD
-          ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(item.tarifa||0)+'</div>'
-          :'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(item.tarifa||0)+'</div>'
-           +'<div style="font-size:11px;color:#999;margin-top:3px;">'+fCOP(item.tarifa||0)+'</div>'
-      )
+      +(esIncluido
+        ?'<div style="font-weight:700;font-size:13px;color:#92400E;">USD 0</div>'
+        :(d.modoCOP
+          ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fCOP(tarifaMostrar)+'</div>'
+          :d.modoUSD
+            ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(tarifaMostrar)+'</div>'
+            :'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(tarifaMostrar)+'</div>'
+             +'<div style="font-size:11px;color:#999;margin-top:3px;">'+fCOP(tarifaMostrar)+'</div>'
+        ))
       +'</td>'
       +'</tr>';
   }).join('');
