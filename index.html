@@ -4732,10 +4732,15 @@ function liqSeleccionarMaquina(key,titulo,costoAYJ){
     sel.value=key;
     sel.dispatchEvent(new Event('change'));
   }
+  // Solo autocargar costoAYJ si el campo está en 0 — no sobreescribir valor manual
   if(costoAYJ>0){
     const inp=document.getElementById('liqCostoAYJ');
-    if(inp){inp.value=costoAYJ;liqCalc();}
-    showToast('✓ COSTO_AYJ: USD '+costoAYJ.toLocaleString('es-CO'),'success');
+    const valorActual=parseFloat(inp?.value)||0;
+    if(inp&&valorActual===0){
+      inp.value=costoAYJ;
+      liqCalc();
+      showToast('✓ COSTO_AYJ: USD '+costoAYJ.toLocaleString('es-CO'),'success');
+    }
   }
 }
 
