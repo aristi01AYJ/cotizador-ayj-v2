@@ -1566,8 +1566,11 @@ function renderCarrito(){
     const esIncluido=!!item.incluidoEn;
     const padreIdx=esIncluido?carrito.findIndex(x=>x.id===item.incluidoEn):-1;
     const padreNombre=padreIdx>=0?carrito[padreIdx].nombre:'';
-    const precioMostrar=esIncluido?0:item.tarifa;
-    const precioUnit=esIncluido?0:(item.tarifa/(item.cantidad||1));
+    // Sumar tarifas de hijos incluidos al ítem padre
+    const sumHijos=carrito.filter(x=>x.incluidoEn===item.id).reduce((s,x)=>s+x.tarifa,0);
+    const tarifaConHijos=item.tarifa+sumHijos;
+    const precioMostrar=esIncluido?0:tarifaConHijos;
+    const precioUnit=esIncluido?0:(tarifaConHijos/(item.cantidad||1));
     const tr=document.createElement('tr');
     tr.style.opacity=esIncluido?'0.75':'1';
     tr.innerHTML=`<td style="color:var(--text3);font-size:12px">${i+1}</td>`
@@ -2498,8 +2501,9 @@ function generarPDF(d, soloRetornar=false){
     // Items incluidos en otro: precio 0
     const esIncluido=!!item.incluidoEn;
     const padreItem=esIncluido?d.items.find(x=>x.id===item.incluidoEn):null;
-    const tarifaMostrar=esIncluido?0:(item.tarifa||0);
-    const unitMostrar=esIncluido?0:(item.tarifa||0)/(item.cantidad||1);
+    const sumHijosPDF=esIncluido?0:d.items.filter(x=>x.incluidoEn===item.id).reduce((s,x)=>s+(x.tarifa||0),0);
+    const tarifaMostrar=esIncluido?0:((item.tarifa||0)+sumHijosPDF);
+    const unitMostrar=esIncluido?0:tarifaMostrar/(item.cantidad||1);
     return '<tr>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;font-size:11px;color:#999;text-align:center;">'+(idx+1)+'</td>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;">'
