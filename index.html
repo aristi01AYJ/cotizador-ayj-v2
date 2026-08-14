@@ -4205,7 +4205,8 @@ function liqCalc(){
   const otrosUSD=otros||0;
 
   const impocosto=fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
-  const precioTarifa=PVN+instUSD+finUSD+otrosUSD;
+  // PVN ya incluye instalacion+costoFin+otros dentro de totalCostosUSD — no sumar de nuevo
+  const precioTarifa=PVN;
   const descMonto=precioTarifa*descCliente/100;
   const precioFinal=precioTarifa-descMonto; // = PVD
 
