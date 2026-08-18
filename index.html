@@ -1655,7 +1655,11 @@ function calcTotales(){
   const descEspecial=document.getElementById('descEspecialChk').checked;
   const fleteCOP=parseFloat(document.getElementById('fleteVal').value)||0;
   const ivaPct=19;
-  const subUSD=carrito.reduce((s,i)=>s+(i.incluidoEn?0:i.tarifa),0);
+  const subUSD=carrito.reduce((s,i)=>{
+    if(i.incluidoEn) return s; // ignorar incluidos — ya están en el padre
+    const hijos=carrito.filter(x=>x.incluidoEn===i.id).reduce((sh,x)=>sh+x.tarifa,0);
+    return s+i.tarifa+hijos;
+  },0);
   const descUSD=subUSD*desc/100;
   const baseUSD=subUSD-descUSD;
   const ivaUSD=baseUSD*ivaPct/100;
