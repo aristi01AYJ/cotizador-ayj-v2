@@ -2446,6 +2446,7 @@ function mostrarResumenMargenes(){
         </tr></thead>
         <tbody>${carrito.map((item,i)=>{
           const esL=item.origen==='liquidador';
+          const cant_=item.cantidad||1;
           const ct=esL?(item.costoTotal||item.costoAYJ||0):item.tarifa*0.50;
           const pv=item.tarifa*(1-desc);
           const mg=pv>0&&ct>0?((pv-ct)/pv*100):0;
@@ -2453,7 +2454,7 @@ function mostrarResumenMargenes(){
           const mgc=mg>=35?'#80A61B':mg>=20?'#F59E0B':'#EF4444';
           return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);background:${i%2===0?'rgba(255,255,255,0.03)':'transparent'}">
             <td style="padding:3px 6px;color:#888">${i+1}</td>
-            <td style="padding:3px 6px;font-weight:600;color:#fff">${cant>1?`<span style="background:#1E40AF;color:#fff;border-radius:6px;padding:0px 5px;font-size:9px;margin-right:3px">${cant}×</span>`:''} ${item.nombre||'—'}<span style="font-size:9px;color:#888;margin-left:4px">${item.marca||''}</span></td>
+            <td style="padding:3px 6px;font-weight:600;color:#fff">${cant_>1?`<span style="background:#1E40AF;color:#fff;border-radius:6px;padding:0px 5px;font-size:9px;margin-right:3px">${cant_}×</span>`:''} ${item.nombre||'—'}<span style="font-size:9px;color:#888;margin-left:4px">${item.marca||''}</span></td>
             <td style="padding:3px 6px;text-align:center"><span style="background:${esL?'#1E3A8A':'#166534'};color:#fff;padding:1px 5px;border-radius:4px;font-size:9px">${esL?'LIQ':'TAR'}</span></td>
             <td style="padding:3px 6px;text-align:right;color:#aaa">${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
             <td style="padding:3px 6px;text-align:right;color:#80A61B;font-weight:700">${Math.round(pv).toLocaleString('es-CO')}</td>
