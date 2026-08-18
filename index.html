@@ -4513,7 +4513,9 @@ function liqAgregarAlCarrito(){
       htmlDetalle:document.getElementById('finResultados')?.innerHTML||'',
     };
     carrito.push(item);
-    showToast('✓ '+item.nombre+' agregado','success');
+    showToast('✓ '+item.nombre+' agregado al carrito','success');
+    // Cerrar liquidador y regresar al carrito
+    setTimeout(()=>cerrarLiquidador(), 400);
   }
   renderCarrito();calcTotales();
   liqRefreshChips();
@@ -4522,7 +4524,7 @@ function liqAgregarAlCarrito(){
 
 function liqLimpiarCampos(){
   // Limpia FOB y máquina, mantiene TRM/arancel/agente
-  ['liqFOB','liqFleteInt','liqFleteNal','liqDescargue','liqOtros','liqInstalacion','liqCostoFin'].forEach(id=>{
+  ['liqFOB','liqFleteInt','liqFleteNal','liqDescargue','liqOtros','liqInstalacion','liqCostoFin','liqCostoAYJ'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value=0;
   });
   const sel=document.getElementById('liqMaquinaSel');
