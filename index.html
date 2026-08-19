@@ -2276,7 +2276,7 @@ function mostrarResumenMargenes(){
       <div class="bloque amarillo" style="margin-top:8px">
         <div class="bloque-tit" style="color:#92400E">🔒 Margen y Comisión — Solo Uso Interno</div>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center;margin-top:6px">
-          <div class="mg-c"><div class="mg-l">Descuento</div><div class="mg-v" style="color:#DC2626">${Math.round(desc*100)}%${descEsp?'+3%':''}</div></div>
+          <div class="mg-c"><div class="mg-l">Descuento</div><div class="mg-v" style="color:#DC2626">${descBase}%${descEsp?' + 3% '+(getCausalEspecial()||'especial')+' = '+(descBase+3)+'%':''}</div></div>
           <div class="mg-c"><div class="mg-l">Margen Real</div><div class="mg-v" style="color:${mc}">${margenConDesc.toFixed(2)}%</div></div>
           <div class="mg-c"><div class="mg-l">Comisión %</div><div class="mg-v" style="color:#1E40AF">${comPct.toFixed(3)}%</div></div>
           <div class="mg-c" style="background:#1E40AF;border-color:#1E40AF"><div class="mg-l" style="color:#BFDBFE">Com. USD</div><div class="mg-v" style="color:#fff;font-size:13px">${fU(comUSD)}</div></div>
