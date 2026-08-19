@@ -1652,6 +1652,7 @@ function removerItem(i){carrito.splice(i,1);renderCarrito();calcTotales();render
 
 function calcTotales(){
   const desc=getDescuento();
+  const descBase=parseFloat(document.getElementById('descInput')?.value)||0;
   const descEspecial=document.getElementById('descEspecialChk').checked;
   const fleteCOP=parseFloat(document.getElementById('fleteVal').value)||0;
   const ivaPct=19;
