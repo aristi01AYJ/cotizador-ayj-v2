@@ -2615,7 +2615,7 @@ function generarPDF(d, soloRetornar=false){
     +'</div>'
     +'</div>';
 
-  const descBase=d.descBase||(d.descEspecial?(d.desc||0)-3:(d.desc||0));
+  const descBase=typeof d.descBase!=='undefined'?d.descBase:(d.descEspecial?Math.max(0,(d.desc||0)-3):(d.desc||0));
   const tieneEspecial=d.descEspecial||false;
   const descRow=(d.desc||0)>0
     ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">'+(d.descEspecial?'Descuento '+descBase+'% + 3% aprobado por gerencia = '+(descBase+3)+'%'+(d.causalEspecial?' ('+d.causalEspecial+')':''):'Descuento ('+descBase+'%)')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#991B1B;">⚠ Autorización requerida</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):d.modoUSD?'-'+fUSD(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
