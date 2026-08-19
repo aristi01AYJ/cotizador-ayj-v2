@@ -2092,7 +2092,6 @@ async function guardarCotizacion(){
     }
     // Generar HTML, subir a SharePoint, luego abrir con link
     const voltaje=getVoltaje();
-    console.log('[PDF] descBase:', descBase, 'desc:', desc, 'descEspecial:', descEspecial);
     const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descBase,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito]},true);
     const linkPDF=await guardarHTMLEnSharePoint(numOferta, htmlSinLink, cliente, idSynergy);
     const htmlFinal=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descBase,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito],linkSharePoint:linkPDF},true);
