@@ -2072,7 +2072,7 @@ async function guardarCotizacion(){
         await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemCreado.id}/fields`,{
           method:'PATCH',
           headers:{Authorization:'Bearer '+tokenPatch,'Content-Type':'application/json'},
-          body:JSON.stringify({DescBase:descBase,DescEspecial:descEsp?'3':'0',DescEspecialConcepto:descEsp?(getCausalEspecial()||''):''})
+          body:JSON.stringify({Descuento:descBase,DescEspecial:descEsp?'3':'0',DescEspecialConcepto:descEsp?(getCausalEspecial()||''):''})
 
         });
       }catch(ePatch){console.warn('DescBase/Especial no guardados:',ePatch.message);}
@@ -2146,7 +2146,7 @@ function mostrarResumenMargenes(){
   const descEsp=document.getElementById('descEspecialChk')?.checked;
   const descEspPct=descEsp?3:0;
   const desc=(descBase+descEspPct)/100;
-  const descLabel=descBase+'%'+(descEsp?' + 3% aprobado por gerencia = '+(descBase+3)+'%':'');
+  const descLabel=descBase+'%'+(descEsp?' + 3% '+(getCausalEspecial()||'especial')+' = '+(descBase+3)+'%':'');
   const TRM_global=trm||4200;
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
   const numOferta=document.getElementById('ofertaNum')?.textContent||'';
@@ -2237,7 +2237,7 @@ function mostrarResumenMargenes(){
       <div class="kpi-mini"><div class="kpi-lbl">Precio Venta (${esLiq?s.margen||50:50}% Margen)</div><div class="kpi-val">${fU(precioBase)}</div><div class="kpi-sub">${fC(precioBase)}</div></div>
 
       ${desc>0?`
-        <div class="fila" style="color:#DC2626"><span>Descuento ${descBase}%${descEsp?' + 3% aprobado por gerencia = '+(descBase+3)+'%':''}</span><span>-${fU(descMonto_)}</span></div>
+        <div class="fila" style="color:#DC2626"><span>Descuento ${descBase}%${descEsp?' + 3% '+(getCausalEspecial()||'especial')+' = '+(descBase+3)+'%':''}</span><span>-${fU(descMonto_)}</span></div>
         <div class="kpi-mini" style="border-left-color:#DC2626;background:#FEF2F2">
           <div class="kpi-lbl" style="color:#991B1B">TOTAL AL CLIENTE</div>
           <div class="kpi-val" style="color:#991B1B">${fU(precioFinal_)}</div>
@@ -2401,7 +2401,7 @@ function mostrarResumenMargenes(){
         <div class="p-row"><span>Asesor</span><span class="p-val">${vendedor}</span></div>
         <div class="p-row"><span>Condición pago</span><span class="p-val">${condPago}</span></div>
         <div class="p-row"><span>Validez</span><span class="p-val">${validez}</span></div>
-        <div class="p-row"><span>Descuento</span><span class="p-val">${descBase}%${descEsp?' + 3% aprobado por gerencia = '+(descBase+3)+'%':''}</span></div>
+        <div class="p-row"><span>Descuento</span><span class="p-val">${descBase}%${descEsp?' + 3% '+(getCausalEspecial()||'especial')+' = '+(descBase+3)+'%':''}</span></div>
         <div class="p-row"><span>N° máquinas</span><span class="p-val">${carrito.reduce((s,i)=>s+(i.cantidad||1),0)}</span></div>
       </div>
     </div>
@@ -2619,7 +2619,7 @@ function generarPDF(d, soloRetornar=false){
   const descBase=d.descBase||(d.descEspecial?(d.desc||0)-3:(d.desc||0));
   const tieneEspecial=d.descEspecial||false;
   const descRow=(d.desc||0)>0
-    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">'+(d.descEspecial?'Descuento '+descBase+'% + 3% aprobado por gerencia = '+(descBase+3)+'%'+(d.causalEspecial?' ('+d.causalEspecial+')':''):'Descuento ('+descBase+'%)')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#991B1B;">⚠ Autorización requerida</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):d.modoUSD?'-'+fUSD(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
+    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">'+(d.descEspecial?'Descuento '+descBase+'% + 3% '+(d.causalEspecial||'especial')+' = '+(descBase+3)+'%':'Descuento ('+descBase+'%)')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#991B1B;">⚠ Autorización requerida</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):d.modoUSD?'-'+fUSD(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
     :'';
   const fleteUSDpdf=d.trm>0?(d.fleteCOP||0)/d.trm:0;
   const fleteRow=(d.fleteCOP||0)>0
