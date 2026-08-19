@@ -2014,6 +2014,7 @@ async function guardarCotizacion(){
     '12 meses o 2.000 horas';
   const obs=document.getElementById('obsInput').value.trim();
   const desc=getDescuento();
+  const descBase=parseFloat(document.getElementById('descInput')?.value)||0;
   const descEspecial=document.getElementById('descEspecialChk').checked;
   const fleteCOP=parseFloat(document.getElementById('fleteVal').value)||0;
   const ivaPct=19;
@@ -2091,9 +2092,9 @@ async function guardarCotizacion(){
     }
     // Generar HTML, subir a SharePoint, luego abrir con link
     const voltaje=getVoltaje();
-    const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito]},true);
+    const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descBase,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito]},true);
     const linkPDF=await guardarHTMLEnSharePoint(numOferta, htmlSinLink, cliente, idSynergy);
-    const htmlFinal=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito],linkSharePoint:linkPDF},true);
+    const htmlFinal=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descBase,descEspecial,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito],linkSharePoint:linkPDF},true);
     const pdfWin=window.open('','_blank','width=960,height=860');
     if(pdfWin){pdfWin.document.write(htmlFinal);pdfWin.document.close();}
     // Actualizar LinkPDF en la lista
@@ -2614,10 +2615,10 @@ function generarPDF(d, soloRetornar=false){
     +'</div>'
     +'</div>';
 
-  const descBase=d.descBase||d.desc||0;
+  const descBase=d.descBase||(d.descEspecial?(d.desc||0)-3:(d.desc||0));
   const tieneEspecial=d.descEspecial||false;
   const descRow=(d.desc||0)>0
-    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">'+(d.descEspecial?'Descuento '+(d.desc||0)+'% + 3% aprobado por gerencia = '+((d.desc||0)+3)+'%'+(d.causalEspecial?' ('+d.causalEspecial+')':''):'Descuento ('+(d.desc||0)+'%)')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#991B1B;">⚠ Autorización requerida</span>':'')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#A32D2D;">Aut. Gerencia</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):d.modoUSD?'-'+fUSD(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
+    ?'<tr><td style="padding:5px 10px;color:#c0392b;border-bottom:1px solid #eee;">'+(d.descEspecial?'Descuento '+descBase+'% + 3% aprobado por gerencia = '+(descBase+3)+'%'+(d.causalEspecial?' ('+d.causalEspecial+')':''):'Descuento ('+descBase+'%)')+(d.desc>20?' <span style="font-size:9px;padding:1px 6px;border-radius:10px;background:#FCEBEB;color:#991B1B;">⚠ Autorización requerida</span>':'')+'</td><td style="padding:5px 10px;text-align:right;color:#c0392b;border-bottom:1px solid #eee;">'+(d.modoCOP?'-'+fCOP(d.descUSD||0):d.modoUSD?'-'+fUSD(d.descUSD||0):'-'+fUSD(d.descUSD||0)+'<br><span style="font-size:10px;">-'+fCOP(d.descUSD||0)+'</span>')+'</td></tr>'
     :'';
   const fleteUSDpdf=d.trm>0?(d.fleteCOP||0)/d.trm:0;
   const fleteRow=(d.fleteCOP||0)>0
