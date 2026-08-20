@@ -2452,7 +2452,7 @@ function mostrarResumenMargenes(){
         <tbody>${carrito.map((item,i)=>{
           const esL=item.origen==='liquidador';
           const cant_=item.cantidad||1;
-          const ct=esL?(item.costoTotal||item.costoAYJ||0):item.tarifa*0.50;
+          const ct=esL?((item.costoTotal||item.costoAYJ||0)*cant_):item.tarifa*0.50;
           const pv=item.tarifa*(1-desc);
           const mg=pv>0&&ct>0?((pv-ct)/pv*100):0;
           const com=pv*Math.max(0,mg)*0.15/100;
