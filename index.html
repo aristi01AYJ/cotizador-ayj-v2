@@ -2166,7 +2166,7 @@ function mostrarResumenMargenes(){
     const sf=item._finSnapshot||{};
     const TRM_=parseFloat(s.TRM)||trm||4200;
     const cant=item.cantidad||1;
-    const tarifa=item.tarifa*cant;
+    const tarifa=item.tarifa;
     const costoAYJ=(item.costoAYJ||0)*cant;
     const costoTotal=esLiq?((item.costoTotal||item.costoAYJ||0)*cant):tarifa*0.50;
     const descMonto=tarifa*desc;
