@@ -1975,9 +1975,9 @@ function nuevaCotizacion(){
 async function generarNumOferta(){
   if(!siteId||!listIdCotizaciones){document.getElementById('ofertaNum').textContent='COT-2026-001';return;}
   try{
-    const data=await graphGet(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
+    const items=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
     let maxNum=0;
-    data.value.forEach(i=>{
+    items.forEach(i=>{
       const n=i.fields?.ID_SYNERGY||'';
       const match=String(n).match(/(\d+)$/);
       if(match) maxNum=Math.max(maxNum,parseInt(match[1]));
