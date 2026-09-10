@@ -1347,6 +1347,9 @@ async function cargarMaquinas(){
         observaciones:(f.Observaciones||'').trim(),
         costoAYJ:parseFloat(String(f.COSTO_AYJ||'0').replace(/[^0-9.,]/g,'').replace(',','.'))||0,
         horasInstalacion:parseFloat(String(f.HorasInstalacion||f.Horas_Instalacion||'0').replace(',','.')||0),
+        // Columna SharePoint Sí/No "StockIlimitado" — items como software/licencias que no
+        // deben mostrar "ÚLTIMA UNIDAD" aunque solo haya 1 fila en la lista (ver CLAUDE.md).
+        stockIlimitado:f.StockIlimitado===true||f.StockIlimitado===1||String(f.StockIlimitado||'').trim().toLowerCase()==='true'||String(f.StockIlimitado||'').trim().toLowerCase()==='sí'||String(f.StockIlimitado||'').trim().toLowerCase()==='si',
       };
     }).filter(m=>m.estadoDisp==='DISPONIBLE'||m.estadoDisp==='BAJO PEDIDO');
     const marcas=[...new Set(rawMaquinas.map(m=>m.marca).filter(Boolean))].sort();
@@ -1376,12 +1379,13 @@ function procesarCatalogo(){
   const mapa={};
   disponibles.forEach(m=>{
     const key=m.title.toLowerCase().trim();
-    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0,horasInstalacion:m.horasInstalacion||0,costoAYJ:m.costoAYJ||0};
+    if(!mapa[key])mapa[key]={key,title:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia,tarifa:m.tarifa,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',stockCount:0,importCount:0,horasInstalacion:m.horasInstalacion||0,costoAYJ:m.costoAYJ||0,stockIlimitado:false};
     if(m.ytVideo&&!mapa[key].ytVideo)mapa[key].ytVideo=m.ytVideo;
     const st=m.estadoStock.toLowerCase();
     if(st.includes('importa'))mapa[key].importCount++;else mapa[key].stockCount++;
     if(m.fichaTecnica&&!mapa[key].fichaTecnica)mapa[key].fichaTecnica=m.fichaTecnica;
     if(m.horasInstalacion&&!mapa[key].horasInstalacion)mapa[key].horasInstalacion=m.horasInstalacion;
+    if(m.stockIlimitado)mapa[key].stockIlimitado=true; // si CUALQUIER fila del grupo está marcada, el grupo no muestra "Última Unidad"
   });
   grupos=Object.values(mapa).sort((a,b)=>a.title.localeCompare(b.title));
 }
@@ -1490,7 +1494,7 @@ function buildGrupoCard(g){
   } else {
     if(g.stockCount>0){
       if(inStock) acciones.push('<button class="btn-cat remove" onclick="quitarGrupoData(this,\'stock\')"><i class="ti ti-x"></i> Quitar del Carrito</button>');
-      else acciones.push('<button class="btn-cat add-stock" onclick="agregarGrupoData(this,\'stock\')"><i class="ti ti-shopping-cart"></i> '+(g.stockCount===1?'Ultima Unidad':'Agregar al Carrito')+'</button>');
+      else acciones.push('<button class="btn-cat add-stock" onclick="agregarGrupoData(this,\'stock\')"><i class="ti ti-shopping-cart"></i> '+(g.stockCount===1&&!g.stockIlimitado?'Ultima Unidad':'Agregar al Carrito')+'</button>');
     }
     if(g.importCount>0){
       if(inImport) acciones.push('<button class="btn-cat remove" onclick="quitarGrupoData(this,\'importacion\')"><i class="ti ti-x"></i> Quitar del Carrito</button>');
@@ -1500,7 +1504,7 @@ function buildGrupoCard(g){
   const stockBadge=esHerramienta
     ?'<span class="stock-badge stock"><i class="ti ti-check" style="font-size:10px"></i> En Stock</span>'
     :g.stockCount>0
-      ?(g.stockCount===1
+      ?(g.stockCount===1&&!g.stockIlimitado
         ?'<span class="stock-badge" style="background:#FEE2E2;color:#991B1B;font-weight:700">ULTIMA UNIDAD</span>'
         :'<span class="stock-badge stock"><i class="ti ti-check" style="font-size:10px"></i> En Stock: '+g.stockCount+'</span>')
       :'';
@@ -1534,7 +1538,7 @@ function buildBpCard(m){
 function agregarGrupo(key,tipo){
   const g=grupos.find(x=>x.key===key);
   if(!g||carrito.some(i=>i.grupoKey===key&&i.tipo===tipo))return;
-  carrito.push({id:'g_'+key+'_'+tipo,grupoKey:key,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo,tipologia:g.tipologia||'',tarifa:g.tarifa,costoAYJ:g.costoAYJ||0,descripcion:g.descripcion,fichaTecnica:g.fichaTecnica,ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount});
+  carrito.push({id:'g_'+key+'_'+tipo,grupoKey:key,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo,tipologia:g.tipologia||'',tarifa:g.tarifa,costoAYJ:g.costoAYJ||0,descripcion:g.descripcion,fichaTecnica:g.fichaTecnica,ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount,stockIlimitado:g.stockIlimitado||false});
   renderCarrito();renderCatalogo();calcTotales();showToast('Agregado: '+g.title,'success');
 }
 function quitarGrupo(key,tipo){carrito=carrito.filter(i=>!(i.grupoKey===key&&i.tipo===tipo));renderCarrito();renderCatalogo();calcTotales();}
@@ -1556,7 +1560,7 @@ function renderCarrito(){
   carrito.forEach((item,i)=>{
     const pdfCell=item.fichaTecnica?`<a class="btn-pdf" href="${item.fichaTecnica}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--red);white-space:nowrap;"><i class="ti ti-file-type-pdf" style="font-size:14px"></i> Ver Ficha Técnica</a>`:'';
     const ytCell=item.ytVideo?`<a class="btn-pdf" href="${item.ytVideo}" target="_blank" title="Ver video en YouTube" style="color:#FF0000"><i class="ti ti-brand-youtube"></i></a>`:'';
-    const badge=item.tipo==='stock'&&item.stockCount===1
+    const badge=item.tipo==='stock'&&item.stockCount===1&&!item.stockIlimitado
       ?'<span class="item-tipo-badge" style="background:#FEE2E2;color:#991B1B;font-weight:700">🔥 ÚLTIMA UNIDAD</span>'
       :item.tipo==='stock'
         ?'<span class="item-tipo-badge stock">✅ En Stock</span>'
@@ -2500,7 +2504,7 @@ function generarPDF(d, soloRetornar=false){
   const cli=d.clienteInfo||{};
 
   const filas=d.items.map((item,idx)=>{
-    const esUltimaUnidad=item.tipo==='stock'&&(item.stockCount===1||item.cantidad===1&&item.stockCount<=1);
+    const esUltimaUnidad=item.tipo==='stock'&&!item.stockIlimitado&&(item.stockCount===1||item.cantidad===1&&item.stockCount<=1);
     const tipoLabel=esUltimaUnidad?'🔥 ÚLTIMA UNIDAD':item.tipo==='stock'?'En Stock':item.tipo==='importacion'?'En Importación':'Bajo Pedido';
     const tipoBg=esUltimaUnidad?'#FEE2E2':item.tipo==='stock'?'#eaf2d7':item.tipo==='importacion'?'#e8eef7':'#faeeda';
     const tipoColor=esUltimaUnidad?'#991B1B':item.tipo==='stock'?'#4a6a0a':item.tipo==='importacion'?'#2a4a7a':'#854F0B';
@@ -3606,6 +3610,7 @@ async function editarOferta(itemId, r){
       ytVideo:fuente.ytVideo||'',
       cantidad:i.cantidad||1,
       stockCount:fuente.stockCount||0,
+      stockIlimitado:fuente.stockIlimitado||false,
       horasInstalacion:fuente.horasInstalacion||0,
     };
   });
@@ -4368,7 +4373,7 @@ function liqGetItem(){
     const g=grupos.find(x=>x.key===key);
     if(g){
       const tipo=g.stockCount>0?'stock':g.importCount>0?'importacion':'pedido';
-      item={grupoKey:null,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount};
+      item={grupoKey:null,tipo,nombre:g.title,marca:g.marca,modelo:g.modelo||'',tipologia:g.tipologia||'',tarifa:precio,descripcion:g.descripcion||'',fichaTecnica:g.fichaTecnica||'',ytVideo:g.ytVideo||'',cantidad:1,stockCount:g.stockCount,importCount:g.importCount,stockIlimitado:g.stockIlimitado||false};
     }
   } else if(gkey.startsWith('bp_')){
     const id=gkey.slice(3);
