@@ -61,7 +61,14 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 ### Feature: ítem incluido
 - `item.incluidoEn` = id del ítem padre. El padre muestra `tarifa + sumHijos`. `calcTotales` debe ignorar los ítems incluidos en el subtotal directo.
 
+### Feature: StockIlimitado (evitar falso "ÚLTIMA UNIDAD")
+- El badge/label "ÚLTIMA UNIDAD" se dispara cuando `grupo.stockCount===1` (cuenta filas en SharePoint con `ESTADO_`=Disponible para ese título) — para ítems físicos serializados tiene sentido, pero para software/licencias (ej. `DESPIECE_PRO`) que solo tienen 1 fila por catalogación, es un falso positivo.
+- Columna SharePoint nueva (Sí/No): **`StockIlimitado`**. Se lee en `cargarMaquinas()`, se propaga en `procesarCatalogo()` (OR entre todas las filas del mismo título), y se arrastra al carrito en `agregarGrupo()`, `liqGetItem()` y al reconstruir el carrito al editar una oferta guardada.
+- Las 2 condiciones que deciden mostrar el badge (`renderCarrito()` y `generarPDF()`, más la tarjeta de catálogo) ahora exigen `!item.stockIlimitado` además de `stockCount===1`.
+- Si la columna no existe todavía en SharePoint, `f.StockIlimitado` llega `undefined` → se comporta exactamente igual que antes (sin romper nada).
+
 ### Fixes recientes
+- **10-sep-2026 — Falso "ÚLTIMA UNIDAD" en ítems de stock ilimitado.** Ver sección arriba. Aplicado también en V1.
 - **31-ago-2026 — Consecutivo de cotización pegado.** `generarNumOferta()` usaba `graphGet()` sin paginar; se cambió a `graphGetAll()`. Ver regla en la sección de Graph API arriba. Replicar en V1 si no está ya.
 
 ### Extracción del JS para `node --check`
