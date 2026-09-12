@@ -684,6 +684,12 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <div style="position:relative;height:200px"><canvas id="chartProbValor"></canvas></div>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Origen (USD)</div>
+          <div style="position:relative;height:200px"><canvas id="chartOrigen"></canvas></div>
+        </div>
+      </div>
       <div style="margin-top:16px">
         <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
           <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Top 15 Clientes por N° de Ofertas Presentadas</div>
@@ -3525,6 +3531,11 @@ function limpiarFiltroDash(){
   renderDashboard();
 }
 
+// item.tipo es la disponibilidad del ítem al agregarlo al carrito: 'stock' | 'importacion' | 'pedido'.
+function origenLabel(tipo){
+  return tipo==='stock'?'Stock':tipo==='importacion'?'Importación':tipo==='pedido'?'Bajo Pedido':'Otro';
+}
+
 async function cargarDashboard(){
   dashFiltro={tipo:null,valor:null};
   document.getElementById('dashKpis').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)"><span class="spinner dark"></span> Cargando datos...</div>';
@@ -3565,11 +3576,13 @@ function renderDashboard(){
     datos=datos.filter(d=>d.items.some(item=>(item.tipologia||'Sin tipología')===dashFiltro.valor));
   } else if(dashFiltro.tipo==='cliente'){
     datos=datos.filter(d=>(d.cliente||'—')===dashFiltro.valor);
+  } else if(dashFiltro.tipo==='origen'){
+    datos=datos.filter(d=>d.items.some(item=>origenLabel(item.tipo)===dashFiltro.valor));
   }
   const banner=document.getElementById('dashFiltroActivo');
   const detalle=document.getElementById('dashFiltroDetalle');
   if(dashFiltro.tipo){
-    const etiquetaTipo={vendedor:'Vendedor',estado:'Estado',tipologia:'Tipología',cliente:'Cliente'}[dashFiltro.tipo]||dashFiltro.tipo;
+    const etiquetaTipo={vendedor:'Vendedor',estado:'Estado',tipologia:'Tipología',cliente:'Cliente',origen:'Origen'}[dashFiltro.tipo]||dashFiltro.tipo;
     document.getElementById('dashFiltroLabel').textContent=etiquetaTipo+': '+dashFiltro.valor;
     banner.style.display='flex';
     // Ayuda para diagnosticar "Sin tipología": qué máquinas exactas la están causando,
@@ -3714,6 +3727,24 @@ function renderDashboard(){
     '#3B82F6',
     {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{stepSize:1,precision:0}}}},
     'cliente'
+  );
+
+  // ── Chart 8: Origen (Stock/Importación vs Bajo Pedido) ──
+  const origenMap={};
+  datos.forEach(d=>{
+    d.items.forEach(item=>{
+      const o=origenLabel(item.tipo);
+      origenMap[o]=(origenMap[o]||0)+(item.tarifaUSD||item.tarifa||0);
+    });
+  });
+  const origenColores={Stock:'#22C55E',Importación:'#3B82F6','Bajo Pedido':'#F59E0B',Otro:'#9CA3AF'};
+  const origenes=Object.entries(origenMap).sort((a,b)=>b[1]-a[1]);
+  renderChart('chartOrigen','doughnut',
+    origenes.map(([k])=>k),
+    origenes.map(([,v])=>Math.round(v)),
+    origenes.map(([k])=>origenColores[k]||'#9CA3AF'),
+    {plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}}}},
+    'origen'
   );
 }
 
