@@ -2091,7 +2091,7 @@ async function guardarCotizacion(){
       Garantia:garantia,
       CondicionPago:condPago,
       Validez:validez,
-      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||''}))),
+      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR'}))),
     };
     let itemCreado;
     const guardarEnSP = async (f) => {
@@ -2806,10 +2806,15 @@ function filtrarMisOfertas(checked){
 
 let _histOrden={col:'fecha',asc:false};
 
-// "Vista Previa" del Historial: nombres de los ítems separados por " | " (ej. G3 | EP5 | CRG3)
+// "Vista Previa" del Historial: nombres de los ítems separados por " | " (ej. G3 | EP5 (Liq) | CRG3)
+// Ofertas guardadas antes de que se empezara a registrar 'origen' no traen esa marca — no se les inventa.
 function previewItems(items){
   if(!items||!items.length) return null;
-  const nombres=items.map(it=>(it.nombre||'').trim()).filter(Boolean);
+  const nombres=items.map(it=>{
+    const n=(it.nombre||'').trim();
+    if(!n) return '';
+    return it.origen==='LIQ'?n+' (Liq)':n;
+  }).filter(Boolean);
   if(!nombres.length) return null;
   const completo=nombres.join(' | ');
   const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -2892,21 +2897,23 @@ function filtrarHistorial(){
         +'<td style="white-space:nowrap;color:var(--text2);font-size:12px">'+r.fechaStr+'</td>'
         +'<td><strong>'+r.cliente+'</strong>'+(vp?'<div style="font-size:10px;color:var(--text2);margin-top:2px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+vp.full+'">'+vp.corto+'</div>':'')+'</td>'
         +'<td style="font-size:12px">'+r.vendedor+'</td>'
-        +'<td><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+estadoBg+';color:'+estadoColor+'">'+r.estado+'</span></td>'
+        +'<td>'
+          +'<select onchange="aplicarEstado(\''+r.id+'\',this.value)" title="Cambiar estado" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:none;cursor:pointer;background:'+estadoBg+';color:'+estadoColor+';font-family:inherit">'
+            +(['Enviada','Cerrada-Ganada','Cerrada-Perdida'].includes(r.estado)?'':'<option value="'+r.estado+'" selected>'+r.estado+'</option>')
+            +'<option value="Enviada"'+(r.estado==='Enviada'?' selected':'')+'>Enviada</option>'
+            +'<option value="Cerrada-Ganada"'+(r.estado==='Cerrada-Ganada'?' selected':'')+'>✓ Ganada</option>'
+            +'<option value="Cerrada-Perdida"'+(r.estado==='Cerrada-Perdida'?' selected':'')+'>✗ Perdida</option>'
+          +'</select>'
+        +'</td>'
         +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
         +'<td style="text-align:center;white-space:nowrap">'
         +(r.linkPDF?'<a href="'+r.linkPDF+'" target="_blank" class="btn-cli-usar" style="border-color:var(--red);color:var(--red);text-decoration:none;" title="Ver oferta"><i class="ti ti-file-type-pdf"></i></a> ':'' )
         +(r.items.length?'<button class="btn-cli-usar" onclick=\'duplicarOferta('+JSON.stringify(r.cliente)+','+JSON.stringify(r.items)+')\' title="Duplicar en carrito"><i class="ti ti-copy"></i></button>':'' )
         +(r.vendedor&&currentUserName&&(r.vendedor===currentUserName||currentUserName.toLowerCase().includes(r.vendedor.split(' ')[0].toLowerCase()))?
           ' <button class="btn-cli-usar" onclick="editarOfertaIdx(\''+r.id+'\')" title="Editar oferta" style="border-color:var(--green);color:var(--green-dark)"><i class="ti ti-edit"></i></button>'
-          :'')
-        +(r.estado!=='Cerrada-Ganada'?' <button class="btn-cli-usar" onclick="aplicarEstado(\''+r.id+'\',\'Cerrada-Ganada\')" title="Marcar como Ganada" style="border-color:#22C55E;color:#16A34A"><i class="ti ti-circle-check"></i></button>':'')
-        +(r.estado!=='Cerrada-Perdida'?' <button class="btn-cli-usar" onclick="aplicarEstado(\''+r.id+'\',\'Cerrada-Perdida\')" title="Marcar como Perdida" style="border-color:#EF4444;color:#DC2626"><i class="ti ti-circle-x"></i></button>':'')
-        +(r.vendedor&&currentUserName&&(r.vendedor===currentUserName||currentUserName.toLowerCase().includes(r.vendedor.split(' ')[0].toLowerCase()))?
-          ' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
+          +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
           :'')
         +' <span style="display:inline-flex;gap:1px;vertical-align:middle;margin-left:2px" title="Probabilidad de cierre">'+estrellasHistorial(r.id,r.prob,r.vendedor)+'</span>'
-        +' <button class="btn-cli-usar" onclick="cambiarEstado(\''+r.id+'\',\''+r.estado+'\')" title="Otro estado (Enviada / En negociación)" style="border-color:var(--blue);color:var(--blue-dark);padding:4px 6px"><i class="ti ti-dots"></i></button>'
         +'</td>'
         +'</tr>';
     }).join('')
