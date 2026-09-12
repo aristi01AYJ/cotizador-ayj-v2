@@ -79,7 +79,11 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
   2. **Posibles** (solo sobre lo que no cayó en un grupo exacto): mismo Cliente + mismo Total pero N° distinto — candidato a duplicado con número corrido a mano o donde `ID_SYNERGY` no coincide con `Title`. Se listan en amarillo, **nunca se borran en bloque** — botón individual por ítem, señal más débil que amerita revisión caso por caso.
   - En ambas pasadas se conserva el de mayor `id` de SharePoint (= más reciente). Complementa el fix de anti-duplicados: ese evita duplicados nuevos, esto limpia los que ya existían de antes.
 
+### Feature: Vista Previa en el Historial
+- Bajo el nombre del cliente, una línea pequeña con los nombres de los ítems separados por " | " (`previewItems()`, ej. "G3 | EP5 | CRG3"), leídos de la columna `Items` ya guardada en cada cotización. Trunca a ~60 caracteres con `title` (tooltip) mostrando el listado completo. Pensado para distinguir varias ofertas al mismo cliente sin abrir cada PDF.
+
 ### Fixes recientes
+- **12-sep-2026 — Vista Previa (nombres de ítems) en el Historial.** Ver sección arriba.
 - **12-sep-2026 — Detección de duplicados más tolerante + segunda pasada Cliente+Total.** La comparación exacta de Título dejaba pasar duplicados con diferencias de mayúsc/espacios, o donde el N° de oferta no coincidía pero claramente era el mismo negocio (mismo cliente, mismo total). Ver sección arriba.
 - **12-sep-2026 — Herramienta para limpiar duplicados ya existentes.** Ver sección arriba.
 - **12-sep-2026 — Cotizaciones duplicadas al re-guardar + Acciones mejoradas.** Ver sección arriba. Aplicado también en V1.
