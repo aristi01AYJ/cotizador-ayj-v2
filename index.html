@@ -3809,44 +3809,70 @@ async function aplicarEstado(itemId, nuevoEstado, modal){
   }catch(e){showToast('Error: '+e.message,'error');}
 }
 
-// ── LIMPIEZA DE DUPLICADOS (mismo N° de oferta exacto, sin revisión -R) ──
+// ── LIMPIEZA DE DUPLICADOS ──
+// Dos pasadas: (1) N° de oferta exacto (normalizado: sin espacios extra, sin
+// distinguir mayúsc/minúsc — para no fallar por diferencias invisibles de texto)
+// -> se puede borrar en bloque. (2) mismo Cliente + mismo Total exacto pero con
+// N° de oferta distinto (probable duplicado con número corrido/editado a mano,
+// o el N° interno ID_SYNERGY no coincide con el Title) -> se listan para revisar
+// y borrar UNO POR UNO, nunca en bloque, porque la señal es más débil.
+function _normNumOferta(s){ return String(s||'').trim().toUpperCase().replace(/\s+/g,' '); }
+
+async function _buscarDuplicados(){
+  const items=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
+  const registros=items.map(it=>({
+    id:it.id,
+    idNum:parseInt(it.id)||0,
+    titulo:(it.fields?.Title||'').trim(),
+    idSynergyCampo:(it.fields?.ID_SYNERGY||'').trim(),
+    numMostrado:(it.fields?.Title||it.fields?.ID_SYNERGY||'—').trim()||'—',
+    cliente:(it.fields?.Cliente||'—').trim(),
+    total:Math.round(it.fields?.GranTotal||0),
+    fecha:it.createdDateTime?new Date(it.createdDateTime):null,
+  }));
+
+  // Pasada 1: por N° de oferta normalizado (Title, o ID_SYNERGY si Title viene vacío)
+  const porNumero={};
+  registros.forEach(r=>{
+    const clave=_normNumOferta(r.titulo||r.idSynergyCampo);
+    if(!clave) return;
+    (porNumero[clave]=porNumero[clave]||[]).push(r);
+  });
+  const duplicadosExactos=Object.values(porNumero).filter(arr=>arr.length>1);
+  const idsYaCubiertos=new Set(duplicadosExactos.flat().map(r=>r.id));
+
+  // Pasada 2: por Cliente + Total exacto, EXCLUYENDO lo que ya salió en la pasada 1
+  const porClienteTotal={};
+  registros.forEach(r=>{
+    if(idsYaCubiertos.has(r.id)) return;
+    if(!r.cliente||r.cliente==='—'||!r.total) return;
+    const clave=r.cliente.toUpperCase()+'|'+r.total;
+    (porClienteTotal[clave]=porClienteTotal[clave]||[]).push(r);
+  });
+  const posiblesDuplicados=Object.values(porClienteTotal).filter(arr=>arr.length>1);
+
+  window._duplicadosExactos=duplicadosExactos;
+  window._posiblesDuplicados=posiblesDuplicados;
+}
+
 async function abrirLimpiezaDuplicados(){
   const clave=prompt('🔒 Clave para administrar duplicados:');
   if(clave===null) return;
   if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
-  const body=document.getElementById('duplicadosBody');
-  body.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Buscando duplicados...</div>';
   document.getElementById('modalDuplicados').style.display='flex';
-  try{
-    const items=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
-    const porNumero={};
-    items.forEach(it=>{
-      const num=(it.fields?.Title||it.fields?.ID_SYNERGY||'').trim();
-      if(!num) return;
-      (porNumero[num]=porNumero[num]||[]).push({
-        id:it.id,
-        idNum:parseInt(it.id)||0,
-        cliente:it.fields?.Cliente||'—',
-        total:Math.round(it.fields?.GranTotal||0),
-        fecha:it.createdDateTime?new Date(it.createdDateTime):null,
-      });
-    });
-    const duplicados=Object.entries(porNumero).filter(([,arr])=>arr.length>1);
-    window._duplicadosEncontrados=duplicados;
-    renderDuplicados(duplicados);
-  }catch(e){
-    body.innerHTML='<div class="loading-list">Error: '+e.message+'</div>';
-  }
+  await abrirLimpiezaDuplicadosSilencioso();
 }
 
-function renderDuplicados(duplicados){
+function renderDuplicados(){
   const body=document.getElementById('duplicadosBody');
-  if(!duplicados.length){
+  const exactos=window._duplicadosExactos||[];
+  const posibles=window._posiblesDuplicados||[];
+  if(!exactos.length&&!posibles.length){
     body.innerHTML='<div class="loading-list" style="text-align:center;padding:20px">✓ No se encontraron duplicados</div>';
     return;
   }
   let totalABorrar=0;
-  const bloques=duplicados.map(([num,arr])=>{
+  const bloquesExactos=exactos.map(arr=>{
     const ordenado=[...arr].sort((a,b)=>b.idNum-a.idNum); // más reciente (id más alto) primero
     totalABorrar+=ordenado.length-1;
     const filas=ordenado.map((it,i)=>{
@@ -3856,21 +3882,40 @@ function renderDuplicados(duplicados){
         +'</div>';
     }).join('');
     return '<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">'
-      +'<div style="background:#f5f7f0;padding:6px 10px;font-weight:700;font-size:12px">'+num+' — '+ordenado.length+' copias</div>'
+      +'<div style="background:#f5f7f0;padding:6px 10px;font-weight:700;font-size:12px">'+ordenado[0].numMostrado+' — '+ordenado.length+' copias</div>'
       +filas
       +'</div>';
   }).join('');
-  body.innerHTML=bloques
-    +'<div style="display:flex;gap:8px;margin-top:12px">'
-    +'<button class="btn-primary" style="flex:1;background:var(--red)" onclick="ejecutarBorradoDuplicados()"><i class="ti ti-trash"></i> Borrar '+totalABorrar+' duplicado'+(totalABorrar!==1?'s':'')+'</button>'
-    +'<button class="btn-sec" onclick="document.getElementById(\'modalDuplicados\').style.display=\'none\'">Cancelar</button>'
-    +'</div>';
+
+  const bloquesPosibles=posibles.map(arr=>{
+    const ordenado=[...arr].sort((a,b)=>b.idNum-a.idNum);
+    const filas=ordenado.map((it,i)=>
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px;'+(i===0?'background:#F0FDF4':'background:#FFFBEB')+'">'
+        +'<span>'+(i===0?'✅ más reciente':'⚠️')+' — <strong>'+it.numMostrado+'</strong> · '+it.cliente+' · USD '+it.total.toLocaleString('es-CO')+(it.fecha?' · '+it.fecha.toLocaleString('es-CO'):'')+'</span>'
+        +(i>0?'<button class="btn-cli-usar" style="border-color:var(--red);color:var(--red);flex-shrink:0" onclick="borrarDuplicadoManual(\''+it.id+'\',\''+it.numMostrado.replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i> Borrar</button>':'')
+      +'</div>'
+    ).join('');
+    return '<div style="margin-bottom:12px;border:1px solid #F59E0B;border-radius:var(--radius);overflow:hidden">'
+      +'<div style="background:#FFFBEB;padding:6px 10px;font-weight:700;font-size:12px;color:#92400E">Mismo cliente y total, N° distinto — '+ordenado.length+' ofertas</div>'
+      +filas
+      +'</div>';
+  }).join('');
+
+  body.innerHTML=''
+    +(exactos.length?'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px">Duplicados exactos (mismo N° de oferta)</div>'+bloquesExactos
+      +'<button class="btn-primary" style="width:100%;background:var(--red);margin-bottom:16px" onclick="ejecutarBorradoDuplicados()"><i class="ti ti-trash"></i> Borrar '+totalABorrar+' duplicado'+(totalABorrar!==1?'s':'')+' exacto'+(totalABorrar!==1?'s':'')+'</button>'
+      :'')
+    +(posibles.length?'<div style="font-size:11px;font-weight:700;color:#92400E;text-transform:uppercase;margin-bottom:6px">Posibles duplicados — revisa y borra uno por uno</div>'
+      +'<p style="font-size:10px;color:var(--text2);margin-bottom:8px">Mismo cliente y mismo total, pero el N° de oferta no coincide exactamente (puede ser un número corrido a mano, o que el campo interno ID_SYNERGY quedó distinto del N° visible). Revisa cada caso antes de borrar.</p>'
+      +bloquesPosibles
+      :'')
+    +'<button class="btn-sec" style="width:100%" onclick="document.getElementById(\'modalDuplicados\').style.display=\'none\'">Cerrar</button>';
 }
 
 async function ejecutarBorradoDuplicados(){
-  const duplicados=window._duplicadosEncontrados||[];
+  const exactos=window._duplicadosExactos||[];
   const aBorrar=[];
-  duplicados.forEach(([,arr])=>{
+  exactos.forEach(arr=>{
     const ordenado=[...arr].sort((a,b)=>b.idNum-a.idNum);
     ordenado.slice(1).forEach(it=>aBorrar.push(it));
   });
@@ -3889,8 +3934,35 @@ async function ejecutarBorradoDuplicados(){
     }catch(e){fail++;}
   }
   showToast('✓ '+ok+' duplicado(s) borrado(s)'+(fail?' · '+fail+' con error':''),fail?'error':'success');
-  document.getElementById('modalDuplicados').style.display='none';
-  cargarHistorial();
+  await abrirLimpiezaDuplicadosSilencioso();
+}
+
+// Reabre la búsqueda sin volver a pedir la clave (ya se desbloqueó en esta sesión de modal)
+async function abrirLimpiezaDuplicadosSilencioso(){
+  const body=document.getElementById('duplicadosBody');
+  body.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Buscando duplicados...</div>';
+  try{
+    await _buscarDuplicados();
+    renderDuplicados();
+  }catch(e){
+    body.innerHTML='<div class="loading-list">Error: '+e.message+'</div>';
+  }
+}
+
+async function borrarDuplicadoManual(itemId, numMostrado){
+  if(!confirm('¿Borrar la oferta '+numMostrado+' (id '+itemId+')? Esta acción no se puede deshacer.')) return;
+  try{
+    const token=await getToken();
+    const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}`,{
+      method:'DELETE', headers:{Authorization:'Bearer '+token}
+    });
+    if(r.ok||r.status===204){
+      showToast('✓ Oferta '+numMostrado+' eliminada','success');
+      await abrirLimpiezaDuplicadosSilencioso();
+    } else {
+      showToast('Error al borrar: '+r.status,'error');
+    }
+  }catch(e){showToast('Error: '+e.message,'error');}
 }
 
 
