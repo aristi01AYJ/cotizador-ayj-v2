@@ -125,7 +125,15 @@ Hay dos vendedores con el mismo primer nombre ("Jorge Pulido" y "Jorge Salamanca
 ### Feature: overlay de carga bloqueante al iniciar sesión
 - `#appLoadingOverlay` (fullscreen, z-index 9999) se muestra en `showApp()` apenas se ve `#appScreen` y se oculta solo cuando `resolverSite()` + `Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM()])` + `generarNumOferta()` terminan (bloque `try/finally` — se oculta también si algo falla, para no dejar al usuario atrapado con el spinner). Antes se podía interactuar con la app (agregar al carrito, etc.) mientras el catálogo aún estaba cargando o vacío.
 
+### Feature: Ofertas del cliente + estadísticas en su ficha
+- Dentro de `seleccionarClienteDetalle()`, entre el header y Contactos: nueva tarjeta "📊 Ofertas a este cliente" que cruza `historialData` filtrando por `r.cliente` (match case-insensitive/trim, mismo criterio que `cargarContactosPorCliente`) contra `c.titulo`.
+- Si `historialData` aún no se cargó en la sesión (el usuario entró directo a Clientes sin pasar por Historial), se carga ahí mismo bajo demanda (`if(!historialData.length) await cargarHistorial()`) — una sola carga, se reutiliza después.
+- KPIs (Ofertas, Total Cotizado, Ganadas, Tasa de Cierre) + gráfico de dona por Estado (`#chartClienteEstado`, mismos colores de `ESTADOS_CONFIG`, sin cross-filter — es un chart aislado de la ficha, no toca `dashData`/`renderDashboard()`) + listado de las ofertas (fecha, N°, estado, total).
+- Botón **"Ver en Historial"** (`verOfertasClienteEnHistorial(nombreCliente)`): salta a la vista Historial con `#hFiltCliente` ya lleno con el nombre del cliente, para ver/editar cada oferta sin retipear el filtro.
+- Cliente sin ofertas: mensaje "Sin ofertas registradas para este cliente", sin KPIs/gráfico/botón (nada que mostrar).
+
 ### Fixes recientes
+- **12-sep-2026 — Ofertas del cliente + estadísticas/gráfico en su ficha.** Ver sección arriba. Aplicado también en V1.
 - **12-sep-2026 — Gerente de Cuenta en Clientes, gráfico Ofertas x Mes, overlay de carga bloqueante.** Ver 3 secciones arriba. Aplicado también en V1.
 - **12-sep-2026 — Jorge Pulido y Jorge Salamanca mezclados como un solo "Jorge" (incl. bug de permisos).** Ver sección arriba.
 - **12-sep-2026 — Filtros Mes/Asesor + "ocultar incompletos" + 2 gráficos por asesor.** Ver secciones arriba.
