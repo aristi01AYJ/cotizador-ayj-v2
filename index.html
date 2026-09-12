@@ -673,6 +673,22 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <div style="position:relative;height:200px"><canvas id="chartTipologias"></canvas></div>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Probabilidad Promedio x Vendedor (pipeline abierto)</div>
+          <div style="position:relative;height:200px"><canvas id="chartProbVendedor"></canvas></div>
+        </div>
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Probabilidad x Valor (pipeline abierto)</div>
+          <div style="position:relative;height:200px"><canvas id="chartProbValor"></canvas></div>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Top 15 Clientes por N° de Ofertas Presentadas</div>
+          <div style="position:relative;height:420px"><canvas id="chartClientes"></canvas></div>
+        </div>
+      </div>
     </div>
 
     <div id="stockView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
@@ -3535,11 +3551,13 @@ function renderDashboard(){
   } else if(dashFiltro.tipo==='estado'){
     datos=datos.filter(d=>d.estado===dashFiltro.valor);
   } else if(dashFiltro.tipo==='tipologia'){
-    datos=datos.filter(d=>d.items.some(item=>(item.tipologia||item.tipo||'Otro')===dashFiltro.valor));
+    datos=datos.filter(d=>d.items.some(item=>(item.tipologia||'Sin tipología')===dashFiltro.valor));
+  } else if(dashFiltro.tipo==='cliente'){
+    datos=datos.filter(d=>(d.cliente||'—')===dashFiltro.valor);
   }
   const banner=document.getElementById('dashFiltroActivo');
   if(dashFiltro.tipo){
-    const etiquetaTipo={vendedor:'Vendedor',estado:'Estado',tipologia:'Tipología'}[dashFiltro.tipo]||dashFiltro.tipo;
+    const etiquetaTipo={vendedor:'Vendedor',estado:'Estado',tipologia:'Tipología',cliente:'Cliente'}[dashFiltro.tipo]||dashFiltro.tipo;
     document.getElementById('dashFiltroLabel').textContent=etiquetaTipo+': '+dashFiltro.valor;
     banner.style.display='flex';
   } else {
@@ -3584,7 +3602,8 @@ function renderDashboard(){
     'estado'
   );
 
-  // ── Chart 2: Ventas por Asesor ──
+  // ── Chart 2: Ventas por Asesor (SOLO Cerrada-Ganada — "ventas" = negocio ya cerrado, no
+  // todo lo cotizado; usar asesoresMap[].total mezclaba pipeline+ganadas+perdidas) ──
   const asesoresMap={};
   datos.forEach(d=>{
     const a=d.vendedor.split(' ')[0]||'—';
@@ -3592,10 +3611,10 @@ function renderDashboard(){
     asesoresMap[a].total+=d.total;
     if(d.estado==='Cerrada-Ganada')asesoresMap[a].ganadas+=d.total;
   });
-  const ases=Object.entries(asesoresMap).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
+  const ases=Object.entries(asesoresMap).sort((a,b)=>b[1].ganadas-a[1].ganadas).slice(0,6);
   renderChart('chartAsesores','bar',
     ases.map(([k])=>k),
-    ases.map(([,v])=>Math.round(v.total)),
+    ases.map(([,v])=>Math.round(v.ganadas)),
     '#80A61B',
     {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>'$'+Math.round(v/1000)+'K'}}}},
     'vendedor'
@@ -3617,11 +3636,15 @@ function renderDashboard(){
   );
 
   // ── Chart 4: Top Tipologías ──
+  // item.tipo es DISPONIBILIDAD ('stock'/'importacion'/'pedido'), no una tipología — no usar
+  // como fallback, mezclaba "pedido" como si fuera una categoría de máquina.
+  // item.tarifaUSD ya es el total de esa línea (tarifa × cantidad se aplicó al agregar al
+  // carrito) — NO volver a multiplicar por cantidad aquí, se estaba duplicando.
   const tipMap={};
   datos.forEach(d=>{
     d.items.forEach(item=>{
-      const tip=item.tipologia||item.tipo||'Otro';
-      tipMap[tip]=(tipMap[tip]||0)+(item.tarifaUSD||item.tarifa||0)*(item.cantidad||1);
+      const tip=item.tipologia||'Sin tipología';
+      tipMap[tip]=(tipMap[tip]||0)+(item.tarifaUSD||item.tarifa||0);
     });
   });
   const tips=Object.entries(tipMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -3632,6 +3655,71 @@ function renderDashboard(){
     {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>'$'+Math.round(v/1000)+'K'}}}},
     'tipologia'
   );
+
+  // ── Chart 5: Probabilidad promedio x Vendedor (solo ofertas abiertas: Enviada/En negociación —
+  // en cerradas la probabilidad ya no aplica, quedó ganada o perdida) ──
+  const probMap={};
+  datos.filter(d=>!['Cerrada-Ganada','Cerrada-Perdida'].includes(d.estado)).forEach(d=>{
+    const a=d.vendedor.split(' ')[0]||'—';
+    if(!probMap[a])probMap[a]={suma:0,n:0};
+    probMap[a].suma+=d.prob;
+    probMap[a].n++;
+  });
+  const probVendedor=Object.entries(probMap).map(([nombre,v])=>[nombre,v.n>0?Math.round(v.suma/v.n):0]).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  renderChart('chartProbVendedor','bar',
+    probVendedor.map(([k])=>k),
+    probVendedor.map(([,v])=>v),
+    probVendedor.map(([,v])=>v>=50?'#22C55E':'#F59E0B'),
+    {plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:v=>v+'%'}}}},
+    'vendedor'
+  );
+
+  // ── Chart 6: Probabilidad x Valor (dispersión — cada punto es una oferta abierta;
+  // ayuda a ver ofertas grandes con probabilidad baja, o chicas con probabilidad alta) ──
+  const abiertas=datos.filter(d=>!['Cerrada-Ganada','Cerrada-Perdida'].includes(d.estado));
+  renderScatterProbValor(abiertas);
+
+  // ── Chart 7: Top 15 Clientes por N° de ofertas presentadas ──
+  const clientesMap={};
+  datos.forEach(d=>{
+    const c=d.cliente||'—';
+    clientesMap[c]=(clientesMap[c]||0)+1;
+  });
+  const topClientes=Object.entries(clientesMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  renderChart('chartClientes','bar',
+    topClientes.map(([k])=>k),
+    topClientes.map(([,v])=>v),
+    '#3B82F6',
+    {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{stepSize:1,precision:0}}}},
+    'cliente'
+  );
+}
+
+// Scatter Probabilidad(%) x Valor(USD) — chart aparte de renderChart() porque usa ejes x/y
+// numéricos (no categorías con label por índice) y tooltip con nombre de cliente.
+function renderScatterProbValor(ofertas){
+  const canvas=document.getElementById('chartProbValor');
+  if(!canvas)return;
+  if(dashCharts['chartProbValor']){dashCharts['chartProbValor'].destroy();delete dashCharts['chartProbValor'];}
+  const puntos=ofertas.map(d=>({x:d.prob,y:d.total,cliente:d.cliente,num:d.num}));
+  dashCharts['chartProbValor']=new Chart(canvas,{
+    type:'scatter',
+    data:{datasets:[{data:puntos,backgroundColor:'#3B82F6',pointRadius:6,pointHoverRadius:8}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>{
+          const p=ctx.raw;
+          return (p.num?p.num+' · ':'')+(p.cliente||'')+' — '+p.x+'% · USD '+Math.round(p.y).toLocaleString('es-CO');
+        }}}
+      },
+      scales:{
+        x:{title:{display:true,text:'Probabilidad (%)'},min:0,max:100,ticks:{callback:v=>v+'%'}},
+        y:{title:{display:true,text:'Valor (USD)'},ticks:{callback:v=>'$'+Math.round(v/1000)+'K'}}
+      }
+    }
+  });
 }
 
 // tipoFiltro (opcional): 'vendedor' | 'estado' | 'tipologia' — si se da, un clic en el
