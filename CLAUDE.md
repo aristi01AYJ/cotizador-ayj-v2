@@ -117,6 +117,7 @@ Hay dos vendedores con el mismo primer nombre ("Jorge Pulido" y "Jorge Salamanca
 - Cada cliente tiene un dueño (`c.asesor`, campo SharePoint `Asesor`, mismo campo que ya existía en Cotizaciones). Se registra automáticamente al **crear** el cliente (`guardarCliente()`: `if(!clienteEditandoId) fields.Asesor=currentUserName`) — editar un cliente existente ya NO pisa el Asesor, a diferencia de antes.
 - Checkbox "Mis Clientes" en la barra de Clientes (`#clientesVerTodos`, default sin marcar = ver Todos): filtra `renderTablaClientes()` por `asesorLabel(c.asesor)===asesorLabel(currentUserName)` — usa `asesorLabel()`, no comparación directa de string, por el mismo motivo que el fix de Jorge P/Jorge S de abajo.
 - Clientes creados **antes** de este cambio no tienen Asesor. El panel de detalle (`seleccionarClienteDetalle()`) muestra "⚠ Sin Gerente de Cuenta" + botón **Asignarme** (`asignarmeCliente(idx)`) cuando `c.asesor` está vacío — acción explícita de un clic que hace PATCH a SharePoint y solo actúa si el cliente de verdad no tenía dueño (si ya tiene uno, el botón ni aparece).
+- **Asignar/reasignar a otra persona** (no solo a uno mismo): botón "Asignar a otro" (sin dueño) o "Reasignar" (ya tiene dueño) → `mostrarReasignar(idx)` despliega un `<select>` inline con `listaAsesoresConocidos()` (nombres completos ya vistos como `Asesor` de algún cliente o `Vendedor` de alguna oferta, más el usuario actual — deduplicados por `asesorLabel()`, así Jorge Pulido/Jorge Salamanca quedan como 2 opciones, no una) excluyendo al dueño actual. `confirmarReasignar(idx)` confirma con mensaje distinto según si es primera asignación o transferencia, y llama al PATCH compartido `patchAsesorCliente(idx, nombre)` — el mismo que usa `asignarmeCliente()`, para no duplicar la llamada a Graph. **No tiene gate de permisos** (igual que `eliminarClienteIdx` — es una herramienta interna de equipo pequeño, no un sistema con roles).
 
 ### Feature: gráfico "Ofertas x Mes" en Inteligencia Comercial
 - Nuevo card full-width arriba de "Pipeline por Estado" (`#chartOfertasMes`, barra, cuenta ofertas por mes calendario del año filtrado — no suma dinero, solo cantidad). Usa el array `MESES_CORTO` (Ene..Dic) como eje y helper.
@@ -133,6 +134,7 @@ Hay dos vendedores con el mismo primer nombre ("Jorge Pulido" y "Jorge Salamanca
 - Cliente sin ofertas: mensaje "Sin ofertas registradas para este cliente", sin KPIs/gráfico/botón (nada que mostrar).
 
 ### Fixes recientes
+- **12-sep-2026 — Asignar/reasignar Gerente de Cuenta a otra persona (no solo a uno mismo).** Ver sección de Gerente de Cuenta arriba. Aplicado también en V1.
 - **12-sep-2026 — Ofertas del cliente + estadísticas/gráfico en su ficha.** Ver sección arriba. Aplicado también en V1.
 - **12-sep-2026 — Gerente de Cuenta en Clientes, gráfico Ofertas x Mes, overlay de carga bloqueante.** Ver 3 secciones arriba. Aplicado también en V1.
 - **12-sep-2026 — Jorge Pulido y Jorge Salamanca mezclados como un solo "Jorge" (incl. bug de permisos).** Ver sección arriba.
