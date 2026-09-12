@@ -3173,6 +3173,20 @@ async function seleccionarClienteDetalle(idx){
   _contactosMapa = {};
   contactos.forEach((ct,i)=>{ _contactosMapa[i]=ct; });
 
+  // Ofertas de este cliente — reutiliza historialData; si aún no se ha visitado el Historial
+  // en esta sesión, se carga aquí bajo demanda (mismo dato, una sola carga por sesión).
+  if(!historialData.length) await cargarHistorial();
+  const nombreNorm=c.titulo.trim().toLowerCase();
+  const ofertasCliente=historialData
+    .filter(r=>(r.cliente||'').trim().toLowerCase()===nombreNorm)
+    .sort((a,b)=>(b.fecha||new Date(0))-(a.fecha||new Date(0)));
+  const totalOfertas=ofertasCliente.length;
+  const totalCotizado=ofertasCliente.reduce((s,r)=>s+r.total,0);
+  const ganadasCliente=ofertasCliente.filter(r=>r.estado==='Cerrada-Ganada');
+  const perdidasCliente=ofertasCliente.filter(r=>r.estado==='Cerrada-Perdida');
+  const cerradasCliente=ganadasCliente.length+perdidasCliente.length;
+  const tasaCierreCliente=cerradasCliente>0?Math.round(ganadasCliente.length/cerradasCliente*100):0;
+
   panel.innerHTML = `
     <div style="max-width:600px">
       <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px;margin-bottom:16px">
@@ -3190,6 +3204,46 @@ async function seleccionarClienteDetalle(idx){
             <button onclick="eliminarClienteIdx(${idx})" class="btn-sec" style="padding:5px 10px;font-size:12px;border-color:#EF4444;color:#EF4444"><i class="ti ti-trash"></i></button>
           </div>
         </div>
+      </div>
+      <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">📊 Ofertas a este cliente <span style="font-size:11px;color:var(--text2);font-weight:400">(${totalOfertas})</span></div>
+          ${totalOfertas?`<button onclick="verOfertasClienteEnHistorial('${c.titulo.replace(/'/g,"\\'")}')" class="btn-sec" style="padding:4px 10px;font-size:11px"><i class="ti ti-list"></i> Ver en Historial</button>`:''}
+        </div>
+        ${totalOfertas?`
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:8px 6px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:var(--text)">${totalOfertas}</div>
+            <div style="font-size:10px;color:var(--text2)">Ofertas</div>
+          </div>
+          <div style="background:var(--bg);border-radius:var(--radius);padding:8px 6px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:var(--text)">${fmtUSD(totalCotizado)}</div>
+            <div style="font-size:10px;color:var(--text2)">Total Cotizado</div>
+          </div>
+          <div style="background:var(--bg);border-radius:var(--radius);padding:8px 6px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:#22C55E">${ganadasCliente.length}</div>
+            <div style="font-size:10px;color:var(--text2)">Ganadas</div>
+          </div>
+          <div style="background:var(--bg);border-radius:var(--radius);padding:8px 6px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:var(--text)">${tasaCierreCliente}%</div>
+            <div style="font-size:10px;color:var(--text2)">Tasa de Cierre</div>
+          </div>
+        </div>
+        <div style="position:relative;height:140px;margin-bottom:14px"><canvas id="chartClienteEstado"></canvas></div>
+        <div style="max-height:220px;overflow-y:auto">
+          ${ofertasCliente.map(r=>{
+            const eCfg=ESTADOS_CONFIG[r.estado]||{bg:'var(--amber-light)',text:'var(--amber)'};
+            return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--border);font-size:12px">
+              <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+                <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.num}</span>
+                <span style="color:var(--text3);font-size:11px">${r.fechaStr}</span>
+              </div>
+              <span style="background:${eCfg.bg};color:${eCfg.text};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;flex-shrink:0">${r.estado}</span>
+              <span style="font-weight:700;flex-shrink:0">${fmtUSD(r.total)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        `:'<div style="color:var(--text3);font-size:13px;padding:16px;text-align:center">Sin ofertas registradas para este cliente</div>'}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-size:13px;font-weight:700;color:var(--text)">👤 Contactos <span style="font-size:11px;color:var(--text2);font-weight:400">(${contactos.length})</span></div>
@@ -3213,6 +3267,25 @@ async function seleccionarClienteDetalle(idx){
         : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Sin contactos registrados</div>'}
       </div>
     </div>`;
+
+  if(totalOfertas){
+    const estadosKeys=Object.keys(ESTADOS_CONFIG);
+    const estadosCounts=estadosKeys.map(e=>ofertasCliente.filter(r=>r.estado===e).length);
+    renderChart('chartClienteEstado','doughnut',
+      estadosKeys,estadosCounts,
+      estadosKeys.map(e=>ESTADOS_CONFIG[e].color),
+      {plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}}}}
+    );
+  }
+}
+
+// Desde la ficha del cliente: salta al Historial con el filtro de Cliente ya aplicado, para
+// ver el detalle completo de cada oferta (PDF, editar, cambiar estado, etc.) sin retipear nada.
+function verOfertasClienteEnHistorial(nombreCliente){
+  switchView('historial');
+  const el=document.getElementById('hFiltCliente');
+  if(el) el.value=nombreCliente;
+  filtrarHistorial();
 }
 
 async function editarContactoIdx(ci, nombreCliente){
