@@ -93,7 +93,8 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 - Clic de nuevo sobre el mismo segmento quita el filtro (toggle). Banner `#dashFiltroActivo` visible mientras hay filtro, con botón "Quitar filtro" (`limpiarFiltroDash()`).
 - `dashFiltro` se resetea automáticamente al recargar (`cargarDashboard()`, botón refresh o cambio de año) — nunca se arrastra un filtro viejo entre cargas.
 - El filtro de tipología es a nivel de OFERTA (si la oferta tiene al menos un ítem de esa tipología, entra en el filtro) — el total de la oferta que se cuenta sigue siendo el total completo, no solo la parte de esa tipología. También soporta filtrar por `'cliente'` (desde el gráfico Top 15 Clientes).
-- **7 gráficos en total:** Pipeline por Estado, Ventas por Asesor (solo Ganadas), Tasa de Cierre por Asesor, Top Tipologías, Probabilidad Promedio x Vendedor (pipeline abierto), Probabilidad x Valor (scatter, pipeline abierto), Top 15 Clientes por N° de ofertas. El scatter (`renderScatterProbValor()`) es aparte de `renderChart()` porque usa ejes numéricos x/y en vez de labels por categoría.
+- **8 gráficos en total:** Pipeline por Estado, Ventas por Asesor (solo Ganadas), Tasa de Cierre por Asesor, Top Tipologías, Probabilidad Promedio x Vendedor (pipeline abierto), Probabilidad x Valor (scatter, pipeline abierto), Top 15 Clientes por N° de ofertas, Origen (Stock/Importación/Bajo Pedido). El scatter (`renderScatterProbValor()`) es aparte de `renderChart()` porque usa ejes numéricos x/y en vez de labels por categoría.
+- **Origen** usa `item.tipo` (`'stock'|'importacion'|'pedido'`, disponibilidad al agregar al carrito) vía el helper `origenLabel()` — a diferencia del bug de Tipologías (12-sep-2026), aquí `item.tipo` es exactamente lo que se quiere mostrar, no un fallback equivocado.
 
 ### ⚠️ Cuidado al tocar `item.tipo` vs `item.tipologia` en cualquier agregación
 `item.tipo` es **disponibilidad** (`'stock'|'importacion'|'pedido'`), NO una categoría de máquina. Usarlo como fallback de tipología (`item.tipologia||item.tipo`) mete valores como "pedido" en un chart de tipologías — bug real, corregido 12-sep-2026. El fallback correcto es un string fijo tipo `'Sin tipología'`.
@@ -104,6 +105,7 @@ Cuando la lista mostraba de "Sin tipología" nombres de catálogo reales (GAMA 1
 Causas legítimas de "Sin tipología" que SÍ pueden seguir apareciendo tras este fix: ítems agregados manualmente vía Liquidador ("no está en el catálogo" — `liqGetItem()` deja `tipologia:''` a propósito) y cotizaciones históricas guardadas antes de este fix. Al hacer clic en "Sin tipología" en el gráfico Top Tipologías, el banner de filtro muestra debajo (`#dashFiltroDetalle`) el nombre exacto de cada ítem afectado, deduplicado.
 
 ### Fixes recientes
+- **12-sep-2026 — Gráfico Origen (Stock/Importación/Bajo Pedido).** Ver sección arriba.
 - **12-sep-2026 — Tipología no se leía de SharePoint (nombre interno mal detectado).** Ver sección arriba — bug real, no falta de dato.
 - **12-sep-2026 — Diagnóstico de "Sin tipología" (lista de ítems afectados al filtrar).** Ver sección arriba.
 - **12-sep-2026 — 2 bugs reales en Inteligencia + 3 gráficos nuevos.** "Top Tipologías" mostraba "pedido" (fallback a `item.tipo`, disponibilidad, no tipología) y duplicaba el valor de ítems con cantidad>1 (multiplicaba `tarifaUSD` por `cantidad` de nuevo). "Ventas por Asesor" sumaba TODO lo cotizado en vez de solo lo ganado — por eso los números no cuadraban entre gráficos. Ver detalle arriba.
