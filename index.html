@@ -640,10 +640,24 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
     <div id="dashboardView" style="display:none;flex:1;flex-direction:column;overflow-y:auto;background:var(--bg);padding:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <strong style="font-size:16px">Inteligencia Comercial</strong>
-        <div style="display:flex;gap:8px;align-items:center">
-          <select id="dashAnio" onchange="cargarDashboard()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="dashAnio" onchange="renderDashboard()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
             <option>2026</option><option>2025</option>
           </select>
+          <select id="dashMes" onchange="renderDashboard()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
+            <option value="0">Todos los meses</option>
+            <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+            <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+            <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+            <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+          </select>
+          <select id="dashAsesor" onchange="renderDashboard()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
+            <option value="">Todos los asesores</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="dashOcultarIncompletos" checked onchange="renderDashboard()" style="cursor:pointer">
+            Ocultar datos incompletos
+          </label>
           <button class="btn-sec" onclick="cargarDashboard()"><i class="ti ti-refresh"></i></button>
         </div>
       </div>
@@ -660,11 +674,21 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <div style="position:relative;height:200px"><canvas id="chartEstados"></canvas></div>
         </div>
         <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
-          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Ventas por Asesor (USD)</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Ventas por Asesor — solo Ganadas (USD)</div>
           <div style="position:relative;height:200px"><canvas id="chartAsesores"></canvas></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Ofertas x Asesor — Cantidad (todos los estados)</div>
+          <div style="position:relative;height:200px"><canvas id="chartAsesorCant"></canvas></div>
+        </div>
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Ofertas x Asesor — USD (todos los estados)</div>
+          <div style="position:relative;height:200px"><canvas id="chartAsesorUSD"></canvas></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
         <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
           <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Tasa de Cierre por Asesor</div>
           <div style="position:relative;height:200px"><canvas id="chartCierre"></canvas></div>
@@ -3518,7 +3542,16 @@ let dashFiltro={tipo:null,valor:null}; // tipo: 'vendedor' | 'estado' | 'tipolog
 
 // Clic en un gráfico (segmento/barra) filtra los demás gráficos y KPIs por lo mismo.
 // Clic de nuevo sobre lo ya filtrado lo quita (toggle).
+// 'vendedor' es caso especial: en vez del banner de cross-filter, mueve el dropdown de
+// Asesor de la barra superior (así queda un solo control para "qué asesor" sea que lo
+// hayas elegido del dropdown o hecho clic en una barra de asesor).
 function aplicarFiltroDash(tipo, valor){
+  if(tipo==='vendedor'){
+    const sel=document.getElementById('dashAsesor');
+    if(sel) sel.value=(sel.value===valor)?'':valor; // toggle
+    renderDashboard();
+    return;
+  }
   if(dashFiltro.tipo===tipo && dashFiltro.valor===valor){
     dashFiltro={tipo:null,valor:null};
   } else {
@@ -3536,8 +3569,19 @@ function origenLabel(tipo){
   return tipo==='stock'?'Stock':tipo==='importacion'?'Importación':tipo==='pedido'?'Bajo Pedido':'Otro';
 }
 
+function poblarAsesoresDash(){
+  const sel=document.getElementById('dashAsesor');
+  if(!sel) return;
+  const actual=sel.value;
+  const nombres=[...new Set(dashData.map(d=>d.vendedor.split(' ')[0]).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">Todos los asesores</option>'+nombres.map(n=>`<option value="${n}">${n}</option>`).join('');
+  if(nombres.includes(actual)) sel.value=actual;
+}
+
 async function cargarDashboard(){
   dashFiltro={tipo:null,valor:null};
+  const mesEl=document.getElementById('dashMes'); if(mesEl) mesEl.value='0';
+  const asesorEl=document.getElementById('dashAsesor'); if(asesorEl) asesorEl.value='';
   document.getElementById('dashKpis').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)"><span class="spinner dark"></span> Cargando datos...</div>';
   try{
     const data=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
@@ -3557,6 +3601,7 @@ async function cargarDashboard(){
         id:i.id,
       };
     });
+    poblarAsesoresDash();
     renderDashboard();
   }catch(e){
     document.getElementById('dashKpis').innerHTML=`<div style="grid-column:1/-1;color:var(--red);padding:20px">Error: ${e.message}</div>`;
@@ -3567,10 +3612,22 @@ function renderDashboard(){
   const anio=parseInt(document.getElementById('dashAnio')?.value||2026);
   let datos=dashData.filter(d=>d.anio===anio);
 
-  // ── Cross-filter: clic en un gráfico filtra los demás ──
-  if(dashFiltro.tipo==='vendedor'){
-    datos=datos.filter(d=>(d.vendedor.split(' ')[0]||'—')===dashFiltro.valor);
-  } else if(dashFiltro.tipo==='estado'){
+  // ── Filtros de barra superior: Mes, Asesor, Ocultar datos incompletos ──
+  const mesSel=parseInt(document.getElementById('dashMes')?.value||0);
+  if(mesSel) datos=datos.filter(d=>d.fecha&&(d.fecha.getMonth()+1)===mesSel);
+  const asesorSel=document.getElementById('dashAsesor')?.value||'';
+  if(asesorSel) datos=datos.filter(d=>(d.vendedor.split(' ')[0]||'—')===asesorSel);
+  const ocultarIncompletos=document.getElementById('dashOcultarIncompletos')?.checked??true;
+  if(ocultarIncompletos){
+    // "Incompleto" a nivel de oferta: sin cliente o en $0 — dato claramente roto, no un
+    // caso de negocio real. Los ítems sin Tipología se excluyen aparte, más abajo, solo
+    // del gráfico de Tipologías (la oferta en sí puede seguir siendo válida).
+    datos=datos.filter(d=>d.cliente&&d.cliente!=='—'&&d.total>0);
+  }
+
+  // ── Cross-filter: clic en un gráfico filtra los demás (vendedor ya no pasa por aquí,
+  // ver aplicarFiltroDash — usa el dropdown de Asesor de arriba) ──
+  if(dashFiltro.tipo==='estado'){
     datos=datos.filter(d=>d.estado===dashFiltro.valor);
   } else if(dashFiltro.tipo==='tipologia'){
     datos=datos.filter(d=>d.items.some(item=>(item.tipologia||'Sin tipología')===dashFiltro.valor));
@@ -3642,8 +3699,9 @@ function renderDashboard(){
   const asesoresMap={};
   datos.forEach(d=>{
     const a=d.vendedor.split(' ')[0]||'—';
-    if(!asesoresMap[a])asesoresMap[a]={total:0,ganadas:0};
+    if(!asesoresMap[a])asesoresMap[a]={total:0,ganadas:0,cantidad:0};
     asesoresMap[a].total+=d.total;
+    asesoresMap[a].cantidad++;
     if(d.estado==='Cerrada-Ganada')asesoresMap[a].ganadas+=d.total;
   });
   const ases=Object.entries(asesoresMap).sort((a,b)=>b[1].ganadas-a[1].ganadas).slice(0,6);
@@ -3651,6 +3709,25 @@ function renderDashboard(){
     ases.map(([k])=>k),
     ases.map(([,v])=>Math.round(v.ganadas)),
     '#80A61B',
+    {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>'$'+Math.round(v/1000)+'K'}}}},
+    'vendedor'
+  );
+
+  // ── Chart 2b/2c: Ofertas x Asesor — Cantidad y USD, TODOS los estados (a diferencia de
+  // "Ventas por Asesor" de arriba, que solo cuenta lo Ganado) ──
+  const asesoresCant=Object.entries(asesoresMap).sort((a,b)=>b[1].cantidad-a[1].cantidad).slice(0,6);
+  renderChart('chartAsesorCant','bar',
+    asesoresCant.map(([k])=>k),
+    asesoresCant.map(([,v])=>v.cantidad),
+    '#3B82F6',
+    {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{stepSize:1,precision:0}}}},
+    'vendedor'
+  );
+  const asesoresUSD=Object.entries(asesoresMap).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
+  renderChart('chartAsesorUSD','bar',
+    asesoresUSD.map(([k])=>k),
+    asesoresUSD.map(([,v])=>Math.round(v.total)),
+    '#575756',
     {indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>'$'+Math.round(v/1000)+'K'}}}},
     'vendedor'
   );
@@ -3679,6 +3756,7 @@ function renderDashboard(){
   datos.forEach(d=>{
     d.items.forEach(item=>{
       const tip=item.tipologia||'Sin tipología';
+      if(ocultarIncompletos&&tip==='Sin tipología') return; // ítem sin categorizar — no distorsiona el ranking
       tipMap[tip]=(tipMap[tip]||0)+(item.tarifaUSD||item.tarifa||0);
     });
   });
