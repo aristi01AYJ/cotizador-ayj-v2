@@ -1351,13 +1351,19 @@ async function cargarMaquinas(){
     try{
       const cols=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns?$select=name,displayName`);
       cols.value.forEach(c=>{
-        const dn=c.displayName.toLowerCase();
+        const dn=(c.displayName||'').toLowerCase().trim(); // guardado contra displayName undefined/columnas de sistema
         if(dn==='marca') marcaField=c.name;
         if(dn==='tipologia'||dn==='tipología') tipologiaField=c.name;
       });
-    }catch(e){}
+    }catch(e){console.warn('[AYJ] No se pudo leer /columns para detectar el nombre interno de Tipología — usando fallbacks fijos:',e.message);}
 
     const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$top=200`);
+    // Diagnóstico Tipología: si vuelve a fallar el fallback de abajo, este log en la consola del
+    // navegador (F12) muestra el nombre interno real del campo para corregirlo sin adivinar.
+    if(todos[0]){
+      const clavesTip=Object.keys(todos[0].fields||{}).filter(k=>k.toLowerCase().includes('tip'));
+      console.log('[AYJ] tipologiaField detectado:',tipologiaField,'| claves con "tip" en fields[0]:',clavesTip,'| valor:',clavesTip.map(k=>todos[0].fields[k]));
+    }
     rawMaquinas=todos.map(i=>{
       const f=i.fields;
 
@@ -1371,7 +1377,11 @@ async function cargarMaquinas(){
         title:(f.Title||'').trim(),
         modelo:(f.Modelo||'').trim(),
         marca:(f[marcaField]||f.Marca||f.Marca0||f.MO||'').trim(),
-        tipologia:(f[tipologiaField]||f.Tipologia||'').trim(),
+        // f.Tipologia (sin tilde) casi nunca es el nombre interno real en SharePoint — cuando la
+        // columna se creó como "Tipología", SharePoint suele codificar la í como _x00ed_ (mismo
+        // patrón que Ubicaci_x00f3_n / Descripci_x00f3_n en este archivo). Si la detección dinámica
+        // de /columns falla o no encuentra la columna, este fallback explícito la rescata.
+        tipologia:(f[tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),
         estadoDisp:(f.ESTADO_||'').trim().toUpperCase(),
         estadoStock:(f.ESTADO||'').trim(),
         tarifa,
