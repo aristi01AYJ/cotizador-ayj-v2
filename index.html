@@ -3194,10 +3194,16 @@ async function seleccionarClienteDetalle(idx){
           <div>
             <div style="font-size:16px;font-weight:700;color:var(--text)">${c.titulo}</div>
             <div style="font-size:12px;color:var(--text2);margin-top:4px">${[c.ciudad,c.pais].filter(Boolean).join(' · ')}${c.nit?' · NIT: '+c.nit:''}</div>
-            <div style="font-size:11px;margin-top:6px">${c.asesor
-              ?'<span style="color:var(--text2)"><i class="ti ti-user-star" style="font-size:12px;vertical-align:-1px"></i> Gerente de Cuenta: <strong>'+asesorLabel(c.asesor)+'</strong></span>'
-              :'<span style="color:#92400E">⚠ Sin Gerente de Cuenta</span> <button onclick="asignarmeCliente('+idx+')" class="btn-sec" style="padding:2px 8px;font-size:10px;border-color:#F59E0B;color:#92400E">Asignarme</button>'
-            }</div>
+            <div style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              ${c.asesor
+                ?'<span style="color:var(--text2)"><i class="ti ti-user-star" style="font-size:12px;vertical-align:-1px"></i> Gerente de Cuenta: <strong>'+asesorLabel(c.asesor)+'</strong></span>'
+                 +'<button onclick="mostrarReasignar('+idx+')" class="btn-sec" style="padding:2px 8px;font-size:10px">Reasignar</button>'
+                :'<span style="color:#92400E">⚠ Sin Gerente de Cuenta</span>'
+                 +'<button onclick="asignarmeCliente('+idx+')" class="btn-sec" style="padding:2px 8px;font-size:10px;border-color:#F59E0B;color:#92400E">Asignarme</button>'
+                 +'<button onclick="mostrarReasignar('+idx+')" class="btn-sec" style="padding:2px 8px;font-size:10px">Asignar a otro</button>'
+              }
+              <span id="reasignarBox_${idx}" style="display:none;align-items:center;gap:6px"></span>
+            </div>
           </div>
           <div style="display:flex;gap:6px">
             <button onclick="editarClienteIdx(${idx})" class="btn-sec" style="padding:5px 10px;font-size:12px"><i class="ti ti-pencil"></i></button>
@@ -3471,6 +3477,25 @@ function editarClienteIdx(idx){
   if(c) editarCliente(c);
 }
 
+// PATCH compartido del campo Asesor en SharePoint + estado local — usado tanto por
+// asignarmeCliente() como por confirmarReasignar() para no duplicar la llamada a Graph.
+async function patchAsesorCliente(idx, nuevoNombre){
+  const c=_listaFiltradaClientes[idx];
+  if(!c) return;
+  try{
+    const token=await getToken();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdClientes}/items/${c.id}/fields`,{
+      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({Asesor:nuevoNombre})
+    });
+    c.asesor=nuevoNombre;
+    const enData=clientesData.find(x=>x.id===c.id);
+    if(enData) enData.asesor=nuevoNombre;
+    showToast('✓ Gerente de Cuenta: '+asesorLabel(nuevoNombre),'success');
+    seleccionarClienteDetalle(idx);
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
 // Registra al usuario actual como Gerente de Cuenta de un cliente que no tenía uno asignado.
 // A diferencia de guardarCliente() (que ya no pisa el Asesor al solo editar otros datos), esto
 // es una acción explícita — solo actúa si el cliente realmente no tenía dueño.
@@ -3479,18 +3504,54 @@ async function asignarmeCliente(idx){
   if(!c) return;
   if(c.asesor){showToast('Este cliente ya tiene Gerente de Cuenta asignado','error');return;}
   if(!confirm(`¿Registrarte como Gerente de Cuenta de "${c.titulo}"?`)) return;
-  try{
-    const token=await getToken();
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdClientes}/items/${c.id}/fields`,{
-      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({Asesor:currentUserName})
-    });
-    c.asesor=currentUserName;
-    const enData=clientesData.find(x=>x.id===c.id);
-    if(enData) enData.asesor=currentUserName;
-    showToast('✓ Ahora eres el Gerente de Cuenta de '+c.titulo,'success');
-    seleccionarClienteDetalle(idx);
-  }catch(e){showToast('Error: '+e.message,'error');}
+  await patchAsesorCliente(idx, currentUserName);
+}
+
+// Nombres completos conocidos por el sistema (los que ya aparecen como Asesor de algún cliente
+// o Vendedor de alguna oferta, más el usuario actual), deduplicados por asesorLabel() — así
+// "Jorge Pulido" y "Jorge Salamanca" quedan como 2 opciones distintas, no una sola "Jorge".
+function listaAsesoresConocidos(){
+  const mapa=new Map(); // label -> nombre completo (se queda con la primera aparición)
+  const agregar=nombre=>{ if(!nombre) return; const lbl=asesorLabel(nombre); if(!mapa.has(lbl)) mapa.set(lbl,nombre); };
+  clientesData.forEach(c=>agregar(c.asesor));
+  historialData.forEach(r=>agregar(r.vendedor));
+  agregar(currentUserName);
+  return [...mapa.entries()].sort((a,b)=>a[0].localeCompare(b[0],'es')).map(([label,nombre])=>({label,nombre}));
+}
+
+// Asignar/reasignar el Gerente de Cuenta a cualquier persona (no solo uno mismo) — muestra un
+// <select> inline con los asesores conocidos del sistema, dentro del mismo panel de detalle.
+function mostrarReasignar(idx){
+  const box=document.getElementById('reasignarBox_'+idx);
+  if(!box) return;
+  const c=_listaFiltradaClientes[idx];
+  const asesores=listaAsesoresConocidos().filter(a=>a.nombre!==c?.asesor);
+  box.innerHTML=`
+    <select id="reasignarSelect_${idx}" style="padding:2px 6px;border:1px solid var(--border);border-radius:var(--radius);font-size:11px;font-family:inherit">
+      <option value="">Elegir asesor...</option>
+      ${asesores.map(a=>`<option value="${a.nombre.replace(/"/g,'&quot;')}">${a.label}</option>`).join('')}
+    </select>
+    <button onclick="confirmarReasignar(${idx})" class="btn-primary" style="padding:2px 8px;font-size:10px">Asignar</button>
+    <button onclick="ocultarReasignar(${idx})" class="btn-sec" style="padding:2px 8px;font-size:10px">Cancelar</button>`;
+  box.style.display='inline-flex';
+}
+
+function ocultarReasignar(idx){
+  const box=document.getElementById('reasignarBox_'+idx);
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+}
+
+async function confirmarReasignar(idx){
+  const c=_listaFiltradaClientes[idx];
+  if(!c) return;
+  const sel=document.getElementById('reasignarSelect_'+idx);
+  const nuevoAsesor=sel?.value;
+  if(!nuevoAsesor){showToast('Elige un asesor de la lista','error');return;}
+  const mensaje=c.asesor
+    ?`¿Reasignar "${c.titulo}" de ${asesorLabel(c.asesor)} a ${asesorLabel(nuevoAsesor)}?`
+    :`¿Asignar "${c.titulo}" a ${asesorLabel(nuevoAsesor)} como Gerente de Cuenta?`;
+  if(!confirm(mensaje)) return;
+  await patchAsesorCliente(idx, nuevoAsesor);
 }
 
 function usarContactoIdx(ci, nombreCliente){
