@@ -2806,6 +2806,18 @@ function filtrarMisOfertas(checked){
 
 let _histOrden={col:'fecha',asc:false};
 
+// "Vista Previa" del Historial: nombres de los ítems separados por " | " (ej. G3 | EP5 | CRG3)
+function previewItems(items){
+  if(!items||!items.length) return null;
+  const nombres=items.map(it=>(it.nombre||'').trim()).filter(Boolean);
+  if(!nombres.length) return null;
+  const completo=nombres.join(' | ');
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  let corto=completo;
+  if(corto.length>60) corto=corto.slice(0,57)+'…';
+  return {corto:esc(corto), full:esc(completo)};
+}
+
 function poblarVendedoresHistorial(){
   const sel=document.getElementById('hFiltVendedor');
   if(!sel) return;
@@ -2874,10 +2886,11 @@ function filtrarHistorial(){
       const eCfg=ESTADOS_CONFIG[r.estado]||{bg:'var(--amber-light)',text:'var(--amber)',color:'var(--amber)'};
       const estadoBg=eCfg.bg;
       const estadoColor=eCfg.text;
+      const vp=previewItems(r.items);
       return '<tr>'
         +'<td class="num">'+r.num+'</td>'
         +'<td style="white-space:nowrap;color:var(--text2);font-size:12px">'+r.fechaStr+'</td>'
-        +'<td><strong>'+r.cliente+'</strong></td>'
+        +'<td><strong>'+r.cliente+'</strong>'+(vp?'<div style="font-size:10px;color:var(--text2);margin-top:2px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+vp.full+'">'+vp.corto+'</div>':'')+'</td>'
         +'<td style="font-size:12px">'+r.vendedor+'</td>'
         +'<td><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+estadoBg+';color:'+estadoColor+'">'+r.estado+'</span></td>'
         +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
