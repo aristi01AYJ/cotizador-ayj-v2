@@ -652,6 +652,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <span>Filtrando por <strong id="dashFiltroLabel"></strong> — los gráficos y KPIs de abajo muestran solo esto. Haz clic en cualquier gráfico para filtrar por otra cosa.</span>
         <button class="btn-sec" onclick="limpiarFiltroDash()" style="margin-left:auto;flex-shrink:0"><i class="ti ti-restore"></i> Quitar filtro</button>
       </div>
+      <div id="dashFiltroDetalle" style="display:none;font-size:11px;color:var(--text2);background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-top:-10px;margin-bottom:16px"></div>
       <div id="dashKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
@@ -3556,12 +3557,23 @@ function renderDashboard(){
     datos=datos.filter(d=>(d.cliente||'—')===dashFiltro.valor);
   }
   const banner=document.getElementById('dashFiltroActivo');
+  const detalle=document.getElementById('dashFiltroDetalle');
   if(dashFiltro.tipo){
     const etiquetaTipo={vendedor:'Vendedor',estado:'Estado',tipologia:'Tipología',cliente:'Cliente'}[dashFiltro.tipo]||dashFiltro.tipo;
     document.getElementById('dashFiltroLabel').textContent=etiquetaTipo+': '+dashFiltro.valor;
     banner.style.display='flex';
+    // Ayuda para diagnosticar "Sin tipología": qué máquinas exactas la están causando,
+    // para saber si hay que llenar la columna Tipología en SharePoint o son ítems manuales.
+    if(dashFiltro.tipo==='tipologia'&&dashFiltro.valor==='Sin tipología'){
+      const nombres=[...new Set(datos.flatMap(d=>d.items).filter(it=>!it.tipologia).map(it=>it.nombre||'(sin nombre)'))].sort();
+      detalle.style.display='block';
+      detalle.textContent='Ítems sin Tipología: '+nombres.join(', ');
+    } else {
+      detalle.style.display='none';
+    }
   } else {
     banner.style.display='none';
+    detalle.style.display='none';
   }
 
   // ── KPIs ──
