@@ -88,7 +88,14 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 - `'En negociación'` se retiró como opción nueva pero **sigue existiendo en `ESTADOS_CONFIG`** (no se borró) — un registro histórico con ese estado se sigue coloreando bien y aparece como opción extra ya seleccionada en su propio `<select>` (no se fuerza a cambiarlo), y sigue contando en el gráfico "Pipeline por Estado" del Dashboard, que itera `Object.keys(ESTADOS_CONFIG)`. Si se necesita quitarlo del todo, hay que revisar primero ese gráfico.
 - Como el estado ahora se cambia desde la propia columna Estado, se retiraron de **Acciones** los botones que quedaban redundantes: ✓ Ganada, ✗ Perdida, y el "···" (Cambiar estado / modal). Acciones quedó: PDF · Duplicar · Editar · Eliminar · Estrellas. La función `cambiarEstado()` (el modal viejo) queda sin usar en la UI pero no se borró.
 
+### Feature: gráficos interactivos (cross-filter) en Inteligencia Comercial
+- Los 4 gráficos del dashboard (`renderChart()`, Chart.js) aceptan un `tipoFiltro` opcional (`'vendedor'|'estado'|'tipologia'`) que activa `onClick`: clic en un segmento/barra llama `aplicarFiltroDash(tipo, valor)`, que filtra `dashData` y vuelve a llamar `renderDashboard()` — como los 4 gráficos y los KPIs se derivan todos de la misma variable `datos` filtrada, el cross-filter llega a todo junto sin lógica extra por gráfico.
+- Clic de nuevo sobre el mismo segmento quita el filtro (toggle). Banner `#dashFiltroActivo` visible mientras hay filtro, con botón "Quitar filtro" (`limpiarFiltroDash()`).
+- `dashFiltro` se resetea automáticamente al recargar (`cargarDashboard()`, botón refresh o cambio de año) — nunca se arrastra un filtro viejo entre cargas.
+- El filtro de tipología es a nivel de OFERTA (si la oferta tiene al menos un ítem de esa tipología, entra en el filtro) — el total de la oferta que se cuenta sigue siendo el total completo, no solo la parte de esa tipología.
+
 ### Fixes recientes
+- **12-sep-2026 — Gráficos interactivos (cross-filter) en Inteligencia Comercial.** Ver sección arriba.
 - **12-sep-2026 — Origen LIQ/TAR en Vista Previa + Estado como dropdown de 3 opciones.** Ver secciones arriba.
 - **12-sep-2026 — Vista Previa (nombres de ítems) en el Historial.** Ver sección arriba.
 - **12-sep-2026 — Detección de duplicados más tolerante + segunda pasada Cliente+Total.** La comparación exacta de Título dejaba pasar duplicados con diferencias de mayúsc/espacios, o donde el N° de oferta no coincidía pero claramente era el mismo negocio (mismo cliente, mismo total). Ver sección arriba.
