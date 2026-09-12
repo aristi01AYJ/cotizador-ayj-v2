@@ -73,7 +73,11 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 - **Acciones del Historial** (orden fijo): PDF · Duplicar · Editar · ✓ Ganada · ✗ Perdida · Eliminar · ★★★★★ · "···" (Enviada/En negociación vía `cambiarEstado()`, se mantiene para los 2 estados que no tienen botón dedicado). Ganada/Perdida usan `aplicarEstado()` directo (un clic, sin modal).
 - **Probabilidad** ahora son 5 estrellas clicables (`estrellasHistorial()` + `editarProbabilidadEstrellas()`), reemplazando el `prompt()` de 0-100%. Se sigue guardando 0-100 en pasos de 20 en el campo `Probabilidad` de SharePoint (no se cambió el esquema de almacenamiento, solo la UI) — el Dashboard sigue leyendo el mismo campo sin cambios.
 
+### Feature: limpieza de duplicados existentes
+- Botón "Duplicados" en el Historial (clave `CLAVE_MG`, `abrirLimpiezaDuplicados()`): agrupa por `Title` exacto (una revisión `-R2` es un Title distinto, NO se agrupa como duplicado — es intencional), muestra qué se conservaría (mayor `id` de SharePoint = más reciente) y qué se borraría, y solo borra tras confirmación explícita. Complementa el fix de anti-duplicados: ese evita duplicados nuevos, esto limpia los que ya existían de antes.
+
 ### Fixes recientes
+- **12-sep-2026 — Herramienta para limpiar duplicados ya existentes.** Ver sección arriba.
 - **12-sep-2026 — Cotizaciones duplicadas al re-guardar + Acciones mejoradas.** Ver sección arriba. Aplicado también en V1.
 - **10-sep-2026 — Falso "ÚLTIMA UNIDAD" en ítems de stock ilimitado.** Ver sección arriba. Aplicado también en V1.
 - **31-ago-2026 — Consecutivo de cotización pegado.** `generarNumOferta()` usaba `graphGet()` sin paginar; se cambió a `graphGetAll()`. Ver regla en la sección de Graph API arriba. Replicar en V1 si no está ya.
