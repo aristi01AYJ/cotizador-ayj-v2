@@ -80,9 +80,16 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
   - En ambas pasadas se conserva el de mayor `id` de SharePoint (= más reciente). Complementa el fix de anti-duplicados: ese evita duplicados nuevos, esto limpia los que ya existían de antes.
 
 ### Feature: Vista Previa en el Historial
-- Bajo el nombre del cliente, una línea pequeña con los nombres de los ítems separados por " | " (`previewItems()`, ej. "G3 | EP5 | CRG3"), leídos de la columna `Items` ya guardada en cada cotización. Trunca a ~60 caracteres con `title` (tooltip) mostrando el listado completo. Pensado para distinguir varias ofertas al mismo cliente sin abrir cada PDF.
+- Bajo el nombre del cliente, una línea pequeña con los nombres de los ítems separados por " | " (`previewItems()`, ej. "G3 | EP5 (Liq) | CRG3"), leídos de la columna `Items` ya guardada en cada cotización. Trunca a ~60 caracteres con `title` (tooltip) mostrando el listado completo. Pensado para distinguir varias ofertas al mismo cliente sin abrir cada PDF.
+- **Origen LIQ/TAR:** cada ítem guardado (`guardarCotizacion` → `fields.Items`) incluye `origen:'LIQ'` si `item.id` empieza con `liq_` (viene del Liquidador) o `'TAR'` si es precio de catálogo normal. `previewItems()` marca los LIQ con "(Liq)" junto al nombre. Ofertas guardadas antes de este cambio no traen `origen` — no se les inventa, simplemente no muestran la marca.
+
+### Feature: Estado como dropdown rápido (3 estados)
+- La columna Estado del Historial es un `<select>` inline (coloreado igual que la píldora anterior) con 3 opciones: Enviada / ✓ Ganada / ✗ Perdida. Cambiar de estado es un clic + seleccionar, sin modal.
+- `'En negociación'` se retiró como opción nueva pero **sigue existiendo en `ESTADOS_CONFIG`** (no se borró) — un registro histórico con ese estado se sigue coloreando bien y aparece como opción extra ya seleccionada en su propio `<select>` (no se fuerza a cambiarlo), y sigue contando en el gráfico "Pipeline por Estado" del Dashboard, que itera `Object.keys(ESTADOS_CONFIG)`. Si se necesita quitarlo del todo, hay que revisar primero ese gráfico.
+- Como el estado ahora se cambia desde la propia columna Estado, se retiraron de **Acciones** los botones que quedaban redundantes: ✓ Ganada, ✗ Perdida, y el "···" (Cambiar estado / modal). Acciones quedó: PDF · Duplicar · Editar · Eliminar · Estrellas. La función `cambiarEstado()` (el modal viejo) queda sin usar en la UI pero no se borró.
 
 ### Fixes recientes
+- **12-sep-2026 — Origen LIQ/TAR en Vista Previa + Estado como dropdown de 3 opciones.** Ver secciones arriba.
 - **12-sep-2026 — Vista Previa (nombres de ítems) en el Historial.** Ver sección arriba.
 - **12-sep-2026 — Detección de duplicados más tolerante + segunda pasada Cliente+Total.** La comparación exacta de Título dejaba pasar duplicados con diferencias de mayúsc/espacios, o donde el N° de oferta no coincidía pero claramente era el mismo negocio (mismo cliente, mismo total). Ver sección arriba.
 - **12-sep-2026 — Herramienta para limpiar duplicados ya existentes.** Ver sección arriba.
