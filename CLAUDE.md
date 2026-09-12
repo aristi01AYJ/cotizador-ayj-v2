@@ -74,9 +74,13 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 - **Probabilidad** ahora son 5 estrellas clicables (`estrellasHistorial()` + `editarProbabilidadEstrellas()`), reemplazando el `prompt()` de 0-100%. Se sigue guardando 0-100 en pasos de 20 en el campo `Probabilidad` de SharePoint (no se cambió el esquema de almacenamiento, solo la UI) — el Dashboard sigue leyendo el mismo campo sin cambios.
 
 ### Feature: limpieza de duplicados existentes
-- Botón "Duplicados" en el Historial (clave `CLAVE_MG`, `abrirLimpiezaDuplicados()`): agrupa por `Title` exacto (una revisión `-R2` es un Title distinto, NO se agrupa como duplicado — es intencional), muestra qué se conservaría (mayor `id` de SharePoint = más reciente) y qué se borraría, y solo borra tras confirmación explícita. Complementa el fix de anti-duplicados: ese evita duplicados nuevos, esto limpia los que ya existían de antes.
+- Botón "Duplicados" en el Historial (clave `CLAVE_MG`, `abrirLimpiezaDuplicados()`): dos pasadas de detección, lógica compartida en `_buscarDuplicados()`.
+  1. **Exactos**: agrupa por N° de oferta normalizado (`_normNumOferta` — trim + mayúsculas + colapsa espacios, para no fallar por diferencias invisibles de texto). Una revisión `-R2` es un Title distinto, NO se agrupa como duplicado — es intencional. Se borran en bloque con confirmación única.
+  2. **Posibles** (solo sobre lo que no cayó en un grupo exacto): mismo Cliente + mismo Total pero N° distinto — candidato a duplicado con número corrido a mano o donde `ID_SYNERGY` no coincide con `Title`. Se listan en amarillo, **nunca se borran en bloque** — botón individual por ítem, señal más débil que amerita revisión caso por caso.
+  - En ambas pasadas se conserva el de mayor `id` de SharePoint (= más reciente). Complementa el fix de anti-duplicados: ese evita duplicados nuevos, esto limpia los que ya existían de antes.
 
 ### Fixes recientes
+- **12-sep-2026 — Detección de duplicados más tolerante + segunda pasada Cliente+Total.** La comparación exacta de Título dejaba pasar duplicados con diferencias de mayúsc/espacios, o donde el N° de oferta no coincidía pero claramente era el mismo negocio (mismo cliente, mismo total). Ver sección arriba.
 - **12-sep-2026 — Herramienta para limpiar duplicados ya existentes.** Ver sección arriba.
 - **12-sep-2026 — Cotizaciones duplicadas al re-guardar + Acciones mejoradas.** Ver sección arriba. Aplicado también en V1.
 - **10-sep-2026 — Falso "ÚLTIMA UNIDAD" en ítems de stock ilimitado.** Ver sección arriba. Aplicado también en V1.
