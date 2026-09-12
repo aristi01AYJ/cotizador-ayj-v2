@@ -113,7 +113,20 @@ Causas legítimas de "Sin tipología" que SÍ pueden seguir apareciendo tras est
 ### ⚠️ Jorge Pulido vs Jorge Salamanca — usar SIEMPRE `asesorLabel()`, nunca `nombre.split(' ')[0]`
 Hay dos vendedores con el mismo primer nombre ("Jorge Pulido" y "Jorge Salamanca"). Cualquier código que agrupe/compare vendedores por `nombre.split(' ')[0]` los mezcla como si fueran la misma persona — esto afectó gráficos de Inteligencia, el filtro de Vendedor del Historial, y (más grave) los **chequeos de permisos** de "es tu propia oferta" (`currentUserName.includes(vendedor.split(' ')[0])`), que dejaban a Jorge Pulido editar/borrar ofertas de Jorge Salamanca y viceversa. Fix (12-sep-2026): función `asesorLabel(nombre)` (mismo criterio que `vendedorFolderName()`, ya existente para nombrar archivos) devuelve `'Jorge P'`/`'Jorge S'` para esos dos, primer nombre normal para el resto — usada en TODOS los puntos de agrupación/comparación por vendedor (dashboard, Historial, permisos). Si se agrega un nuevo lugar que agrupe por vendedor, usar `asesorLabel()`, no `.split(' ')[0]` ni `.includes()` por substring de nombre.
 
+### Feature: Gerente de Cuenta en Clientes ("Mis Clientes" / "Todos")
+- Cada cliente tiene un dueño (`c.asesor`, campo SharePoint `Asesor`, mismo campo que ya existía en Cotizaciones). Se registra automáticamente al **crear** el cliente (`guardarCliente()`: `if(!clienteEditandoId) fields.Asesor=currentUserName`) — editar un cliente existente ya NO pisa el Asesor, a diferencia de antes.
+- Checkbox "Mis Clientes" en la barra de Clientes (`#clientesVerTodos`, default sin marcar = ver Todos): filtra `renderTablaClientes()` por `asesorLabel(c.asesor)===asesorLabel(currentUserName)` — usa `asesorLabel()`, no comparación directa de string, por el mismo motivo que el fix de Jorge P/Jorge S de abajo.
+- Clientes creados **antes** de este cambio no tienen Asesor. El panel de detalle (`seleccionarClienteDetalle()`) muestra "⚠ Sin Gerente de Cuenta" + botón **Asignarme** (`asignarmeCliente(idx)`) cuando `c.asesor` está vacío — acción explícita de un clic que hace PATCH a SharePoint y solo actúa si el cliente de verdad no tenía dueño (si ya tiene uno, el botón ni aparece).
+
+### Feature: gráfico "Ofertas x Mes" en Inteligencia Comercial
+- Nuevo card full-width arriba de "Pipeline por Estado" (`#chartOfertasMes`, barra, cuenta ofertas por mes calendario del año filtrado — no suma dinero, solo cantidad). Usa el array `MESES_CORTO` (Ene..Dic) como eje y helper.
+- Clic en una barra activa el filtro de mes: `aplicarFiltroDash('mes', valor)` es un caso especial más (como `'vendedor'`) que mueve el dropdown `dashMes` de la barra superior en vez de pasar por el banner de `dashFiltro` — toggle: clic de nuevo en el mismo mes lo quita.
+
+### Feature: overlay de carga bloqueante al iniciar sesión
+- `#appLoadingOverlay` (fullscreen, z-index 9999) se muestra en `showApp()` apenas se ve `#appScreen` y se oculta solo cuando `resolverSite()` + `Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM()])` + `generarNumOferta()` terminan (bloque `try/finally` — se oculta también si algo falla, para no dejar al usuario atrapado con el spinner). Antes se podía interactuar con la app (agregar al carrito, etc.) mientras el catálogo aún estaba cargando o vacío.
+
 ### Fixes recientes
+- **12-sep-2026 — Gerente de Cuenta en Clientes, gráfico Ofertas x Mes, overlay de carga bloqueante.** Ver 3 secciones arriba. Aplicado también en V1.
 - **12-sep-2026 — Jorge Pulido y Jorge Salamanca mezclados como un solo "Jorge" (incl. bug de permisos).** Ver sección arriba.
 - **12-sep-2026 — Filtros Mes/Asesor + "ocultar incompletos" + 2 gráficos por asesor.** Ver secciones arriba.
 - **12-sep-2026 — Gráfico Origen (Stock/Importación/Bajo Pedido).** Ver sección arriba.
