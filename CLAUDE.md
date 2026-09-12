@@ -92,9 +92,15 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 - Los 4 gráficos del dashboard (`renderChart()`, Chart.js) aceptan un `tipoFiltro` opcional (`'vendedor'|'estado'|'tipologia'`) que activa `onClick`: clic en un segmento/barra llama `aplicarFiltroDash(tipo, valor)`, que filtra `dashData` y vuelve a llamar `renderDashboard()` — como los 4 gráficos y los KPIs se derivan todos de la misma variable `datos` filtrada, el cross-filter llega a todo junto sin lógica extra por gráfico.
 - Clic de nuevo sobre el mismo segmento quita el filtro (toggle). Banner `#dashFiltroActivo` visible mientras hay filtro, con botón "Quitar filtro" (`limpiarFiltroDash()`).
 - `dashFiltro` se resetea automáticamente al recargar (`cargarDashboard()`, botón refresh o cambio de año) — nunca se arrastra un filtro viejo entre cargas.
-- El filtro de tipología es a nivel de OFERTA (si la oferta tiene al menos un ítem de esa tipología, entra en el filtro) — el total de la oferta que se cuenta sigue siendo el total completo, no solo la parte de esa tipología.
+- El filtro de tipología es a nivel de OFERTA (si la oferta tiene al menos un ítem de esa tipología, entra en el filtro) — el total de la oferta que se cuenta sigue siendo el total completo, no solo la parte de esa tipología. También soporta filtrar por `'cliente'` (desde el gráfico Top 15 Clientes).
+- **7 gráficos en total:** Pipeline por Estado, Ventas por Asesor (solo Ganadas), Tasa de Cierre por Asesor, Top Tipologías, Probabilidad Promedio x Vendedor (pipeline abierto), Probabilidad x Valor (scatter, pipeline abierto), Top 15 Clientes por N° de ofertas. El scatter (`renderScatterProbValor()`) es aparte de `renderChart()` porque usa ejes numéricos x/y en vez de labels por categoría.
+
+### ⚠️ Cuidado al tocar `item.tipo` vs `item.tipologia` en cualquier agregación
+`item.tipo` es **disponibilidad** (`'stock'|'importacion'|'pedido'`), NO una categoría de máquina. Usarlo como fallback de tipología (`item.tipologia||item.tipo`) mete valores como "pedido" en un chart de tipologías — bug real, corregido 12-sep-2026. El fallback correcto es un string fijo tipo `'Sin tipología'`.
+También: `item.tarifaUSD` (o `item.tarifa` en el carrito) **ya es el total de la línea** (tarifa × cantidad se aplicó al agregar al carrito) — jamás volver a multiplicar por `cantidad` en una agregación. Mismo patrón de bug que el de Márgenes (20-ago-2026) y ahora el de Top Tipologías (12-sep-2026); si aparece un tercero, es la misma familia de error.
 
 ### Fixes recientes
+- **12-sep-2026 — 2 bugs reales en Inteligencia + 3 gráficos nuevos.** "Top Tipologías" mostraba "pedido" (fallback a `item.tipo`, disponibilidad, no tipología) y duplicaba el valor de ítems con cantidad>1 (multiplicaba `tarifaUSD` por `cantidad` de nuevo). "Ventas por Asesor" sumaba TODO lo cotizado en vez de solo lo ganado — por eso los números no cuadraban entre gráficos. Ver detalle arriba.
 - **12-sep-2026 — Gráficos interactivos (cross-filter) en Inteligencia Comercial.** Ver sección arriba.
 - **12-sep-2026 — Origen LIQ/TAR en Vista Previa + Estado como dropdown de 3 opciones.** Ver secciones arriba.
 - **12-sep-2026 — Vista Previa (nombres de ítems) en el Historial.** Ver sección arriba.
