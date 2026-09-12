@@ -67,7 +67,14 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 - Las 2 condiciones que deciden mostrar el badge (`renderCarrito()` y `generarPDF()`, más la tarjeta de catálogo) ahora exigen `!item.stockIlimitado` además de `stockCount===1`.
 - Si la columna no existe todavía en SharePoint, `f.StockIlimitado` llega `undefined` → se comporta exactamente igual que antes (sin romper nada).
 
+### Feature: anti-duplicados al guardar + Acciones del Historial
+- `guardarCotizacion()` siempre hacía POST (nunca update), y tras guardar dejaba el mismo N° de oferta en pantalla a propósito ("el usuario debe pulsar Nueva Oferta"). Guardar dos veces sin pasar por "Nueva Oferta" (típico: ajustar algo en el Liquidador y volver a Guardar) creaba un **registro duplicado idéntico**.
+- Fix: si `!modoEdicion`, antes de guardar se consulta SharePoint por si el número actual ya existe; si existe, se convierte automáticamente en revisión (`-R2`, `-R3`...) con el mismo esquema que ya usaba `editarOferta()`. Nunca deben quedar dos registros con el mismo `Title`/`ID_SYNERGY`.
+- **Acciones del Historial** (orden fijo): PDF · Duplicar · Editar · ✓ Ganada · ✗ Perdida · Eliminar · ★★★★★ · "···" (Enviada/En negociación vía `cambiarEstado()`, se mantiene para los 2 estados que no tienen botón dedicado). Ganada/Perdida usan `aplicarEstado()` directo (un clic, sin modal).
+- **Probabilidad** ahora son 5 estrellas clicables (`estrellasHistorial()` + `editarProbabilidadEstrellas()`), reemplazando el `prompt()` de 0-100%. Se sigue guardando 0-100 en pasos de 20 en el campo `Probabilidad` de SharePoint (no se cambió el esquema de almacenamiento, solo la UI) — el Dashboard sigue leyendo el mismo campo sin cambios.
+
 ### Fixes recientes
+- **12-sep-2026 — Cotizaciones duplicadas al re-guardar + Acciones mejoradas.** Ver sección arriba. Aplicado también en V1.
 - **10-sep-2026 — Falso "ÚLTIMA UNIDAD" en ítems de stock ilimitado.** Ver sección arriba. Aplicado también en V1.
 - **31-ago-2026 — Consecutivo de cotización pegado.** `generarNumOferta()` usaba `graphGet()` sin paginar; se cambió a `graphGetAll()`. Ver regla en la sección de Graph API arriba. Replicar en V1 si no está ya.
 
