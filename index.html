@@ -2032,11 +2032,37 @@ async function guardarCotizacion(){
   const fleteUSD=trm>0?fleteCOP/trm:0;
   const totalUSD=baseUSD+ivaUSD+fleteUSD;
   const totalCOP=Math.round(totalUSD*trm);
-  const numOferta=document.getElementById('ofertaNum').textContent;
+  let numOferta=document.getElementById('ofertaNum').textContent;
   const idSynergy=(document.getElementById('idSynergyInput')?.value||'').trim();
   const btn=document.getElementById('btnGuardar');
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Guardando...';
   try{
+    // Nunca guardar dos registros con el mismo N° de oferta: si ya se guardó antes
+    // (segundo clic en "Guardar y PDF" sin pasar por "Nueva Oferta", p.ej. después
+    // de ajustar algo en el Liquidador) se convierte automáticamente en revisión
+    // R1, R2, R3... en vez de duplicar el mismo número. No aplica si ya se entró
+    // explícitamente en modo edición/revisión (editarOferta ya calculó su -Rn).
+    if(!modoEdicion){
+      try{
+        const existentes=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
+        const yaExiste=existentes.some(it=>(it.fields?.Title||'')===numOferta);
+        if(yaExiste){
+          const baseNum=numOferta.replace(/-R\d+$/,'');
+          let maxRev=1;
+          existentes.forEach(it=>{
+            const t=it.fields?.Title||'';
+            if(t.startsWith(baseNum)){
+              const m=t.match(/-R(\d+)$/);
+              if(m) maxRev=Math.max(maxRev,parseInt(m[1]));
+            }
+          });
+          numOferta=baseNum+'-R'+(maxRev+1);
+          const badge=document.getElementById('ofertaNum');
+          if(badge) badge.textContent=numOferta;
+          showToast('Esta oferta ya estaba guardada — se guardó como revisión '+numOferta,'success');
+        }
+      }catch(eDup){console.warn('No se pudo verificar duplicados antes de guardar:',eDup.message);}
+    }
 
     const fields={
       Title:numOferta,
@@ -2845,12 +2871,16 @@ function filtrarHistorial(){
         +'<td style="text-align:center;white-space:nowrap">'
         +(r.linkPDF?'<a href="'+r.linkPDF+'" target="_blank" class="btn-cli-usar" style="border-color:var(--red);color:var(--red);text-decoration:none;" title="Ver oferta"><i class="ti ti-file-type-pdf"></i></a> ':'' )
         +(r.items.length?'<button class="btn-cli-usar" onclick=\'duplicarOferta('+JSON.stringify(r.cliente)+','+JSON.stringify(r.items)+')\' title="Duplicar en carrito"><i class="ti ti-copy"></i></button>':'' )
-        +' <button class="btn-cli-usar" onclick="cambiarEstado(\''+r.id+'\',\''+r.estado+'\')" title="Cambiar estado" style="border-color:var(--blue);color:var(--blue-dark)"><i class="ti ti-pencil"></i></button>'
         +(r.vendedor&&currentUserName&&(r.vendedor===currentUserName||currentUserName.toLowerCase().includes(r.vendedor.split(' ')[0].toLowerCase()))?
           ' <button class="btn-cli-usar" onclick="editarOfertaIdx(\''+r.id+'\')" title="Editar oferta" style="border-color:var(--green);color:var(--green-dark)"><i class="ti ti-edit"></i></button>'
-          +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
           :'')
-        +' <button class="btn-cli-usar" onclick="editarProbabilidad(\''+r.id+'\','+r.prob+',\''+r.vendedor+'\')" title="Probabilidad: '+r.prob+'%" style="border-color:var(--green);color:var(--green-dark);font-size:10px;padding:2px 6px">'+r.prob+'%</button>'
+        +(r.estado!=='Cerrada-Ganada'?' <button class="btn-cli-usar" onclick="aplicarEstado(\''+r.id+'\',\'Cerrada-Ganada\')" title="Marcar como Ganada" style="border-color:#22C55E;color:#16A34A"><i class="ti ti-circle-check"></i></button>':'')
+        +(r.estado!=='Cerrada-Perdida'?' <button class="btn-cli-usar" onclick="aplicarEstado(\''+r.id+'\',\'Cerrada-Perdida\')" title="Marcar como Perdida" style="border-color:#EF4444;color:#DC2626"><i class="ti ti-circle-x"></i></button>':'')
+        +(r.vendedor&&currentUserName&&(r.vendedor===currentUserName||currentUserName.toLowerCase().includes(r.vendedor.split(' ')[0].toLowerCase()))?
+          ' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
+          :'')
+        +' <span style="display:inline-flex;gap:1px;vertical-align:middle;margin-left:2px" title="Probabilidad de cierre">'+estrellasHistorial(r.id,r.prob,r.vendedor)+'</span>'
+        +' <button class="btn-cli-usar" onclick="cambiarEstado(\''+r.id+'\',\''+r.estado+'\')" title="Otro estado (Enviada / En negociación)" style="border-color:var(--blue);color:var(--blue-dark);padding:4px 6px"><i class="ti ti-dots"></i></button>'
         +'</td>'
         +'</tr>';
     }).join('')
@@ -3551,21 +3581,27 @@ async function cambiarEstado(itemId, estadoActual){
   document.body.appendChild(modal);
 }
 
-// ── PROBABILIDAD ──
-async function editarProbabilidad(itemId, probActual, vendedorOferta){
-  if(vendedorOferta&&!currentUserName.toLowerCase().includes(vendedorOferta.split(' ')[0].toLowerCase())){
+// ── PROBABILIDAD (estrellas 0-5, se guarda internamente como % en pasos de 20 para no romper el campo existente) ──
+function estrellasHistorial(itemId, prob0a100, vendedorOferta){
+  const actuales=Math.round((prob0a100||0)/20);
+  return [1,2,3,4,5].map(s=>
+    '<span onclick="editarProbabilidadEstrellas(\''+itemId+'\','+s+',\''+(vendedorOferta||'').replace(/'/g,"\\'")+'\')" '
+    +'style="cursor:pointer;font-size:13px;color:'+(actuales>=s?'#F59E0B':'#ddd')+'" '
+    +'title="Probabilidad: '+(s*20)+'%">★</span>'
+  ).join('');
+}
+async function editarProbabilidadEstrellas(itemId, estrellas, vendedorOferta){
+  if(vendedorOferta&&currentUserName&&!currentUserName.toLowerCase().includes(vendedorOferta.split(' ')[0].toLowerCase())){
     showToast('Solo puedes editar la probabilidad de tus propias ofertas','error');return;
   }
-  const nueva=prompt(`Probabilidad de cierre (0-100%):`, probActual||'');
-  if(nueva===null)return;
-  const val=Math.min(100,Math.max(0,parseInt(nueva)||0));
+  const val=Math.min(100,Math.max(0,estrellas*20));
   try{
     const token=await getToken();
     await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
       method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({Probabilidad:val})
     });
-    showToast('✓ Probabilidad actualizada a '+val+'%','success');
+    showToast('✓ Probabilidad actualizada a '+estrellas+'★','success');
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
 }
