@@ -99,7 +99,11 @@ Es la versión de **desarrollo activo**. Aquí se prueban los cambios primero; c
 `item.tipo` es **disponibilidad** (`'stock'|'importacion'|'pedido'`), NO una categoría de máquina. Usarlo como fallback de tipología (`item.tipologia||item.tipo`) mete valores como "pedido" en un chart de tipologías — bug real, corregido 12-sep-2026. El fallback correcto es un string fijo tipo `'Sin tipología'`.
 También: `item.tarifaUSD` (o `item.tarifa` en el carrito) **ya es el total de la línea** (tarifa × cantidad se aplicó al agregar al carrito) — jamás volver a multiplicar por `cantidad` en una agregación. Mismo patrón de bug que el de Márgenes (20-ago-2026) y ahora el de Top Tipologías (12-sep-2026); si aparece un tercero, es la misma familia de error.
 
+### Por qué salen muchas ofertas "Sin tipología" (no es un bug)
+Causas reales, en orden de probabilidad: (1) la columna Tipología está vacía para varias filas en la lista de Máquinas de SharePoint; (2) ítems agregados manualmente vía Liquidador (opción "no está en el catálogo") — `liqGetItem()` fallback deja `tipologia:''` a propósito, nunca tuvo una; (3) cotizaciones históricas guardadas cuando el catálogo aún no tenía esa máquina catalogada. Al hacer clic en "Sin tipología" en el gráfico Top Tipologías, el banner de filtro muestra debajo (`#dashFiltroDetalle`) el nombre exacto de cada ítem afectado, deduplicado — así se puede ir directo a corregir la fila en SharePoint si aplica.
+
 ### Fixes recientes
+- **12-sep-2026 — Diagnóstico de "Sin tipología" (lista de ítems afectados al filtrar).** Ver sección arriba.
 - **12-sep-2026 — 2 bugs reales en Inteligencia + 3 gráficos nuevos.** "Top Tipologías" mostraba "pedido" (fallback a `item.tipo`, disponibilidad, no tipología) y duplicaba el valor de ítems con cantidad>1 (multiplicaba `tarifaUSD` por `cantidad` de nuevo). "Ventas por Asesor" sumaba TODO lo cotizado en vez de solo lo ganado — por eso los números no cuadraban entre gráficos. Ver detalle arriba.
 - **12-sep-2026 — Gráficos interactivos (cross-filter) en Inteligencia Comercial.** Ver sección arriba.
 - **12-sep-2026 — Origen LIQ/TAR en Vista Previa + Estado como dropdown de 3 opciones.** Ver secciones arriba.
