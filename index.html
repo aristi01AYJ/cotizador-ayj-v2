@@ -255,6 +255,11 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
 </div>
 
 <div id="appScreen">
+  <div id="appLoadingOverlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.97);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+    <img src="logo.png" alt="AYJ Maquinaria" style="height:36px;width:auto">
+    <span class="spinner dark" style="width:26px;height:26px;border-width:3px"></span>
+    <div style="font-size:13px;color:var(--text2);font-weight:600">Cargando catálogo…</div>
+  </div>
   <div class="topbar">
     <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;filter:brightness(0) invert(1)"><span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:400;letter-spacing:0.5px">Cotizador</span> <span style="font-size:13px;color:#fff;font-weight:800;letter-spacing:1px">MAQUINARIA</span></div>
     <div class="nav">
@@ -614,6 +619,10 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <option value="nombre">Por Nombre</option>
           <option value="ciudad">Por Ciudad</option>
         </select>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="clientesVerTodos" onchange="renderTablaClientes()" style="cursor:pointer">
+          Mis Clientes
+        </label>
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="btn-sec" onclick="cargarClientes(true)"><i class="ti ti-refresh"></i></button>
           <button class="btn-primary" onclick="abrirModalCliente()"><i class="ti ti-user-plus"></i> Nuevo Cliente</button>
@@ -668,6 +677,12 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       </div>
       <div id="dashFiltroDetalle" style="display:none;font-size:11px;color:var(--text2);background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-top:-10px;margin-bottom:16px"></div>
       <div id="dashKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px"></div>
+      <div style="margin-bottom:16px">
+        <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Ofertas x Mes</div>
+          <div style="position:relative;height:220px"><canvas id="chartOfertasMes"></canvas></div>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
           <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Pipeline por Estado</div>
@@ -1323,14 +1338,22 @@ async function graphGetAll(url){
 async function showApp(account){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='flex';
+  // Bloquea toda la app hasta que el catálogo (y clientes/TRM) terminen de cargar — antes se
+  // podía intentar agregar al carrito o guardar con el catálogo aún vacío/a medias.
+  const overlay=document.getElementById('appLoadingOverlay');
+  if(overlay) overlay.style.display='flex';
   currentUserName=account.name||account.username||'';
   // Nombre limpio para mostrar
   const displayName=currentUserName.split('@')[0].replace(/\./g,' ');
   document.getElementById('userChip').textContent=currentUserName;
   document.getElementById('vendedorChip').textContent=currentUserName;
-  await resolverSite();
-  await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM()]);
-  generarNumOferta();
+  try{
+    await resolverSite();
+    await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM()]);
+    generarNumOferta();
+  } finally {
+    if(overlay) overlay.style.display='none';
+  }
 }
 
 async function resolverSite(){
@@ -3112,9 +3135,11 @@ function renderTablaClientes(){
   const q=(document.getElementById('clientesBuscador')?.value||'').toLowerCase();
   const ciudad=(document.getElementById('clientesFiltCiudad')?.value||'').toLowerCase();
   const orden=document.getElementById('clientesOrden')?.value||'nombre';
+  const soloMios=document.getElementById('clientesVerTodos')?.checked;
   let lista=clientesData.filter(c=>
     (!q||(c.titulo.toLowerCase().includes(q)||c.ciudad.toLowerCase().includes(q)))
     &&(!ciudad||c.ciudad.toLowerCase()===ciudad)
+    &&(!soloMios||asesorLabel(c.asesor)===asesorLabel(currentUserName))
   );
   if(orden==='nombre') lista=[...lista].sort((a,b)=>a.titulo.localeCompare(b.titulo,'es'));
   else if(orden==='ciudad') lista=[...lista].sort((a,b)=>(a.ciudad||'').localeCompare(b.ciudad||'','es'));
@@ -3155,6 +3180,10 @@ async function seleccionarClienteDetalle(idx){
           <div>
             <div style="font-size:16px;font-weight:700;color:var(--text)">${c.titulo}</div>
             <div style="font-size:12px;color:var(--text2);margin-top:4px">${[c.ciudad,c.pais].filter(Boolean).join(' · ')}${c.nit?' · NIT: '+c.nit:''}</div>
+            <div style="font-size:11px;margin-top:6px">${c.asesor
+              ?'<span style="color:var(--text2)"><i class="ti ti-user-star" style="font-size:12px;vertical-align:-1px"></i> Gerente de Cuenta: <strong>'+asesorLabel(c.asesor)+'</strong></span>'
+              :'<span style="color:#92400E">⚠ Sin Gerente de Cuenta</span> <button onclick="asignarmeCliente('+idx+')" class="btn-sec" style="padding:2px 8px;font-size:10px;border-color:#F59E0B;color:#92400E">Asignarme</button>'
+            }</div>
           </div>
           <div style="display:flex;gap:6px">
             <button onclick="editarClienteIdx(${idx})" class="btn-sec" style="padding:5px 10px;font-size:12px"><i class="ti ti-pencil"></i></button>
@@ -3369,6 +3398,28 @@ function editarClienteIdx(idx){
   if(c) editarCliente(c);
 }
 
+// Registra al usuario actual como Gerente de Cuenta de un cliente que no tenía uno asignado.
+// A diferencia de guardarCliente() (que ya no pisa el Asesor al solo editar otros datos), esto
+// es una acción explícita — solo actúa si el cliente realmente no tenía dueño.
+async function asignarmeCliente(idx){
+  const c=_listaFiltradaClientes[idx];
+  if(!c) return;
+  if(c.asesor){showToast('Este cliente ya tiene Gerente de Cuenta asignado','error');return;}
+  if(!confirm(`¿Registrarte como Gerente de Cuenta de "${c.titulo}"?`)) return;
+  try{
+    const token=await getToken();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdClientes}/items/${c.id}/fields`,{
+      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({Asesor:currentUserName})
+    });
+    c.asesor=currentUserName;
+    const enData=clientesData.find(x=>x.id===c.id);
+    if(enData) enData.asesor=currentUserName;
+    showToast('✓ Ahora eres el Gerente de Cuenta de '+c.titulo,'success');
+    seleccionarClienteDetalle(idx);
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
 function usarContactoIdx(ci, nombreCliente){
   const ct=_contactosMapa[ci];
   if(!ct) return;
@@ -3464,10 +3515,12 @@ async function guardarCliente(){
     Title:titulo,
     Ciudad:document.getElementById('mc_ciudad').value.trim(),
     Pais:document.getElementById('mc_pais').value.trim(),
-    Asesor:currentUserName,
   };
   const nit=document.getElementById('mc_nit')?.value.trim();
   if(nit) fields['NIT_x002f_RUT']=nit;
+  // Gerente de Cuenta: se registra al CREAR, y nunca se pisa al solo editar otros datos —
+  // si no lo tenía asignado, se usa el botón "Asignarme" del panel de detalle (asignarmeCliente()).
+  if(!clienteEditandoId) fields.Asesor=currentUserName;
 
   try{
     const token=await getToken();
@@ -3557,10 +3610,19 @@ let dashFiltro={tipo:null,valor:null}; // tipo: 'vendedor' | 'estado' | 'tipolog
 // 'vendedor' es caso especial: en vez del banner de cross-filter, mueve el dropdown de
 // Asesor de la barra superior (así queda un solo control para "qué asesor" sea que lo
 // hayas elegido del dropdown o hecho clic en una barra de asesor).
+const MESES_CORTO=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
 function aplicarFiltroDash(tipo, valor){
   if(tipo==='vendedor'){
     const sel=document.getElementById('dashAsesor');
     if(sel) sel.value=(sel.value===valor)?'':valor; // toggle
+    renderDashboard();
+    return;
+  }
+  if(tipo==='mes'){
+    const idx=MESES_CORTO.indexOf(valor)+1; // 1-12
+    const sel=document.getElementById('dashMes');
+    if(sel) sel.value=(parseInt(sel.value)===idx)?'0':String(idx); // toggle
     renderDashboard();
     return;
   }
@@ -3695,6 +3757,15 @@ function renderDashboard(){
       <div style="font-size:22px;font-weight:800;color:${k.color}">${k.val}</div>
       <div style="font-size:11px;color:var(--text3)">${k.sub}</div>
     </div>`).join('');
+
+  // ── Chart 0: Ofertas x Mes ──
+  const mesesCount=Array(12).fill(0);
+  datos.forEach(d=>{ if(d.fecha) mesesCount[d.fecha.getMonth()]++; });
+  renderChart('chartOfertasMes','bar',
+    MESES_CORTO,mesesCount,'#3B82F6',
+    {plugins:{legend:{display:false}},scales:{y:{ticks:{stepSize:1,precision:0}}}},
+    'mes'
+  );
 
   // ── Chart 1: Pipeline por Estado ──
   const estadosKeys=Object.keys(ESTADOS_CONFIG);
