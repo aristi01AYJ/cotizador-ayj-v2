@@ -140,7 +140,26 @@ Hay dos vendedores con el mismo primer nombre ("Jorge Pulido" y "Jorge Salamanca
 - El Historial NO oculta el historial completo: con "Solo vigentes" marcado, cada fila con más de 1 revisión muestra un badge clicable "Nrev" (`verRevisionesFamilia(baseNum)`) que destilda el checkbox y filtra por ese N° base, mostrando las revisiones completas con un clic.
 - Decisión de diseño (contra las 2 ideas alternativas que planteó el usuario): NO se cambió el comportamiento de guardar (seguir creando -Rn siempre, nunca sobreescribir) porque eso fue justo lo que se corrigió antes para no perder historial; y NO se escribe ningún Estado tipo "Cerrada-Actualizada" a SharePoint en las revisiones viejas, porque el campo Estado ya alimenta mucha lógica existente (Pipeline, Ganadas/Perdidas por asesor, dropdown de cambio de estado) y forzaría a excluir ese estado en todos esos sitios — el filtro de vista logra lo mismo sin tocar datos ni arriesgar esa lógica.
 
+### ⚠️ Requiere columna nueva en SharePoint: `FechaCierre` (lista Cotizaciones)
+Feature "Posible cierre + Seguimiento" (abajo) necesita una columna **`FechaCierre`** (tipo Fecha, solo fecha sin hora) en la lista **Cotizaciones** de SharePoint. Nombre exacto `FechaCierre` (sin tildes/espacios) a propósito — así el nombre interno de SharePoint coincide con el nombre visible y no hay riesgo del problema de codificación `_x00XX_` que ya afectó a Tipología/Ubicación. Si esta columna no existe todavía, el código no falla (`f.FechaCierre` llega `undefined`, el selector "Posible cierre" queda en "— Sin definir —" y esa oferta simplemente no aparece en Seguimiento) pero la feature no sirve hasta crearla.
+
+### Feature: Posible Cierre (30/60/90 días) + Fecha de Seguimiento automática
+- En "Nueva oferta", selector **"Posible cierre"** (barra fija, junto a Entrega/Voltaje): 30 / 60 / 90 días desde hoy, o "✏️ Elegir fecha..." para una fecha personalizada. Por defecto **"— Sin definir —"** — no se fuerza a poner fecha en cotizaciones exploratorias que no son un prospecto real.
+- Solo se guarda **`FechaCierre`** en SharePoint (`guardarCotizacion()`). La **Fecha de Seguimiento nunca se guarda aparte** — siempre se calcula como `FechaCierre − 5 días` (`calcularFechaSeguimiento()`), para no tener 2 fuentes de verdad que se puedan desincronizar si alguien edita una fecha a mano en SharePoint.
+- Al reabrir una oferta para editar/revisar (`editarOferta()`), la fecha de cierre se restaura siempre como "fecha personalizada" (no se intenta adivinar si originalmente fue 30/60/90) — sigue siendo editable.
+- `cargarHistorial()` calcula `fechaCierre`/`fechaSeguimiento` al mapear cada registro — de ahí los consume tanto el Dashboard como la nueva pantalla de Seguimiento.
+
+### Feature: pantalla de Seguimiento (por usuario, Día/Semana/Mes)
+- Nuevo ítem de navegación **"Seguimiento"** (con badge rojo — cuenta vencidos + próximos 3 días) junto a Historial. Muestra SOLO las ofertas activas (no Cerrada-Ganada/Perdida) del usuario logueado (`asesorLabel(r.vendedor)===asesorLabel(currentUserName)`) que tengan Fecha de Seguimiento — nunca las de otro asesor.
+- Usa `soloVigentes()` (la misma función del fix de revisiones) para que una oferta con -R2/-R3 no aparezca duplicada como 2 seguimientos.
+- **"⚠ Vencidos"**: sección fija arriba, siempre visible sin importar qué rango se esté navegando (fecha de seguimiento ya pasada y la oferta sigue activa).
+- 3 modos — Día y Semana como **lista organizada por fecha** (Semana muestra los 7 días, incluso vacíos, para ver el ritmo de la semana); Mes como **calendario en grilla** (7×6, clic en un día salta a la vista Día de esa fecha).
+- Cada tarjeta muestra cliente, N° oferta, fecha de cierre, "Vencido hace N días" / "En N días", estado y total — clic salta al Historial con ese N° de oferta ya filtrado (`verOfertaDesdeSeguimiento()`).
+- `cargarHistorial()` ahora también se llama en `showApp()` (antes solo cargaba al entrar a Historial) para que el badge esté listo desde el login, sin esperar a que el usuario abra Historial o Seguimiento primero.
+- **Importante — qué significa "notificar" aquí:** esto es un aviso dentro de la app (badge + pantalla), no un correo/push real. Este cotizador es un sitio estático sin backend/cron — para un correo o notificación real automática haría falta un flujo externo (ej. Power Automate) que lea `FechaCierre` de la lista y envíe el aviso; esta app por sí sola no puede disparar eso.
+
 ### Fixes recientes
+- **15-sep-2026 — Posible Cierre (30/60/90) + Fecha de Seguimiento automática + pantalla de Seguimiento por usuario.** Ver 2 secciones arriba — requiere crear la columna `FechaCierre` en SharePoint (ver aviso arriba). Aplicado también en V1.
 - **15-sep-2026 — Agrupar revisiones (-R2, -R3...) en las estadísticas ("Solo vigentes").** Ver sección arriba. Aplicado también en V1.
 - **12-sep-2026 — Asignar/reasignar Gerente de Cuenta a otra persona (no solo a uno mismo).** Ver sección de Gerente de Cuenta arriba. Aplicado también en V1.
 - **12-sep-2026 — Ofertas del cliente + estadísticas/gráfico en su ficha.** Ver sección arriba. Aplicado también en V1.
