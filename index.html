@@ -266,6 +266,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <button class="active" id="navNueva" onclick="switchView('nueva')">Nueva oferta</button>
       <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
       <button id="navHistorial" onclick="switchView('historial')">Historial</button>
+      <button id="navSeguimiento" onclick="switchView('seguimiento')" style="position:relative"><i class="ti ti-calendar-event"></i> Seguimiento<span id="badgeSeguimiento" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
       <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
       <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
       <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
@@ -401,6 +402,20 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             </select>
           </div>
           <div id="entregaLabel" style="font-size:10px;color:var(--text2);margin-top:2px;display:none"></div>
+        </div>
+        <div class="field-group" style="margin:0">
+          <label style="font-size:10px">Posible cierre</label>
+          <div style="display:flex;gap:4px;align-items:center">
+            <select id="cierreSel" onchange="onCierreChange(this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+              <option value="" selected>— Sin definir —</option>
+              <option value="30">30 días</option>
+              <option value="60">60 días</option>
+              <option value="90">90 días</option>
+              <option value="__custom_cierre__">✏️ Elegir fecha...</option>
+            </select>
+            <input type="date" id="cierreCustomInput" onchange="actualizarCierreLabel()" style="display:none;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+          </div>
+          <div id="cierreLabel" style="font-size:10px;color:var(--text2);margin-top:2px"></div>
         </div>
         <div class="field-group" style="margin:0">
           <label style="font-size:10px">Voltaje requerido</label>
@@ -593,6 +608,27 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       </div>
       <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
         <div id="historialBody"></div>
+      </div>
+    </div>
+
+    <!-- SEGUIMIENTO — solo mis ofertas activas, por fecha de seguimiento -->
+    <div id="seguimientoView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0">
+        <strong style="font-size:15px">📅 Seguimiento</strong>
+        <div style="display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+          <button id="segModoDia" onclick="cambiarModoSeguimiento('dia')" style="padding:6px 12px;border:none;background:#fff;font-size:12px;cursor:pointer;font-family:inherit">Día</button>
+          <button id="segModoSemana" onclick="cambiarModoSeguimiento('semana')" style="padding:6px 12px;border:none;background:var(--green);color:#fff;font-size:12px;cursor:pointer;font-family:inherit">Semana</button>
+          <button id="segModoMes" onclick="cambiarModoSeguimiento('mes')" style="padding:6px 12px;border:none;background:#fff;font-size:12px;cursor:pointer;font-family:inherit">Mes</button>
+        </div>
+        <button class="btn-sec" onclick="navegarSeguimiento(-1)"><i class="ti ti-chevron-left"></i></button>
+        <button class="btn-sec" onclick="irHoySeguimiento()">Hoy</button>
+        <button class="btn-sec" onclick="navegarSeguimiento(1)"><i class="ti ti-chevron-right"></i></button>
+        <strong id="segRangoLabel" style="font-size:13px;color:var(--text2)"></strong>
+        <button class="btn-sec" style="margin-left:auto" onclick="cargarHistorial()"><i class="ti ti-refresh"></i></button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
+        <div id="segVencidosWrap"></div>
+        <div id="segRangoWrap"></div>
       </div>
     </div>
 
@@ -1011,6 +1047,55 @@ function getEntrega(){
   return sel;
 }
 
+// ── POSIBLE CIERRE / SEGUIMIENTO ─────────────────────
+// La oferta guarda solo FechaCierre (fecha estimada de cierre del negocio) — la Fecha de
+// Seguimiento (para avisar 5 días antes) se calcula siempre a partir de esa, nunca se guarda
+// aparte, así no hay 2 fuentes de verdad que se puedan desincronizar.
+function calcularFechaSeguimiento(fechaCierre){
+  if(!fechaCierre) return null;
+  const f=new Date(fechaCierre);
+  f.setDate(f.getDate()-5);
+  return f;
+}
+function onCierreChange(val){
+  const custom=document.getElementById('cierreCustomInput');
+  if(val==='__custom_cierre__'){
+    custom.style.display='inline-block';
+    if(!custom.value){
+      const hoy=new Date(); hoy.setDate(hoy.getDate()+30);
+      custom.value=hoy.toISOString().split('T')[0];
+    }
+    custom.focus();
+  } else {
+    custom.style.display='none';
+  }
+  actualizarCierreLabel();
+}
+// Fecha de cierre calculada a partir del selector — usada tanto para el preview en pantalla
+// como para lo que realmente se guarda en guardarCotizacion().
+function calcularFechaCierreForm(){
+  const sel=document.getElementById('cierreSel')?.value;
+  if(!sel) return null;
+  if(sel==='__custom_cierre__'){
+    const v=document.getElementById('cierreCustomInput')?.value;
+    return v?new Date(v+'T00:00:00'):null;
+  }
+  const dias=parseInt(sel);
+  if(!dias) return null;
+  const f=new Date();
+  f.setDate(f.getDate()+dias);
+  return f;
+}
+function actualizarCierreLabel(){
+  const el=document.getElementById('cierreLabel');
+  if(!el) return;
+  const f=calcularFechaCierreForm();
+  if(!f){ el.textContent=''; return; }
+  const seg=calcularFechaSeguimiento(f);
+  const fmt=d=>d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'});
+  el.textContent='Cierre: '+fmt(f)+' · Seguimiento: '+fmt(seg);
+}
+
 // ── CONDICIÓN DE PAGO PERSONALIZADA ──────────────────
 let condCuotas=[]; // [{concepto, pct}]
 let condPersonalizada=''; // texto final
@@ -1353,7 +1438,9 @@ async function showApp(account){
   document.getElementById('vendedorChip').textContent=currentUserName;
   try{
     await resolverSite();
-    await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM()]);
+    // cargarHistorial() se suma aquí (antes solo cargaba al entrar a Historial) para que el
+    // badge de Seguimiento (vencidos/próximos) esté listo desde que se abre la app.
+    await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM(),cargarHistorial()]);
     generarNumOferta();
   } finally {
     if(overlay) overlay.style.display='none';
@@ -2044,6 +2131,13 @@ function nuevaCotizacion(){
   const voltCustom=document.getElementById('voltajeCustom');
   if(voltCustom){voltCustom.style.display='none';voltCustom.value='';}
   ['clienteInput','obsInput','idSynergyInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  // Reset posible cierre
+  const cierreSel=document.getElementById('cierreSel');
+  if(cierreSel) cierreSel.value='';
+  const cierreCustom=document.getElementById('cierreCustomInput');
+  if(cierreCustom){cierreCustom.style.display='none';cierreCustom.value='';}
+  const cierreLbl=document.getElementById('cierreLabel');
+  if(cierreLbl) cierreLbl.textContent='';
   // Limpiar modo edición
   modoEdicion=null;
   // Bloquear precios
@@ -2194,6 +2288,9 @@ async function guardarCotizacion(){
       Validez:validez,
       Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR'}))),
     };
+    // Posible cierre (opcional) — si no se definió, simplemente no se manda el campo.
+    const fechaCierreForm=calcularFechaCierreForm();
+    if(fechaCierreForm) fields.FechaCierre=fechaCierreForm.toISOString().split('T')[0];
     let itemCreado;
     const guardarEnSP = async (f) => {
       if(modoEdicion){
@@ -2892,9 +2989,12 @@ async function cargarHistorial(){
         garantia:f.Garantia||'',
         validez:f.Validez||'',
         idSynergy:f.IDSynergy||'',
+        fechaCierre:f.FechaCierre?new Date(f.FechaCierre+'T00:00:00'):null,
+        fechaSeguimiento:f.FechaCierre?calcularFechaSeguimiento(new Date(f.FechaCierre+'T00:00:00')):null,
       };
     });
     filtrarHistorial();
+    actualizarBadgeSeguimiento();
     poblarVendedoresHistorial();
   }catch(e){document.getElementById('historialBody').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
 }
@@ -3094,6 +3194,7 @@ function switchView(v){
   document.getElementById('nuevaView').style.display=v==='nueva'?'flex':'none';
   document.getElementById('historialView').style.display=v==='historial'?'flex':'none';
   document.getElementById('clientesView').style.display=v==='clientes'?'flex':'none';
+  document.getElementById('seguimientoView').style.display=v==='seguimiento'?'flex':'none';
   document.getElementById('dashboardView').style.display=v==='dashboard'?'flex':'none';
   if(v==='dashboard')cargarDashboard();
   document.getElementById('stockView').style.display=v==='stock'?'flex':'none';
@@ -3101,11 +3202,12 @@ function switchView(v){
   // Ocultar sidebar en vistas de pantalla completa
   const sidebar=document.querySelector('.sidebar');
   if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock')?'none':'';
-  ['navNueva','navHistorial','navClientes','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
-  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',dashboard:'navDashboard',stock:'navStock'};
+  ['navNueva','navHistorial','navClientes','navSeguimiento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
+  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',dashboard:'navDashboard',stock:'navStock'};
   if(navMap[v])document.getElementById(navMap[v]).className='active';
   if(v==='historial')cargarHistorial();
   if(v==='clientes')renderTablaClientes();
+  if(v==='seguimiento') abrirSeguimiento();
   // Sincronizar tabs móvil
   if(esMobil()){
     const tabMap={nueva:'carrito',historial:'historial',clientes:'clientes'};
@@ -3113,6 +3215,162 @@ function switchView(v){
     const btn=document.querySelector(`.mobile-tab[onclick*="${tabTarget}"]`);
     mobileTab(tabTarget, btn);
   }
+}
+
+// ── MÓDULO SEGUIMIENTO ───────────────────────────────
+// Solo MIS ofertas activas (no Cerrada-Ganada/Perdida) con Fecha de Seguimiento definida —
+// nunca las de otro asesor (cada quien ve las suyas). Reutiliza historialData + soloVigentes()
+// (una revisión -R2/-R3 no debe aparecer como 2 seguimientos separados de la misma negociación).
+let _segModo='semana'; // 'dia' | 'semana' | 'mes'
+let _segFecha=new Date();
+
+async function abrirSeguimiento(){
+  if(!historialData.length) await cargarHistorial();
+  cambiarModoSeguimiento(_segModo);
+}
+
+function cambiarModoSeguimiento(modo){
+  _segModo=modo;
+  ['segModoDia','segModoSemana','segModoMes'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.style.background='#fff';el.style.color='';}
+  });
+  const map={dia:'segModoDia',semana:'segModoSemana',mes:'segModoMes'};
+  const activo=document.getElementById(map[modo]);
+  if(activo){activo.style.background='var(--green)';activo.style.color='#fff';}
+  renderSeguimiento();
+}
+
+function navegarSeguimiento(delta){
+  const f=new Date(_segFecha);
+  if(_segModo==='dia') f.setDate(f.getDate()+delta);
+  else if(_segModo==='semana') f.setDate(f.getDate()+delta*7);
+  else f.setMonth(f.getMonth()+delta);
+  _segFecha=f;
+  renderSeguimiento();
+}
+function irHoySeguimiento(){
+  _segFecha=new Date();
+  renderSeguimiento();
+}
+function irADiaSeguimiento(isoStr){
+  _segFecha=new Date(isoStr);
+  cambiarModoSeguimiento('dia');
+}
+
+function inicioSemanaSeguimiento(fecha){ // lunes de esa semana
+  const d=new Date(fecha);
+  const dow=d.getDay(); // 0=domingo
+  d.setDate(d.getDate()+(dow===0?-6:1-dow));
+  d.setHours(0,0,0,0);
+  return d;
+}
+function mismoDiaSeguimiento(a,b){
+  return !!a&&!!b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+}
+
+function renderSeguimiento(){
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const misOfertas=soloVigentes(historialData).filter(r=>
+    r.fechaSeguimiento&&
+    asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
+    r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'
+  );
+
+  // Vencidos: siempre visibles arriba, sin importar qué rango se esté navegando.
+  const vencidos=misOfertas.filter(r=>r.fechaSeguimiento<hoy).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
+  document.getElementById('segVencidosWrap').innerHTML=vencidos.length
+    ?`<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px">⚠ Vencidos (${vencidos.length})</div>
+        ${vencidos.map(r=>segTarjeta(r,hoy)).join('')}
+      </div>`
+    :'';
+
+  const activos=misOfertas.filter(r=>r.fechaSeguimiento>=hoy);
+  const label=document.getElementById('segRangoLabel');
+  const wrap=document.getElementById('segRangoWrap');
+
+  if(_segModo==='dia'){
+    const d=new Date(_segFecha); d.setHours(0,0,0,0);
+    label.textContent=d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const items=activos.filter(r=>mismoDiaSeguimiento(r.fechaSeguimiento,d));
+    wrap.innerHTML=items.length?items.map(r=>segTarjeta(r,hoy)).join(''):'<div class="loading-list">Sin seguimientos este día</div>';
+  } else if(_segModo==='semana'){
+    const inicio=inicioSemanaSeguimiento(_segFecha);
+    const dias=[...Array(7)].map((_,i)=>{const d=new Date(inicio);d.setDate(d.getDate()+i);return d;});
+    label.textContent=dias[0].toLocaleDateString('es-CO',{day:'2-digit',month:'short'})+' – '+dias[6].toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
+    wrap.innerHTML=dias.map(d=>{
+      const items=activos.filter(r=>mismoDiaSeguimiento(r.fechaSeguimiento,d));
+      const esHoy=mismoDiaSeguimiento(d,hoy);
+      return `<div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:${esHoy?'var(--green-dark)':'var(--text2)'};margin-bottom:6px;text-transform:capitalize">${d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'short'})}${esHoy?' · Hoy':''}</div>
+        ${items.length?items.map(r=>segTarjeta(r,hoy)).join(''):'<div style="font-size:11px;color:var(--text3);padding:2px 0 2px 4px">—</div>'}
+      </div>`;
+    }).join('');
+  } else { // mes
+    const primerDiaMes=new Date(_segFecha.getFullYear(),_segFecha.getMonth(),1);
+    label.textContent=primerDiaMes.toLocaleDateString('es-CO',{month:'long',year:'numeric'});
+    const inicioGrid=inicioSemanaSeguimiento(primerDiaMes);
+    const celdas=[...Array(42)].map((_,i)=>{const d=new Date(inicioGrid);d.setDate(d.getDate()+i);return d;});
+    const porDia={};
+    activos.forEach(r=>{const k=r.fechaSeguimiento.toDateString();(porDia[k]=porDia[k]||[]).push(r);});
+    wrap.innerHTML='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">'
+      +['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>`<div style="background:#f5f7f0;padding:6px;text-align:center;font-size:10px;font-weight:700;color:var(--text2)">${d}</div>`).join('')
+      +celdas.map(d=>{
+        const items=porDia[d.toDateString()]||[];
+        const esMesActual=d.getMonth()===primerDiaMes.getMonth();
+        const esHoy=mismoDiaSeguimiento(d,hoy);
+        return `<div onclick="irADiaSeguimiento('${d.toISOString()}')" style="background:#fff;min-height:70px;padding:5px;cursor:pointer;opacity:${esMesActual?1:0.4}">
+          <div style="font-size:11px;font-weight:${esHoy?800:500};color:${esHoy?'var(--green-dark)':'var(--text)'}">${d.getDate()}</div>
+          ${items.length?`<div style="margin-top:3px;background:#DBEAFE;color:#1E3A8A;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;display:inline-block">${items.length}</div>`:''}
+        </div>`;
+      }).join('')
+      +'</div>';
+  }
+
+  actualizarBadgeSeguimiento();
+}
+
+function segTarjeta(r,hoy){
+  const eCfg=ESTADOS_CONFIG[r.estado]||{bg:'var(--amber-light)',text:'var(--amber)'};
+  const dias=Math.round((r.fechaSeguimiento-hoy)/86400000);
+  const urgencia=dias<0?('Vencido hace '+Math.abs(dias)+' día'+(Math.abs(dias)!==1?'s':''))
+    :dias===0?'Hoy'
+    :('En '+dias+' día'+(dias!==1?'s':''));
+  const cierreStr=r.fechaCierre?r.fechaCierre.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—';
+  return `<div onclick="verOfertaDesdeSeguimiento('${r.num.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <div style="min-width:0">
+      <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.cliente}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:1px">${r.num} · Cierre: ${cierreStr} · <strong style="color:${dias<0?'#DC2626':'var(--text2)'}">${urgencia}</strong></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <span style="background:${eCfg.bg};color:${eCfg.text};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${r.estado}</span>
+      <span style="font-weight:700;font-size:12px">USD ${r.total.toLocaleString('es-CO')}</span>
+    </div>
+  </div>`;
+}
+
+function verOfertaDesdeSeguimiento(num){
+  switchView('historial');
+  const chk=document.getElementById('histSoloVigentes'); if(chk) chk.checked=false;
+  const el=document.getElementById('hFiltNum'); if(el) el.value=num;
+  filtrarHistorial();
+}
+
+// Cuenta vencidos + próximos 3 días (activas, propias) — badge rojo en el botón de nav.
+function actualizarBadgeSeguimiento(){
+  const badge=document.getElementById('badgeSeguimiento');
+  if(!badge) return;
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const en3dias=new Date(hoy); en3dias.setDate(en3dias.getDate()+3);
+  const count=soloVigentes(historialData).filter(r=>
+    r.fechaSeguimiento&&
+    asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
+    r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'&&
+    r.fechaSeguimiento<=en3dias
+  ).length;
+  if(count>0){badge.textContent=count;badge.style.display='inline-block';}
+  else{badge.style.display='none';}
 }
 
 // ── MÓDULO CLIENTES ──────────────────────────────────
@@ -4276,6 +4534,19 @@ async function editarOferta(itemId, r){
   if(r.validez){
     const valEl=document.getElementById('validezSel');
     if(valEl) valEl.value=r.validez;
+  }
+
+  // Restaurar posible cierre — se guardó solo la fecha final, no cuál preset (30/60/90) se
+  // usó originalmente, así que se restaura siempre como fecha personalizada (sigue editable).
+  if(r.fechaCierre){
+    const cierreSel=document.getElementById('cierreSel');
+    const cierreCustom=document.getElementById('cierreCustomInput');
+    if(cierreSel&&cierreCustom){
+      cierreSel.value='__custom_cierre__';
+      cierreCustom.value=r.fechaCierre.toISOString().split('T')[0];
+      cierreCustom.style.display='inline-block';
+      actualizarCierreLabel();
+    }
   }
 
   // Restaurar Synergy
