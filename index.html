@@ -580,7 +580,11 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <label>Hasta</label>
           <input type="date" id="hFiltHasta" onchange="filtrarHistorial()" style="min-width:130px">
         </div>
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);margin-left:auto;white-space:nowrap">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);margin-left:auto;white-space:nowrap" title="Cuenta cada oferta una sola vez — si se reabrió y guardó varias veces (-R2, -R3...), solo se cuenta la revisión más reciente">
+          <input type="checkbox" id="histSoloVigentes" checked onchange="filtrarHistorial()" style="cursor:pointer">
+          Solo vigentes
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);white-space:nowrap">
           <input type="checkbox" id="histVerTodas" onchange="filtrarMisOfertas(this.checked)" style="cursor:pointer">
           Mis ofertas
         </label>
@@ -2901,6 +2905,46 @@ function filtrarMisOfertas(checked){
   filtrarHistorial();
 }
 
+// ── Agrupar revisiones (-R2, -R3...) en una sola "oferta vigente" para estadísticas ──
+// Reabrir y volver a guardar una oferta (Editar, o el resguardo anti-duplicado de
+// guardarCotizacion) SIEMPRE crea un registro nuevo con sufijo -Rn — nunca sobreescribe
+// el anterior, a propósito (así nunca se pierde el historial de qué se cotizó antes).
+// Pero eso significa que una misma negociación real puede tener 3-4 filas en SharePoint,
+// y para Inteligencia/estadísticas debe contar como 1 sola. Estas 3 funciones son el punto
+// único de esa agrupación — se usan en renderDashboard(), filtrarHistorial() y en las
+// estadísticas de la ficha del cliente, para que los 3 lugares cuenten igual.
+function ofertaBaseNum(num){
+  return (num||'').replace(/-R\d+$/,'');
+}
+function ofertaNumRevision(num){
+  const m=(num||'').match(/-R(\d+)$/);
+  return m?parseInt(m[1]):1;
+}
+// De una lista de ofertas (historialData o dashData, ambas traen .num y .id) devuelve solo
+// la revisión vigente (mayor N° de revisión; si empatan, mayor id de SharePoint = más
+// reciente) de cada N° base. Puro filtro de vista — no borra ni modifica nada en SharePoint,
+// mismo criterio que "ocultar datos incompletos" del Dashboard.
+function soloVigentes(lista){
+  const porBase=new Map();
+  lista.forEach(r=>{
+    const base=ofertaBaseNum(r.num);
+    const actual=porBase.get(base);
+    if(!actual){ porBase.set(base,r); return; }
+    const revR=ofertaNumRevision(r.num), revActual=ofertaNumRevision(actual.num);
+    if(revR>revActual||(revR===revActual&&(r.id||0)>(actual.id||0))) porBase.set(base,r);
+  });
+  return [...porBase.values()];
+}
+// Desde el badge "N rev" de una fila: muestra todas las revisiones de esa familia
+// (destilda "Solo vigentes" y filtra por el N° base en el buscador de N° Oferta).
+function verRevisionesFamilia(baseNum){
+  const chk=document.getElementById('histSoloVigentes');
+  if(chk) chk.checked=false;
+  const numInput=document.getElementById('hFiltNum');
+  if(numInput) numInput.value=baseNum;
+  filtrarHistorial();
+}
+
 let _histOrden={col:'fecha',asc:false};
 
 // "Vista Previa" del Historial: nombres de los ítems separados por " | " (ej. G3 | EP5 (Liq) | CRG3)
@@ -2942,8 +2986,9 @@ function filtrarHistorial(){
   const qEst=document.getElementById('hFiltEstado')?.value||'';
   const desde=document.getElementById('hFiltDesde')?.value?new Date(document.getElementById('hFiltDesde').value):null;
   const hasta=document.getElementById('hFiltHasta')?.value?new Date(document.getElementById('hFiltHasta').value+'T23:59:59'):null;
+  const soloVig=document.getElementById('histSoloVigentes')?.checked??true;
 
-  let lista=historialData.filter(r=>{
+  let lista=(soloVig?soloVigentes(historialData):historialData).filter(r=>{
     if(qNum&&!r.num.toLowerCase().includes(qNum)) return false;
     if(qCli&&!r.cliente.toLowerCase().includes(qCli)) return false;
     if(qVen&&asesorLabel(r.vendedor).toLowerCase()!==qVen) return false;
@@ -2989,8 +3034,10 @@ function filtrarHistorial(){
       const estadoBg=eCfg.bg;
       const estadoColor=eCfg.text;
       const vp=previewItems(r.items);
+      const numRevFamilia=soloVig?historialData.filter(h=>ofertaBaseNum(h.num)===ofertaBaseNum(r.num)).length:1;
+      const badgeRev=numRevFamilia>1?' <span onclick="verRevisionesFamilia(\''+ofertaBaseNum(r.num).replace(/'/g,"\\'")+'\')" title="Ver las '+numRevFamilia+' revisiones de esta oferta" style="cursor:pointer;font-size:9px;background:#EFF6FF;color:#1E3A8A;padding:1px 5px;border-radius:8px;font-weight:700">'+numRevFamilia+'rev</span>':'';
       return '<tr>'
-        +'<td class="num">'+r.num+'</td>'
+        +'<td class="num">'+r.num+badgeRev+'</td>'
         +'<td style="white-space:nowrap;color:var(--text2);font-size:12px">'+r.fechaStr+'</td>'
         +'<td><strong>'+r.cliente+'</strong>'+(vp?'<div style="font-size:10px;color:var(--text2);margin-top:2px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+vp.full+'">'+vp.corto+'</div>':'')+'</td>'
         +'<td style="font-size:12px">'+r.vendedor+'</td>'
@@ -3177,7 +3224,9 @@ async function seleccionarClienteDetalle(idx){
   // en esta sesión, se carga aquí bajo demanda (mismo dato, una sola carga por sesión).
   if(!historialData.length) await cargarHistorial();
   const nombreNorm=c.titulo.trim().toLowerCase();
-  const ofertasCliente=historialData
+  // Solo la revisión vigente de cada familia (-R2, -R3...) — mismo criterio que el Historial
+  // y el Dashboard, para que una misma negociación cuente 1 sola vez en estas estadísticas.
+  const ofertasCliente=soloVigentes(historialData)
     .filter(r=>(r.cliente||'').trim().toLowerCase()===nombreNorm)
     .sort((a,b)=>(b.fecha||new Date(0))-(a.fecha||new Date(0)));
   const totalOfertas=ofertasCliente.length;
@@ -3818,7 +3867,10 @@ async function cargarDashboard(){
 
 function renderDashboard(){
   const anio=parseInt(document.getElementById('dashAnio')?.value||2026);
-  let datos=dashData.filter(d=>d.anio===anio);
+  // Agrupar revisiones (-R2, -R3...) ANTES de filtrar por año: si la vigente de una familia
+  // quedó en un año distinto al de su primera revisión, debe contar en el año de la vigente,
+  // no en el de una revisión vieja que ya no importa. Ver soloVigentes() más arriba.
+  let datos=soloVigentes(dashData).filter(d=>d.anio===anio);
 
   // ── Filtros de barra superior: Mes, Asesor, Ocultar datos incompletos ──
   const mesSel=parseInt(document.getElementById('dashMes')?.value||0);
