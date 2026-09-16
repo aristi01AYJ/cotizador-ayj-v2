@@ -2862,6 +2862,7 @@ function generarPDF(d, soloRetornar=false){
     +'<button id="btnGuardarFirma" onclick="guardarFirmaEnSharePoint()" style="font-size:10px;padding:4px 10px;border:1px solid #80A61B;color:#80A61B;border-radius:4px;background:#fff;cursor:pointer;display:none;">💾 Guardar firma</button>'
     +'<span id="firmaEstadoTxt" style="font-size:10px;color:#80A61B;font-weight:600;display:none;">✓ Firma guardada en SharePoint</span>'
     +'</div>'
+    +'<div id="firmaNotaExterna" class="no-print" style="display:none;margin-top:6px;font-size:10px;color:#854F0B;background:#FEF3C7;padding:6px 10px;border-radius:4px;">📎 Después de firmar, use "⬇ Guardar como PDF" arriba y envíe ese archivo por correo o WhatsApp a AYJ Maquinaria.</div>'
     +'</div></div>'
     +'</div>'
     +'</div>';
@@ -2885,6 +2886,7 @@ function generarPDF(d, soloRetornar=false){
     +'<div class="no-print" style="background:#575756;color:#fff;padding:10px 20px;margin:-32px -40px 24px;display:flex;align-items:center;gap:12px;">'
     +'<span style="flex:1;font-size:13px;font-weight:500;">📄 Oferta '+d.numOferta+' · '+d.cliente+'</span>'
     +(d.linkSharePoint?'<a href="'+d.linkSharePoint+'" target="_blank" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none;">🔗 Ver en SharePoint</a>':'')
+    +(d.linkSharePoint?'<button id="btnLinkCliente" onclick="enviarLinkCliente()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;">📤 Link para el cliente</button>':'')
     +'<button onclick="window.print()" style="background:#80A61B;color:#fff;border:none;padding:8px 22px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">⬇ Guardar como PDF</button>'
     +'<button onclick="window.close()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">✕ Cerrar</button>'
     +'</div>'
@@ -2980,6 +2982,11 @@ function generarPDF(d, soloRetornar=false){
     +'var ctx=canvas.getContext("2d");'
     +'function ajustar(){var r=canvas.getBoundingClientRect();canvas.width=r.width*2;canvas.height=r.height*2;ctx=canvas.getContext("2d");ctx.scale(2,2);ctx.lineWidth=2;ctx.lineCap="round";ctx.strokeStyle="#1a1a1a";}'
     +'ajustar();'
+    +'var hayOpener=!!(window.opener&&!window.opener.closed);'
+    +'if(!hayOpener){'
+    +'var btnLC=document.getElementById("btnLinkCliente");if(btnLC)btnLC.style.display="none";'
+    +'var nota=document.getElementById("firmaNotaExterna");if(nota)nota.style.display="block";'
+    +'}'
     +'var dibujando=false,hayTrazo=false;'
     +'var hint=document.getElementById("firmaHint");'
     +'function pos(e){var r=canvas.getBoundingClientRect();var t=e.touches&&e.touches[0];return{x:(t?t.clientX:e.clientX)-r.left,y:(t?t.clientY:e.clientY)-r.top};}'
@@ -2988,7 +2995,7 @@ function generarPDF(d, soloRetornar=false){
     +'function terminar(){if(!dibujando)return;dibujando=false;if(hayTrazo){'
     +'var f=new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"});'
     +'var ft=document.getElementById("firmaFechaTxt");if(ft)ft.textContent="Firma de aceptación · Fecha: "+f;'
-    +'var btn=document.getElementById("btnGuardarFirma");if(btn)btn.style.display="inline-block";'
+    +'var btn=document.getElementById("btnGuardarFirma");if(btn&&hayOpener)btn.style.display="inline-block";'
     +'}}'
     +'canvas.addEventListener("mousedown",iniciar);'
     +'canvas.addEventListener("mousemove",mover);'
@@ -3015,6 +3022,17 @@ function generarPDF(d, soloRetornar=false){
     +'if(link){if(es)es.style.display="inline";if(btn)btn.style.display="none";}'
     +'else{alert("No se pudo guardar la firma (revisa tu conexión).");if(btn){btn.disabled=false;btn.textContent="💾 Guardar firma";}}'
     +'}catch(e){alert("Error guardando la firma: "+e.message);if(btn){btn.disabled=false;btn.textContent="💾 Guardar firma";}}'
+    +'};'
+    +'window.enviarLinkCliente=async function(){'
+    +'if(!hayOpener||!window.opener.crearLinkAnonimoParaOferta){alert("No se puede generar el link: vuelve a abrir esta oferta desde el Historial en el cotizador.");return;}'
+    +'var btnLC=document.getElementById("btnLinkCliente");'
+    +'if(btnLC){btnLC.disabled=true;btnLC.textContent="Generando...";}'
+    +'try{'
+    +'var link=await window.opener.crearLinkAnonimoParaOferta('+JSON.stringify(d.numOferta||'')+', '+JSON.stringify(d.cliente||'')+', '+JSON.stringify(d.idSynergy||'')+');'
+    +'if(link){prompt("Copia este link y envíalo al cliente por correo o WhatsApp para que firme y guarde el PDF:",link);}'
+    +'else{alert("No se pudo generar el link.");}'
+    +'}catch(e){alert("Error generando el link: "+e.message);}'
+    +'if(btnLC){btnLC.disabled=false;btnLC.textContent="📤 Link para el cliente";}'
     +'};'
     +'})();<\/script>';
   return html;
@@ -3209,6 +3227,7 @@ function filtrarHistorial(){
         +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
         +'<td style="text-align:center;white-space:nowrap">'
         +(r.linkPDF?'<a href="'+r.linkPDF+'" target="_blank" class="btn-cli-usar" style="border-color:var(--red);color:var(--red);text-decoration:none;" title="Ver oferta"><i class="ti ti-file-type-pdf"></i></a> ':'' )
+        +(r.linkPDF?'<button class="btn-cli-usar" onclick="generarLinkClienteIdx(\''+r.id+'\')" title="Generar link para que el cliente firme"><i class="ti ti-send"></i></button> ':'' )
         +(r.items.length?'<button class="btn-cli-usar" onclick=\'duplicarOferta('+JSON.stringify(r.cliente)+','+JSON.stringify(r.items)+')\' title="Duplicar en carrito"><i class="ti ti-copy"></i></button>':'' )
         +(r.vendedor&&currentUserName&&(r.vendedor===currentUserName||asesorLabel(currentUserName)===asesorLabel(r.vendedor))?
           ' <button class="btn-cli-usar" onclick="editarOfertaIdx(\''+r.id+'\')" title="Editar oferta" style="border-color:var(--green);color:var(--green-dark)"><i class="ti ti-edit"></i></button>'
@@ -6479,6 +6498,52 @@ async function guardarHTMLEnSharePoint(numOferta, htmlContent, cliente='', idSyn
   }
 }
 
+// Link "cualquiera con el enlace puede ver" para enviar la oferta a un cliente EXTERNO (sin
+// cuenta de Microsoft 365 de AYJ) — a diferencia del webUrl normal (que guardarHTMLEnSharePoint
+// devuelve y que exige login del tenant AYJ), este SÍ lo puede abrir cualquiera con el link,
+// para que firme en el canvas de generarPDF() y lo guarde como PDF desde su propio navegador.
+// Depende de que el sitio de SharePoint tenga habilitado "Cualquier persona con el enlace" en
+// su configuración de uso compartido — si el administrador lo tiene restringido, Graph
+// responde con error 403 y ese mensaje se muestra tal cual (hay que pedirle a IT que lo
+// habilite para la biblioteca AYJ_COTIZADOR, o usar el flujo manual: el cliente firma
+// igual, pero en vez del link nos devuelve el PDF adjunto por correo/WhatsApp).
+async function crearLinkAnonimoParaOferta(numOferta, cliente='', idSynergy=''){
+  if(!siteId) throw new Error('Sitio de SharePoint no resuelto');
+  const token=await getToken();
+  const vendedor=(document.getElementById('vendedorSel')?.value||currentUserName||'AYJ').split(' ')[0];
+  const anio=new Date().getFullYear();
+  const folderPath=`General/AYJ_COTIZADOR/Cotizaciones/${vendedorFolderName(vendedor)}/${anio}`;
+  const fileName=`${nombreArchivoCot(numOferta, vendedor, cliente, idSynergy)}.html`;
+  const itemResp=await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folderPath}/${fileName}`,
+    {headers:{Authorization:'Bearer '+token}}
+  );
+  if(!itemResp.ok) throw new Error('No se encontró el archivo en SharePoint — primero hay que guardar/generar el PDF de esta oferta.');
+  const item=await itemResp.json();
+  const linkResp=await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${item.id}/createLink`,
+    {method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+     body:JSON.stringify({type:'view',scope:'anonymous'})}
+  );
+  if(!linkResp.ok){
+    const err=await linkResp.json().catch(()=>({}));
+    throw new Error(err?.error?.message||('No se pudo crear el link para compartir (HTTP '+linkResp.status+') — probablemente tu organización tiene desactivado "Cualquier persona con el enlace" en SharePoint. Pídele a tu administrador de Microsoft 365 que lo habilite para la biblioteca AYJ_COTIZADOR, o usa el flujo manual: el cliente firma igual, pero en vez del link nos devuelve el PDF adjunto por correo.'));
+  }
+  const linkData=await linkResp.json();
+  return linkData.link?.webUrl||'';
+}
+
+// Desde el ícono "📤" del Historial: genera el mismo link anónimo para una oferta ya guardada
+// (no hace falta reabrirla en el carrito) y lo muestra listo para copiar.
+async function generarLinkClienteIdx(id){
+  const r=historialData.find(h=>h.id===id);
+  if(!r){showToast('Error: oferta no encontrada','error');return;}
+  try{
+    const link=await crearLinkAnonimoParaOferta(r.num,r.cliente,r.idSynergy);
+    if(link) prompt('Copia este link y envíalo al cliente por correo o WhatsApp para que firme y guarde el PDF:',link);
+    else showToast('No se pudo generar el link','error');
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
 
 const VENDEDOR_INICIALES={
   'Adolfo':'AJA','Elkin':'EV','Wilson':'WV',
