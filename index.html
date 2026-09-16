@@ -2887,6 +2887,7 @@ function generarPDF(d, soloRetornar=false){
     +'<span style="flex:1;font-size:13px;font-weight:500;">📄 Oferta '+d.numOferta+' · '+d.cliente+'</span>'
     +(d.linkSharePoint?'<a href="'+d.linkSharePoint+'" target="_blank" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none;">🔗 Ver en SharePoint</a>':'')
     +(d.linkSharePoint?'<button id="btnLinkCliente" onclick="enviarLinkCliente()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;">📤 Link para el cliente</button>':'')
+    +'<button onclick="descargarHTMLParaCorreo()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;" title="Si el link de arriba da error de permisos, usa este: descarga un archivo que puedes adjuntar en un correo">📧 Descargar para enviar por correo</button>'
     +'<button onclick="window.print()" style="background:#80A61B;color:#fff;border:none;padding:8px 22px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">⬇ Guardar como PDF</button>'
     +'<button onclick="window.close()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">✕ Cerrar</button>'
     +'</div>'
@@ -3022,6 +3023,18 @@ function generarPDF(d, soloRetornar=false){
     +'if(link){if(es)es.style.display="inline";if(btn)btn.style.display="none";}'
     +'else{alert("No se pudo guardar la firma (revisa tu conexión).");if(btn){btn.disabled=false;btn.textContent="💾 Guardar firma";}}'
     +'}catch(e){alert("Error guardando la firma: "+e.message);if(btn){btn.disabled=false;btn.textContent="💾 Guardar firma";}}'
+    +'};'
+    // Alternativa que NO depende de SharePoint ni de permisos de compartir: descarga este
+    // mismo HTML (con la firma si ya se dibujó) como archivo, para adjuntarlo en un correo o
+    // WhatsApp Web. El cliente lo abre localmente (doble clic), firma igual en el canvas, y usa
+    // "Guardar como PDF" — como no tiene window.opener, ve la nota de reenviar por correo.
+    +'window.descargarHTMLParaCorreo=function(){'
+    +'var fname=('+JSON.stringify('Oferta_'+(d.numOferta||'sinnumero')+'_'+(d.cliente||''))+').replace(/[^a-zA-Z0-9_.-]/g,"_")+".html";'
+    +'var html="<!DOCTYPE html>"+document.documentElement.outerHTML;'
+    +'var blob=new Blob([html],{type:"text/html"});'
+    +'var url=URL.createObjectURL(blob);'
+    +'var a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);'
+    +'setTimeout(function(){URL.revokeObjectURL(url);},1000);'
     +'};'
     +'window.enviarLinkCliente=async function(){'
     +'if(!hayOpener||!window.opener.crearLinkAnonimoParaOferta){alert("No se puede generar el link: vuelve a abrir esta oferta desde el Historial en el cotizador.");return;}'
