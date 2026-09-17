@@ -3254,6 +3254,7 @@ function filtrarHistorial(){
     +'<th style="cursor:pointer" onclick="ordenarHistorial(\'cliente\')">Cliente'+ico('cliente')+'</th>'
     +'<th style="cursor:pointer" onclick="ordenarHistorial(\'vendedor\')">Vendedor'+ico('vendedor')+'</th>'
     +'<th>Estado</th>'
+    +'<th title="Clic en la fecha de una fila para definir/editar el Posible Cierre">Seguimiento</th>'
     +'<th style="text-align:right;cursor:pointer" onclick="ordenarHistorial(\'total\')">Total USD'+ico('total')+'</th>'
     +'<th style="text-align:center">Acciones</th>'
     +'</tr></thead><tbody>'
@@ -3276,6 +3277,17 @@ function filtrarHistorial(){
             +'<option value="Cerrada-Ganada"'+(r.estado==='Cerrada-Ganada'?' selected':'')+'>✓ Ganada</option>'
             +'<option value="Cerrada-Perdida"'+(r.estado==='Cerrada-Perdida'?' selected':'')+'>✗ Perdida</option>'
           +'</select>'
+        +'</td>'
+        +'<td style="white-space:nowrap">'
+          +(()=>{
+            const hoyMedianoche=new Date(); hoyMedianoche.setHours(0,0,0,0);
+            const segVencido=r.fechaSeguimiento&&r.fechaSeguimiento<hoyMedianoche&&r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida';
+            const segTexto=r.fechaSeguimiento?r.fechaSeguimiento.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'— Definir';
+            const estilo=r.fechaSeguimiento
+              ?(segVencido?'background:#FEE2E2;color:#991B1B;font-weight:600':'background:var(--bg);color:var(--text2)')
+              :'background:#fff;border:1px dashed var(--border);color:var(--text3)';
+            return '<span onclick="abrirModalCierre(\''+r.id+'\','+JSON.stringify(r.fechaCierre?r.fechaCierre.toISOString().split('T')[0]:null)+')" title="Clic para definir/editar el Posible Cierre" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:10px;'+estilo+'">'+segTexto+'</span>';
+          })()
         +'</td>'
         +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
         +'<td style="text-align:center;white-space:nowrap">'
@@ -4769,6 +4781,112 @@ async function aplicarEstado(itemId, nuevoEstado, modal){
     });
     if(modal)modal.remove();
     showToast('✓ Estado actualizado a '+nuevoEstado,'success');
+    cargarHistorial();
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
+// ── EDITAR "POSIBLE CIERRE" DIRECTO DESDE EL HISTORIAL (sin crear una revisión -Rn) ──
+// A diferencia de "Editar oferta" (que reabre el carrito y guarda como revisión nueva), esto
+// es un PATCH directo sobre el mismo registro — pensado sobre todo para llenar retroactivamente
+// el Posible Cierre de ofertas viejas (creadas antes de que existiera este campo) sin generar
+// revisiones de más. Recalcula la Fecha de Seguimiento automáticamente (FechaCierre − 5 días).
+function abrirModalCierre(itemId, fechaCierreISO){
+  const modal=document.createElement('div');
+  modal.className='modal-cierre';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`<div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="font-size:14px;font-weight:700;color:var(--gris);margin-bottom:16px">Posible cierre — oferta</div>
+    <select id="modalCierreSel" onchange="onModalCierreChange()" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box">
+      <option value="">— Sin definir —</option>
+      <option value="30">30 días</option>
+      <option value="60">60 días</option>
+      <option value="90">90 días</option>
+      <option value="__custom_cierre__">✏️ Elegir fecha...</option>
+    </select>
+    <input type="date" id="modalCierreCustomInput" onchange="actualizarModalCierrePreview()" style="display:none;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box">
+    <div id="modalCierrePreview" style="font-size:11px;color:var(--text2);margin-bottom:16px;min-height:14px"></div>
+    <button onclick="aplicarCierre('${itemId}',this.closest('.modal-cierre'))" class="btn-primary" style="width:100%;margin-bottom:8px">Guardar</button>
+    <button onclick="this.closest('.modal-cierre').remove()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text2)">Cancelar</button>
+  </div>`;
+  document.body.appendChild(modal);
+  // Si ya tenía una fecha, se muestra siempre como "fecha personalizada" con el valor exacto
+  // guardado — nunca se intenta adivinar si originalmente fue 30/60/90, para no recalcular
+  // "hoy+30" al abrir el modal y correr la fecha real sin querer (mismo criterio que editarOferta()).
+  if(fechaCierreISO){
+    const sel=document.getElementById('modalCierreSel');
+    const custom=document.getElementById('modalCierreCustomInput');
+    sel.value='__custom_cierre__';
+    custom.value=fechaCierreISO;
+    custom.style.display='block';
+  }
+  actualizarModalCierrePreview();
+}
+function onModalCierreChange(){
+  const sel=document.getElementById('modalCierreSel');
+  const custom=document.getElementById('modalCierreCustomInput');
+  if(!sel||!custom) return;
+  if(sel.value==='__custom_cierre__'){
+    custom.style.display='block';
+    if(!custom.value){
+      const hoy=new Date(); hoy.setDate(hoy.getDate()+30);
+      custom.value=hoy.toISOString().split('T')[0];
+    }
+  } else {
+    custom.style.display='none';
+  }
+  actualizarModalCierrePreview();
+}
+function calcularFechaModalCierre(){
+  const sel=document.getElementById('modalCierreSel')?.value;
+  if(!sel) return null;
+  if(sel==='__custom_cierre__'){
+    const v=document.getElementById('modalCierreCustomInput')?.value;
+    return v?new Date(v+'T00:00:00'):null;
+  }
+  const dias=parseInt(sel);
+  if(!dias) return null;
+  const f=new Date(); f.setDate(f.getDate()+dias);
+  return f;
+}
+function actualizarModalCierrePreview(){
+  const el=document.getElementById('modalCierrePreview');
+  if(!el) return;
+  const f=calcularFechaModalCierre();
+  if(!f){ el.textContent=''; return; }
+  const seg=calcularFechaSeguimiento(f);
+  const fmt=d=>d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
+  el.textContent='Cierre: '+fmt(f)+' · Seguimiento: '+fmt(seg);
+}
+async function aplicarCierre(itemId, modal){
+  const f=calcularFechaModalCierre();
+  const sel=document.getElementById('modalCierreSel')?.value;
+  const posibleCierreLabel=!sel?'':(sel==='__custom_cierre__'?'Personalizada':sel+' días');
+  let fieldsPatch=f
+    ?{FechaCierre:f.toISOString().split('T')[0],PosibleCierre:posibleCierreLabel}
+    :{FechaCierre:null,PosibleCierre:''};
+  try{
+    const token=await getToken();
+    // Mismo resguardo que guardarEnSP(): si alguna columna todavía no existe en SharePoint,
+    // reintenta sin ella en vez de fallar por completo.
+    let intentos=0;
+    while(true){
+      intentos++;
+      const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
+        method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify(fieldsPatch)
+      });
+      if(r.ok) break;
+      const t=await r.text();
+      const m=t.match(/Field '([^']+)' is not recognized/i);
+      if(m&&fieldsPatch[m[1]]!==undefined&&intentos<5){
+        console.warn('Columna "'+m[1]+'" no existe todavía en SharePoint — se reintenta sin ese campo:',t);
+        delete fieldsPatch[m[1]];
+        continue;
+      }
+      throw new Error('PATCH '+r.status+': '+t);
+    }
+    if(modal) modal.remove();
+    showToast(f?'✓ Posible cierre actualizado':'✓ Posible cierre borrado','success');
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
 }
