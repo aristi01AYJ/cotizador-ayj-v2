@@ -2293,15 +2293,34 @@ async function guardarCotizacion(){
     if(fechaCierreForm) fields.FechaCierre=fechaCierreForm.toISOString().split('T')[0];
     let itemCreado;
     const guardarEnSP = async (f) => {
-      if(modoEdicion){
-        const r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:f});
-        showToast('✓ Revisión '+numOferta+' guardada (original: '+modoEdicion.original+')','success');
-        return r;
-      } else {
-        const r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:f});
-        showToast('✓ Oferta '+numOferta+' guardada','success');
-        return r;
+      let campoFaltante=null, r;
+      try{
+        r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:f});
+      }catch(eCampo){
+        // Si una columna nueva (ej. FechaCierre) todavía no existe en SharePoint, Graph rechaza
+        // TODO el POST — no solo ese campo — y bloquearía guardar la oferta completa por un
+        // campo opcional que el administrador aún no ha creado. Se detecta el nombre del campo
+        // en el mensaje de error, se reintenta sin él, y se avisa cuál campo no se guardó —
+        // así nunca se pierde una cotización entera por esto.
+        const m=eCampo.message.match(/Field '([^']+)' is not recognized/i);
+        if(m&&f[m[1]]!==undefined){
+          campoFaltante=m[1];
+          const fSinCampo={...f};
+          delete fSinCampo[campoFaltante];
+          console.warn('Columna "'+campoFaltante+'" no existe todavía en SharePoint — se reintenta sin ese campo:',eCampo.message);
+          r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:fSinCampo});
+        } else {
+          throw eCampo;
+        }
       }
+      if(campoFaltante){
+        showToast('⚠ Oferta guardada, pero falta crear la columna "'+campoFaltante+'" en SharePoint (ese dato no se guardó)','error');
+      } else if(modoEdicion){
+        showToast('✓ Revisión '+numOferta+' guardada (original: '+modoEdicion.original+')','success');
+      } else {
+        showToast('✓ Oferta '+numOferta+' guardada','success');
+      }
+      return r;
     };
     itemCreado=await guardarEnSP(fields);
     // Guardar campos de descuento especial en PATCH separado
