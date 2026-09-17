@@ -1095,6 +1095,17 @@ function actualizarCierreLabel(){
   const fmt=d=>d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'});
   el.textContent='Cierre: '+fmt(f)+' · Seguimiento: '+fmt(seg);
 }
+// Etiqueta de qué opción se eligió (30/60/90 días o fecha personalizada) — se guarda aparte de
+// FechaCierre solo como registro histórico (para saber qué "cubeta" usó el vendedor al crear
+// la oferta); nunca se usa para RESTAURAR el selector al reabrir/editar (eso sigue siempre como
+// fecha personalizada con el valor exacto guardado, para no recalcular "hoy+30" y correr la
+// fecha real sin querer — ver editarOferta()).
+function obtenerPosibleCierreLabel(){
+  const sel=document.getElementById('cierreSel')?.value;
+  if(!sel) return '';
+  if(sel==='__custom_cierre__') return 'Personalizada';
+  return sel+' días';
+}
 
 // ── CONDICIÓN DE PAGO PERSONALIZADA ──────────────────
 let condCuotas=[]; // [{concepto, pct}]
@@ -2288,9 +2299,14 @@ async function guardarCotizacion(){
       Validez:validez,
       Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR'}))),
     };
-    // Posible cierre (opcional) — si no se definió, simplemente no se manda el campo.
+    // Posible cierre (opcional) — si no se definió, simplemente no se mandan estos campos.
+    // PosibleCierre es solo registro histórico de qué opción se eligió (30/60/90/Personalizada);
+    // FechaCierre es el dato que de verdad se usa para calcular la Fecha de Seguimiento.
     const fechaCierreForm=calcularFechaCierreForm();
-    if(fechaCierreForm) fields.FechaCierre=fechaCierreForm.toISOString().split('T')[0];
+    if(fechaCierreForm){
+      fields.FechaCierre=fechaCierreForm.toISOString().split('T')[0];
+      fields.PosibleCierre=obtenerPosibleCierreLabel();
+    }
     let itemCreado;
     const guardarEnSP = async (f) => {
       // Si una o más columnas nuevas (ej. FechaCierre) todavía no existen en SharePoint, Graph
@@ -3102,6 +3118,7 @@ async function cargarHistorial(){
         idSynergy:f.IDSynergy||'',
         fechaCierre:f.FechaCierre?new Date(f.FechaCierre+'T00:00:00'):null,
         fechaSeguimiento:f.FechaCierre?calcularFechaSeguimiento(new Date(f.FechaCierre+'T00:00:00')):null,
+        posibleCierre:f.PosibleCierre||'',
       };
     });
     filtrarHistorial();
@@ -3453,7 +3470,7 @@ function segTarjeta(r,hoy){
   return `<div onclick="verOfertaDesdeSeguimiento('${r.num.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
     <div style="min-width:0">
       <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.cliente}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:1px">${r.num} · Cierre: ${cierreStr} · <strong style="color:${dias<0?'#DC2626':'var(--text2)'}">${urgencia}</strong></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:1px">${r.num} · Cierre: ${cierreStr}${r.posibleCierre?' ('+r.posibleCierre+')':''} · <strong style="color:${dias<0?'#DC2626':'var(--text2)'}">${urgencia}</strong></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
       <span style="background:${eCfg.bg};color:${eCfg.text};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${r.estado}</span>
