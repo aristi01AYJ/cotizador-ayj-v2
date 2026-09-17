@@ -2293,28 +2293,32 @@ async function guardarCotizacion(){
     if(fechaCierreForm) fields.FechaCierre=fechaCierreForm.toISOString().split('T')[0];
     let itemCreado;
     const guardarEnSP = async (f) => {
-      let campoFaltante=null, r;
-      try{
-        r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:f});
-      }catch(eCampo){
-        // Si una columna nueva (ej. FechaCierre) todavía no existe en SharePoint, Graph rechaza
-        // TODO el POST — no solo ese campo — y bloquearía guardar la oferta completa por un
-        // campo opcional que el administrador aún no ha creado. Se detecta el nombre del campo
-        // en el mensaje de error, se reintenta sin él, y se avisa cuál campo no se guardó —
-        // así nunca se pierde una cotización entera por esto.
-        const m=eCampo.message.match(/Field '([^']+)' is not recognized/i);
-        if(m&&f[m[1]]!==undefined){
-          campoFaltante=m[1];
-          const fSinCampo={...f};
-          delete fSinCampo[campoFaltante];
-          console.warn('Columna "'+campoFaltante+'" no existe todavía en SharePoint — se reintenta sin ese campo:',eCampo.message);
-          r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:fSinCampo});
-        } else {
+      // Si una o más columnas nuevas (ej. FechaCierre) todavía no existen en SharePoint, Graph
+      // rechaza TODO el POST por CADA campo que no reconozca — no solo uno — y bloquearía
+      // guardar la oferta completa por campos opcionales que el administrador aún no ha creado.
+      // Reintenta quitando un campo a la vez (hasta 15 veces, más que suficiente — "fields"
+      // nunca tiene tantas claves) hasta que Graph acepte el resto, y avisa cuáles columnas
+      // faltan — así nunca se pierde una cotización entera por esto, sea 1 columna o varias.
+      const camposFaltantes=[];
+      let r, fActual={...f}, intentos=0;
+      while(true){
+        intentos++;
+        try{
+          r=await graphPost(`/sites/${siteId}/lists/${listIdCotizaciones}/items`,{fields:fActual});
+          break;
+        }catch(eCampo){
+          const m=eCampo.message.match(/Field '([^']+)' is not recognized/i);
+          if(m&&fActual[m[1]]!==undefined&&intentos<15){
+            camposFaltantes.push(m[1]);
+            delete fActual[m[1]];
+            console.warn('Columna "'+m[1]+'" no existe todavía en SharePoint — se reintenta sin ese campo:',eCampo.message);
+            continue;
+          }
           throw eCampo;
         }
       }
-      if(campoFaltante){
-        showToast('⚠ Oferta guardada, pero falta crear la columna "'+campoFaltante+'" en SharePoint (ese dato no se guardó)','error');
+      if(camposFaltantes.length){
+        showToast('⚠ Oferta guardada, pero faltan estas columnas en SharePoint: '+camposFaltantes.join(', ')+' (esos datos no se guardaron)','error');
       } else if(modoEdicion){
         showToast('✓ Revisión '+numOferta+' guardada (original: '+modoEdicion.original+')','success');
       } else {
