@@ -1057,6 +1057,16 @@ function calcularFechaSeguimiento(fechaCierre){
   f.setDate(f.getDate()-5);
   return f;
 }
+// Graph devuelve un campo "Fecha y hora" de SharePoint como ISO completo (ej.
+// "2026-10-17T00:00:00Z"), no solo la fecha — aunque al guardar se haya mandado solo
+// "2026-10-17". Concatenarle "T00:00:00" a un valor que YA trae hora (bug real, 17-sep-2026:
+// producía "...T00:00:00ZT00:00:00", una fecha inválida, y la oferta se veía como si nunca se
+// hubiera guardado) rompe el parseo. Esta función soporta ambos formatos sin duplicar el sufijo.
+function parsearFechaSharePoint(valor){
+  if(!valor) return null;
+  const d=String(valor).includes('T')?new Date(valor):new Date(valor+'T00:00:00');
+  return isNaN(d.getTime())?null:d;
+}
 function onCierreChange(val){
   const custom=document.getElementById('cierreCustomInput');
   if(val==='__custom_cierre__'){
@@ -2304,7 +2314,7 @@ async function guardarCotizacion(){
     // FechaCierre es el dato que de verdad se usa para calcular la Fecha de Seguimiento.
     const fechaCierreForm=calcularFechaCierreForm();
     if(fechaCierreForm){
-      fields.FechaCierre=fechaCierreForm.toISOString().split('T')[0];
+      fields.FechaCierre=fechaCierreForm.toISOString();
       fields.PosibleCierre=obtenerPosibleCierreLabel();
     }
     let itemCreado;
@@ -3116,8 +3126,8 @@ async function cargarHistorial(){
         garantia:f.Garantia||'',
         validez:f.Validez||'',
         idSynergy:f.IDSynergy||'',
-        fechaCierre:f.FechaCierre?new Date(f.FechaCierre+'T00:00:00'):null,
-        fechaSeguimiento:f.FechaCierre?calcularFechaSeguimiento(new Date(f.FechaCierre+'T00:00:00')):null,
+        fechaCierre:parsearFechaSharePoint(f.FechaCierre),
+        fechaSeguimiento:calcularFechaSeguimiento(parsearFechaSharePoint(f.FechaCierre)),
         posibleCierre:f.PosibleCierre||'',
       };
     });
@@ -4147,7 +4157,10 @@ async function guardarCliente(){
 
 function showToast(msg,type=''){
   const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(type?' '+type:'');
-  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3000);
+  // Los de error se quedan más tiempo en pantalla (6s vs 3s) — un mensaje de error que dura lo
+  // mismo que uno de éxito es fácil de perderse, y varios reportes de "no se guardó" resultaron
+  // ser justo eso: el error sí apareció, pero nadie alcanzó a leerlo (17-sep-2026).
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),type==='error'?6000:3000);
 }
 
 function esMobil(){return window.innerWidth<=768;}
@@ -4862,8 +4875,9 @@ async function aplicarCierre(itemId, modal){
   const sel=document.getElementById('modalCierreSel')?.value;
   const posibleCierreLabel=!sel?'':(sel==='__custom_cierre__'?'Personalizada':sel+' días');
   let fieldsPatch=f
-    ?{FechaCierre:f.toISOString().split('T')[0],PosibleCierre:posibleCierreLabel}
+    ?{FechaCierre:f.toISOString(),PosibleCierre:posibleCierreLabel}
     :{FechaCierre:null,PosibleCierre:''};
+  console.log('[AYJ] Guardando Posible Cierre — itemId:',itemId,'payload:',fieldsPatch);
   try{
     const token=await getToken();
     // Mismo resguardo que guardarEnSP(): si alguna columna todavía no existe en SharePoint,
@@ -4875,7 +4889,7 @@ async function aplicarCierre(itemId, modal){
         method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
         body:JSON.stringify(fieldsPatch)
       });
-      if(r.ok) break;
+      if(r.ok){ console.log('[AYJ] Posible Cierre guardado OK, respuesta Graph:',await r.text()); break; }
       const t=await r.text();
       const m=t.match(/Field '([^']+)' is not recognized/i);
       if(m&&fieldsPatch[m[1]]!==undefined&&intentos<5){
@@ -4883,6 +4897,7 @@ async function aplicarCierre(itemId, modal){
         delete fieldsPatch[m[1]];
         continue;
       }
+      console.error('[AYJ] Error guardando Posible Cierre:',r.status,t);
       throw new Error('PATCH '+r.status+': '+t);
     }
     if(modal) modal.remove();
