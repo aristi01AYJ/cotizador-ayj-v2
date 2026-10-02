@@ -1468,6 +1468,49 @@ async function showApp(account){
   }
 }
 
+// ── COLUMNAS DE LA LISTA COTIZACIONES: nombres internos reales ──
+// SharePoint fija el nombre INTERNO de una columna al crearla (ej. si se creó como "Fecha Cierre"
+// queda "Fecha_x0020_Cierre", y renombrarla después no lo cambia). Si el nombre interno no es
+// exactamente el que la app manda, Graph descarta el campo (o rechaza la oferta) sin que se
+// note. Esta función lee las columnas reales de la lista, empareja las que necesitamos por
+// nombre interno o visible (tolerando espacios/guiones/mayúsculas) y avisa cuáles faltan.
+const SP_COLS_COT={FechaCierre:'FechaCierre',PosibleCierre:'PosibleCierre'};
+const SP_COLS_ALIAS={
+  FechaCierre:['fechacierre','fechadecierre','fechaposiblecierre','fechaestimadadecierre'],
+  PosibleCierre:['posiblecierre','posibledecierre']
+};
+async function resolverColumnasCotizaciones(){
+  if(!siteId||!listIdCotizaciones) return;
+  try{
+    const r=await graphGet(`/sites/${siteId}/lists/${listIdCotizaciones}/columns`);
+    const cols=(r.value||[]).filter(c=>!c.hidden);
+    const norm=s=>String(s||'').toLowerCase().replace(/_x0020_/g,'').replace(/[^a-z0-9ñ]/g,'');
+    const tipo=c=>c.dateTime?'FechaHora':c.text?'Texto':c.choice?'Opcion':c.number?'Numero':c.lookup?'Busqueda':c.personOrGroup?'Persona':c.boolean?'SiNo':'otro';
+    console.log('[AYJ] Columnas de la lista Cotizaciones (nombre interno · nombre visible · tipo):',cols.map(c=>c.name+' · '+c.displayName+' · '+tipo(c)));
+    const faltan=[], tipoRaro=[];
+    Object.keys(SP_COLS_COT).forEach(logico=>{
+      const c=cols.find(x=>x.name===logico)
+        ||cols.find(x=>[norm(x.name),norm(x.displayName)].some(n=>n===norm(logico)||SP_COLS_ALIAS[logico].includes(n)));
+      if(!c){ faltan.push(logico); return; }
+      SP_COLS_COT[logico]=c.name;
+      const t=tipo(c);
+      if(logico==='FechaCierre'&&!['FechaHora','Texto'].includes(t)) tipoRaro.push(logico+' es de tipo '+t+' (debe ser Fecha y hora)');
+      if(logico==='PosibleCierre'&&!['Texto'].includes(t)) tipoRaro.push(logico+' es de tipo '+t+' (debe ser Una línea de texto)');
+    });
+    console.log('[AYJ] Nombres internos que usará la app para Seguimiento:',JSON.stringify(SP_COLS_COT));
+    if(faltan.length){
+      console.warn('[AYJ] NO existen en la lista Cotizaciones:',faltan);
+      showToast('⚠ En la lista Cotizaciones de SharePoint no existe(n) la(s) columna(s): '+faltan.join(', ')+'. Sin ella(s) el Seguimiento no puede guardarse ni mostrarse.','error');
+    }
+    if(tipoRaro.length){
+      console.warn('[AYJ] Columnas con tipo inesperado:',tipoRaro);
+      showToast('⚠ Tipo de columna incorrecto en SharePoint: '+tipoRaro.join('; '),'error');
+    }
+  }catch(e){
+    console.warn('[AYJ] No se pudieron leer las columnas de Cotizaciones (se usan los nombres por defecto):',e.message);
+  }
+}
+
 async function resolverSite(){
   try{
     const site=await graphGet(`/sites/${SP_HOST}:/sites/${SP_SITE}`);
@@ -1480,6 +1523,7 @@ async function resolverSite(){
       if(n==='cotizaciones') listIdCotizaciones=l.id;
       if(n.includes('liquidaci')) listIdLiquidaciones=l.id;
     });
+    await resolverColumnasCotizaciones();
   }catch(e){showToast('Error conectando SharePoint: '+e.message,'error');}
 }
 
@@ -2314,8 +2358,8 @@ async function guardarCotizacion(){
     // FechaCierre es el dato que de verdad se usa para calcular la Fecha de Seguimiento.
     const fechaCierreForm=calcularFechaCierreForm();
     if(fechaCierreForm){
-      fields.FechaCierre=fechaCierreForm.toISOString();
-      fields.PosibleCierre=obtenerPosibleCierreLabel();
+      fields[SP_COLS_COT.FechaCierre]=fechaCierreForm.toISOString();
+      fields[SP_COLS_COT.PosibleCierre]=obtenerPosibleCierreLabel();
     }
     let itemCreado;
     const guardarEnSP = async (f) => {
@@ -3126,9 +3170,9 @@ async function cargarHistorial(){
         garantia:f.Garantia||'',
         validez:f.Validez||'',
         idSynergy:f.IDSynergy||'',
-        fechaCierre:parsearFechaSharePoint(f.FechaCierre),
-        fechaSeguimiento:calcularFechaSeguimiento(parsearFechaSharePoint(f.FechaCierre)),
-        posibleCierre:f.PosibleCierre||'',
+        fechaCierre:parsearFechaSharePoint(f[SP_COLS_COT.FechaCierre]),
+        fechaSeguimiento:calcularFechaSeguimiento(parsearFechaSharePoint(f[SP_COLS_COT.FechaCierre])),
+        posibleCierre:f[SP_COLS_COT.PosibleCierre]||'',
       };
     });
     filtrarHistorial();
@@ -4875,8 +4919,9 @@ async function aplicarCierre(itemId, modal){
   const sel=document.getElementById('modalCierreSel')?.value;
   const posibleCierreLabel=!sel?'':(sel==='__custom_cierre__'?'Personalizada':sel+' días');
   let fieldsPatch=f
-    ?{FechaCierre:f.toISOString(),PosibleCierre:posibleCierreLabel}
-    :{FechaCierre:null,PosibleCierre:''};
+    ?{[SP_COLS_COT.FechaCierre]:f.toISOString(),[SP_COLS_COT.PosibleCierre]:posibleCierreLabel}
+    :{[SP_COLS_COT.FechaCierre]:null,[SP_COLS_COT.PosibleCierre]:''};
+  const columnasDescartadas=[];
   console.log('[AYJ] Guardando Posible Cierre — itemId:',itemId,'payload:',fieldsPatch);
   try{
     const token=await getToken();
@@ -4894,6 +4939,7 @@ async function aplicarCierre(itemId, modal){
       const m=t.match(/Field '([^']+)' is not recognized/i);
       if(m&&fieldsPatch[m[1]]!==undefined&&intentos<5){
         console.warn('Columna "'+m[1]+'" no existe todavía en SharePoint — se reintenta sin ese campo:',t);
+        columnasDescartadas.push(m[1]);
         delete fieldsPatch[m[1]];
         continue;
       }
@@ -4901,7 +4947,12 @@ async function aplicarCierre(itemId, modal){
       throw new Error('PATCH '+r.status+': '+t);
     }
     if(modal) modal.remove();
-    showToast(f?'✓ Posible cierre actualizado':'✓ Posible cierre borrado','success');
+    // Si Graph rechazó columnas y se reintentó sin ellas, NO se guardó nada de eso: no decir "✓".
+    if(columnasDescartadas.length){
+      showToast('⚠ NO se guardó: SharePoint no reconoce la(s) columna(s) '+columnasDescartadas.join(', ')+' en la lista Cotizaciones','error');
+    } else {
+      showToast(f?'✓ Posible cierre actualizado':'✓ Posible cierre borrado','success');
+    }
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
 }
