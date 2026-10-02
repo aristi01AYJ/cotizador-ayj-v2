@@ -338,7 +338,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         </div>
         <div class="field-group">
           <label>Vendedor</label>
-          <div id="vendedorChip" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:#f0f9f5;color:var(--green-dark);font-weight:500;min-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+          <select id="vendedorSel" title="Asesor responsable de esta oferta (por defecto, tú). Puedes crearla a nombre de otro asesor." style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:#f0f9f5;color:var(--green-dark);font-weight:500;min-width:130px;max-width:220px;font-family:inherit"><option value="">—</option></select>
         </div>
         <div class="field-group">
           <label>Condición de pago</label>
@@ -1456,7 +1456,7 @@ async function showApp(account){
   // Nombre limpio para mostrar
   const displayName=currentUserName.split('@')[0].replace(/\./g,' ');
   document.getElementById('userChip').textContent=currentUserName;
-  document.getElementById('vendedorChip').textContent=currentUserName;
+  poblarAsesorSel(currentUserName);
   try{
     await resolverSite();
     // cargarHistorial() se suma aquí (antes solo cargaba al entrar a Historial) para que el
@@ -2196,6 +2196,7 @@ function nuevaCotizacion(){
   const voltCustom=document.getElementById('voltajeCustom');
   if(voltCustom){voltCustom.style.display='none';voltCustom.value='';}
   ['clienteInput','obsInput','idSynergyInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  poblarAsesorSel(currentUserName);
   // Reset posible cierre
   const cierreSel=document.getElementById('cierreSel');
   if(cierreSel) cierreSel.value='';
@@ -2273,7 +2274,7 @@ function asesorLabel(nombre){
 
 async function guardarCotizacion(){
   const cliente=document.getElementById('clienteInput').value.trim();
-  const vendedor=currentUserName;
+  const vendedor=asesorDeOferta();
   // Validar causal descuento especial
   if(document.getElementById('descEspecialChk').checked){
     const causal=getCausalEspecial();
@@ -2484,7 +2485,7 @@ function mostrarResumenMargenes(){
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
   const numOferta=document.getElementById('ofertaNum')?.textContent||'';
   const cliente=document.getElementById('clienteInput')?.value||'';
-  const vendedor=document.getElementById('vendedorChip')?.textContent||'';
+  const vendedor=asesorDeOferta();
   const condPago=document.getElementById('condPagoSel')?.value||'—';
   const validez=document.getElementById('validezSel')?.value||'—';
   const obs=document.getElementById('obsInput')?.value||'';
@@ -3178,6 +3179,7 @@ async function cargarHistorial(){
     filtrarHistorial();
     actualizarBadgeSeguimiento();
     poblarVendedoresHistorial();
+    poblarAsesorSel();
   }catch(e){document.getElementById('historialBody').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
 }
 
@@ -3352,6 +3354,7 @@ function filtrarHistorial(){
           ' <button class="btn-cli-usar" onclick="editarOfertaIdx(\''+r.id+'\')" title="Editar oferta" style="border-color:var(--green);color:var(--green-dark)"><i class="ti ti-edit"></i></button>'
           +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
           :'')
+        +' <button class="btn-cli-usar" onclick="reasignarOfertaIdx(\''+r.id+'\')" title="Reasignar esta oferta a otro asesor"><i class="ti ti-switch-horizontal"></i></button>'
         +' <span style="display:inline-flex;gap:1px;vertical-align:middle;margin-left:2px" title="Probabilidad de cierre">'+estrellasHistorial(r.id,r.prob,r.vendedor)+'</span>'
         +'</td>'
         +'</tr>';
@@ -4639,6 +4642,73 @@ async function editarProbabilidadEstrellas(itemId, estrellas, vendedorOferta){
   }catch(e){showToast('Error: '+e.message,'error');}
 }
 
+// ── ASESOR RESPONSABLE DE LA OFERTA ──
+// Por defecto es el usuario logueado, pero se puede crear la oferta a nombre de otro asesor
+// (el selector "Vendedor" de Nueva Oferta). El valor elegido es el que se guarda en Vendedor,
+// el que sale en el PDF (nombre/correo/teléfono) y el que decide a quién le aparece la oferta
+// en su Historial, Seguimiento y estadísticas.
+function asesorDeOferta(){
+  const v=document.getElementById('vendedorSel')?.value;
+  return v||currentUserName;
+}
+function poblarAsesorSel(deseado){
+  const sel=document.getElementById('vendedorSel');
+  if(!sel) return;
+  const actual=deseado!==undefined?deseado:(sel.value||currentUserName);
+  // Siempre con el nombre EXACTO del usuario logueado (listaAsesoresConocidos deduplica por
+  // asesorLabel y podría traer otra grafía del mismo nombre).
+  const lista=listaAsesoresConocidos().map(a=>asesorLabel(a.nombre)===asesorLabel(currentUserName)?{label:a.label,nombre:currentUserName}:a);
+  if(actual&&!lista.some(a=>asesorLabel(a.nombre)===asesorLabel(actual))) lista.push({label:asesorLabel(actual),nombre:actual});
+  sel.innerHTML=lista.map(a=>'<option value="'+String(a.nombre).replace(/"/g,'&quot;')+'">'+a.nombre+(asesorLabel(a.nombre)===asesorLabel(currentUserName)?' (yo)':'')+'</option>').join('');
+  const m=lista.find(a=>asesorLabel(a.nombre)===asesorLabel(actual));
+  sel.value=m?m.nombre:currentUserName;
+}
+
+// ── REASIGNAR UNA OFERTA YA GUARDADA A OTRO ASESOR (desde el Historial) ──
+// Puede hacerlo el dueño actual de la oferta, o un administrador con la clave (CLAVE_MG).
+// Solo cambia el campo Vendedor de la lista: el PDF ya generado queda como estaba.
+function reasignarOfertaIdx(id){
+  const r=historialData.find(h=>h.id===id);
+  if(!r){showToast('Error: oferta no encontrada','error');return;}
+  const esDueno=asesorLabel(currentUserName)===asesorLabel(r.vendedor);
+  if(!esDueno){
+    const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para reasignarla ingresa la clave de administrador:');
+    if(clave===null) return;
+    if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+  }
+  const asesores=listaAsesoresConocidos().filter(a=>asesorLabel(a.nombre)!==asesorLabel(r.vendedor));
+  if(!asesores.length){showToast('No hay otros asesores conocidos a quién asignar','error');return;}
+  const modal=document.createElement('div');
+  modal.className='modal-reasignar';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
+    +'<div style="font-size:14px;font-weight:700;color:var(--gris);margin-bottom:4px">Reasignar oferta</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:14px">'+r.num+' · '+r.cliente+'<br>Asesor actual: <strong>'+asesorLabel(r.vendedor)+'</strong></div>'
+    +'<select id="modalReasignarSel" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:14px;box-sizing:border-box">'
+      +'<option value="">Elegir asesor...</option>'
+      +asesores.map(a=>'<option value="'+String(a.nombre).replace(/"/g,'&quot;')+'">'+a.nombre+'</option>').join('')
+    +'</select>'
+    +'<button onclick="confirmarReasignarOferta(\''+r.id+'\',this.closest(\'.modal-reasignar\'))" class="btn-primary" style="width:100%;margin-bottom:8px">Reasignar</button>'
+    +'<button onclick="this.closest(\'.modal-reasignar\').remove()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text2)">Cancelar</button>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+async function confirmarReasignarOferta(itemId, modal){
+  const nuevo=document.getElementById('modalReasignarSel')?.value;
+  if(!nuevo){showToast('Elige un asesor de la lista','error');return;}
+  try{
+    const token=await getToken();
+    const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
+      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({Vendedor:nuevo})
+    });
+    if(!r.ok){const t=await r.text();console.error('[AYJ] Error reasignando oferta:',r.status,t);throw new Error('PATCH '+r.status+': '+t);}
+    if(modal) modal.remove();
+    showToast('✓ Oferta reasignada a '+asesorLabel(nuevo),'success');
+    cargarHistorial();
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
 function editarOfertaIdx(id){
   const r=historialData.find(h=>h.id===id);
   if(r) editarOferta(r.id, r);
@@ -4750,6 +4820,7 @@ async function editarOferta(itemId, r){
   // Restaurar Synergy
   const idSynInputEdit=document.getElementById('idSynergyInput');
   if(idSynInputEdit) idSynInputEdit.value=r.idSynergy||'';
+  poblarAsesorSel(r.vendedor||currentUserName);
 
   // Restaurar contacto — cargar contactos del cliente y seleccionar
   if(r.cliente){
