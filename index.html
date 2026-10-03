@@ -1515,6 +1515,7 @@ async function showApp(account){
   } finally {
     if(overlay) overlay.style.display='none';
   }
+  mostrarResumenSeguimientoInicio();
 }
 
 // ── COLUMNAS DE LA LISTA COTIZACIONES: nombres internos reales ──
@@ -3490,6 +3491,76 @@ function switchView(v){
 // (una revisión -R2/-R3 no debe aparecer como 2 seguimientos separados de la misma negociación).
 let _segModo='semana'; // 'dia' | 'semana' | 'mes'
 let _segFecha=new Date();
+
+// ── RESUMEN DE SEGUIMIENTOS AL INICIAR SESIÓN ──
+// Al entrar, una vez al día y solo si hay algo pendiente: ventana con los seguimientos vencidos
+// y los de la semana en curso (lunes a domingo) de las ofertas activas del usuario. Se llama desde
+// showApp() cuando el Historial ya cargó. "Una vez al día" se recuerda en localStorage (por
+// asesor); si el navegador lo bloquea, simplemente se muestra en cada inicio.
+function mostrarResumenSeguimientoInicio(){
+  try{
+    const hoy=new Date(); hoy.setHours(0,0,0,0);
+    const clave='ayj_seg_inicio_'+asesorLabel(currentUserName);
+    const hoyStr=aFechaInput(hoy);
+    let yaMostrado=false;
+    try{ yaMostrado=localStorage.getItem(clave)===hoyStr; }catch(e){}
+    if(yaMostrado) return;
+
+    const finSemana=inicioSemanaSeguimiento(hoy);
+    finSemana.setDate(finSemana.getDate()+6);
+    finSemana.setHours(23,59,59,999);
+    const mias=soloVigentes(historialData).filter(r=>
+      r.fechaSeguimiento&&
+      asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
+      r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'
+    );
+    const vencidos=mias.filter(r=>r.fechaSeguimiento<hoy).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
+    const semana=mias.filter(r=>r.fechaSeguimiento>=hoy&&r.fechaSeguimiento<=finSemana).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
+    if(!vencidos.length&&!semana.length) return;
+    try{ localStorage.setItem(clave,hoyStr); }catch(e){}
+
+    const etiquetaDia=d=>{
+      const dias=Math.round((d-hoy)/86400000);
+      const txt=d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'short'}).replace(/^./,c=>c.toUpperCase());
+      return dias===0?'Hoy · '+txt:dias===1?'Mañana · '+txt:txt;
+    };
+    let semanaHTML='', ultimoDia='';
+    semana.forEach(r=>{
+      const k=aFechaInput(r.fechaSeguimiento);
+      if(k!==ultimoDia){
+        ultimoDia=k;
+        semanaHTML+='<div style="font-size:12px;font-weight:700;color:var(--green-dark);margin:12px 0 6px">'+etiquetaDia(r.fechaSeguimiento)+'</div>';
+      }
+      semanaHTML+=segTarjeta(r,hoy);
+    });
+    const nombre=(currentUserName||'').split(' ')[0];
+    const total=vencidos.length+semana.length;
+    const modal=document.createElement('div');
+    modal.className='modal-seg-inicio';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:22px;width:580px;max-width:94vw;max-height:84vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+        +'<div style="font-size:16px;font-weight:700;color:var(--gris)">📅 Tus seguimientos de la semana</div>'
+        +'<button onclick="this.closest(\'.modal-seg-inicio\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3);line-height:1">×</button>'
+      +'</div>'
+      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(nombre?nombre+', tienes ':'Tienes ')+'<strong>'+total+'</strong> seguimiento'+(total!==1?'s':'')+' pendiente'+(total!==1?'s':'')+'. Clic en una oferta para verla en el Historial.</div>'
+      +(vencidos.length
+        ?'<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--radius-lg);padding:12px 14px;margin:10px 0">'
+           +'<div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px">⚠ Vencidos ('+vencidos.length+')</div>'
+           +vencidos.map(r=>segTarjeta(r,hoy)).join('')
+         +'</div>'
+        :'')
+      +semanaHTML
+      +'<div style="display:flex;gap:8px;margin-top:16px">'
+        +'<button onclick="this.closest(\'.modal-seg-inicio\').remove();switchView(\'seguimiento\')" class="btn-primary" style="flex:1">Ir a Seguimiento</button>'
+        +'<button onclick="this.closest(\'.modal-seg-inicio\').remove()" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text2)">Cerrar</button>'
+      +'</div>'
+      +'</div>';
+    // Clic en una tarjeta → verOfertaDesdeSeguimiento() (inline) navega al Historial; aquí se cierra la ventana.
+    modal.addEventListener('click',e=>{ if(e.target.closest('[onclick^="verOfertaDesdeSeguimiento"]')) modal.remove(); });
+    document.body.appendChild(modal);
+  }catch(e){ console.warn('[AYJ] No se pudo mostrar el resumen de seguimientos:',e.message); }
+}
 
 async function abrirSeguimiento(){
   if(!historialData.length) await cargarHistorial();
