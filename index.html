@@ -3493,20 +3493,13 @@ let _segModo='semana'; // 'dia' | 'semana' | 'mes'
 let _segFecha=new Date();
 
 // ── RESUMEN DE SEGUIMIENTOS AL INICIAR SESIÓN ──
-// Al entrar, una vez al día y solo si hay algo pendiente: ventana con los seguimientos vencidos
-// y los de los próximos 8 días (hoy incluido; no se limita a la semana calendario) de las
-// ofertas activas del usuario. Se llama desde
-// showApp() cuando el Historial ya cargó. "Una vez al día" se recuerda en localStorage (por
-// asesor); si el navegador lo bloquea, simplemente se muestra en cada inicio.
+// Cada vez que se carga la app (inicio de sesión o recarga) y solo si hay algo pendiente: ventana con
+// los seguimientos vencidos y los de los próximos 8 días (hoy incluido; no se limita a la semana
+// calendario) de las ofertas activas del usuario. Se llama desde showApp() cuando el Historial ya
+// cargó. (Antes salía una vez al día vía localStorage; se quitó a pedido del usuario, 3-oct-2026.)
 function mostrarResumenSeguimientoInicio(){
   try{
     const hoy=new Date(); hoy.setHours(0,0,0,0);
-    const clave='ayj_seg_inicio_'+asesorLabel(currentUserName);
-    const hoyStr=aFechaInput(hoy);
-    let yaMostrado=false;
-    try{ yaMostrado=localStorage.getItem(clave)===hoyStr; }catch(e){}
-    if(yaMostrado) return;
-
     const finVentana=new Date(hoy);
     finVentana.setDate(finVentana.getDate()+8);
     finVentana.setHours(23,59,59,999);
@@ -3518,7 +3511,6 @@ function mostrarResumenSeguimientoInicio(){
     const vencidos=mias.filter(r=>r.fechaSeguimiento<hoy).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
     const semana=mias.filter(r=>r.fechaSeguimiento>=hoy&&r.fechaSeguimiento<=finVentana).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
     if(!vencidos.length&&!semana.length) return;
-    try{ localStorage.setItem(clave,hoyStr); }catch(e){}
 
     const etiquetaDia=d=>{
       const dias=Math.round((d-hoy)/86400000);
