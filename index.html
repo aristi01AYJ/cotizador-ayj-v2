@@ -3494,7 +3494,8 @@ let _segFecha=new Date();
 
 // ── RESUMEN DE SEGUIMIENTOS AL INICIAR SESIÓN ──
 // Al entrar, una vez al día y solo si hay algo pendiente: ventana con los seguimientos vencidos
-// y los de la semana en curso (lunes a domingo) de las ofertas activas del usuario. Se llama desde
+// y los de los próximos 8 días (hoy incluido; no se limita a la semana calendario) de las
+// ofertas activas del usuario. Se llama desde
 // showApp() cuando el Historial ya cargó. "Una vez al día" se recuerda en localStorage (por
 // asesor); si el navegador lo bloquea, simplemente se muestra en cada inicio.
 function mostrarResumenSeguimientoInicio(){
@@ -3506,16 +3507,16 @@ function mostrarResumenSeguimientoInicio(){
     try{ yaMostrado=localStorage.getItem(clave)===hoyStr; }catch(e){}
     if(yaMostrado) return;
 
-    const finSemana=inicioSemanaSeguimiento(hoy);
-    finSemana.setDate(finSemana.getDate()+6);
-    finSemana.setHours(23,59,59,999);
+    const finVentana=new Date(hoy);
+    finVentana.setDate(finVentana.getDate()+8);
+    finVentana.setHours(23,59,59,999);
     const mias=soloVigentes(historialData).filter(r=>
       r.fechaSeguimiento&&
       asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
       r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'
     );
     const vencidos=mias.filter(r=>r.fechaSeguimiento<hoy).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
-    const semana=mias.filter(r=>r.fechaSeguimiento>=hoy&&r.fechaSeguimiento<=finSemana).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
+    const semana=mias.filter(r=>r.fechaSeguimiento>=hoy&&r.fechaSeguimiento<=finVentana).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
     if(!vencidos.length&&!semana.length) return;
     try{ localStorage.setItem(clave,hoyStr); }catch(e){}
 
@@ -3540,7 +3541,7 @@ function mostrarResumenSeguimientoInicio(){
     modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;display:flex;align-items:center;justify-content:center';
     modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:22px;width:580px;max-width:94vw;max-height:84vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
-        +'<div style="font-size:16px;font-weight:700;color:var(--gris)">📅 Tus seguimientos de la semana</div>'
+        +'<div style="font-size:16px;font-weight:700;color:var(--gris)">📅 Tus seguimientos de los próximos 8 días</div>'
         +'<button onclick="this.closest(\'.modal-seg-inicio\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3);line-height:1">×</button>'
       +'</div>'
       +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(nombre?nombre+', tienes ':'Tienes ')+'<strong>'+total+'</strong> seguimiento'+(total!==1?'s':'')+' pendiente'+(total!==1?'s':'')+'. Clic en una oferta para verla en el Historial.</div>'
