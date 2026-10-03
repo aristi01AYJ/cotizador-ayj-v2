@@ -587,7 +587,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         </div>
         <div class="field-group">
           <label>Vendedor</label>
-          <select id="hFiltVendedor" onchange="filtrarHistorial()" style="min-width:130px">
+          <select id="hFiltVendedor" onchange="cambioVendedorHistorial()" style="min-width:130px">
             <option value="">Todos</option>
           </select>
         </div>
@@ -613,7 +613,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           Solo vigentes
         </label>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);white-space:nowrap">
-          <input type="checkbox" id="histVerTodas" onchange="filtrarMisOfertas(this.checked)" style="cursor:pointer">
+          <input type="checkbox" id="histVerTodas" checked onchange="filtrarMisOfertas(this.checked)" style="cursor:pointer">
           Mis ofertas
         </label>
         <button class="btn-sec" onclick="cargarHistorial()"><i class="ti ti-refresh"></i></button>
@@ -3238,16 +3238,17 @@ async function cargarHistorial(){
         resultado:String(f[SP_COLS_COT.ResultadoOferta]||'').trim(),
       };
     });
+    poblarVendedoresHistorial();
     filtrarHistorial();
     actualizarBadgeSeguimiento();
-    poblarVendedoresHistorial();
     poblarAsesorSel();
   }catch(e){document.getElementById('historialBody').innerHTML=`<div class="loading-list">Error: ${e.message}</div>`;}
 }
 
 function filtrarMisOfertas(checked){
   const filtVen=document.getElementById('hFiltVendedor');
-  if(filtVen) filtVen.value=checked?asesorLabel(currentUserName):'';
+  if(filtVen) filtVen.value='';
+  poblarVendedoresHistorial(); // marcado → vendedor = yo; desmarcado → Todos
   filtrarHistorial();
 }
 
@@ -3311,13 +3312,24 @@ function previewItems(items){
   return {corto:esc(corto), full:esc(completo)};
 }
 
+// Con "Mis ofertas" marcado (valor por defecto) el filtro de vendedor es siempre el usuario; al
+// desmarcarlo se ven todas, o las del vendedor elegido en el selector.
 function poblarVendedoresHistorial(){
   const sel=document.getElementById('hFiltVendedor');
   if(!sel) return;
-  const actual=sel.value;
-  const vendedores=[...new Set(historialData.map(r=>asesorLabel(r.vendedor)).filter(Boolean))].sort();
-  sel.innerHTML='<option value="">Todos</option>'+vendedores.map(v=>`<option value="${v}">${v}</option>`).join('');
+  const soloMias=document.getElementById('histVerTodas')?.checked;
+  const actual=soloMias?asesorLabel(currentUserName):sel.value;
+  const vendedores=new Set(historialData.map(r=>asesorLabel(r.vendedor)).filter(Boolean));
+  if(actual) vendedores.add(actual); // que la opción exista aunque aún no tenga ofertas
+  sel.innerHTML='<option value="">Todos</option>'+[...vendedores].sort().map(v=>`<option value="${v}">${v}</option>`).join('');
   if(actual) sel.value=actual;
+}
+// Elegir un vendedor en el selector mantiene sincronizado el checkbox "Mis ofertas".
+function cambioVendedorHistorial(){
+  const sel=document.getElementById('hFiltVendedor');
+  const chk=document.getElementById('histVerTodas');
+  if(chk&&sel) chk.checked=(sel.value===asesorLabel(currentUserName));
+  filtrarHistorial();
 }
 
 function ordenarHistorial(col){
@@ -3931,6 +3943,8 @@ function verOfertasClienteEnHistorial(nombreCliente){
   const el=document.getElementById('hFiltCliente');
   if(el) el.value=nombreCliente;
   const estCli=document.getElementById('hFiltEstado'); if(estCli) estCli.value='';
+  const misCli=document.getElementById('histVerTodas'); if(misCli) misCli.checked=false;
+  const venCli=document.getElementById('hFiltVendedor'); if(venCli) venCli.value='';
   filtrarHistorial();
 }
 
