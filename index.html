@@ -265,7 +265,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
     <div class="nav">
       <button class="active" id="navNueva" onclick="switchView('nueva')">Nueva oferta</button>
       <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
-      <button id="navHistorial" onclick="switchView('historial')">Historial</button>
+      <button id="navHistorial" onclick="switchView('historial')">Ofertas</button>
       <button id="navSeguimiento" onclick="switchView('seguimiento')" style="position:relative"><i class="ti ti-calendar-event"></i> Seguimiento<span id="badgeSeguimiento" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
       <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
       <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
@@ -281,7 +281,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
     <button class="mobile-tab active" onclick="mobileTab('catalogo',this)"><i class="ti ti-package" style="font-size:14px;vertical-align:-1px"></i> Catálogo</button>
     <button class="mobile-tab" onclick="mobileTab('carrito',this)"><i class="ti ti-shopping-cart" style="font-size:14px;vertical-align:-1px"></i> Carrito<span class="mobile-tab-badge" id="carritoCount" style="display:none">0</span></button>
     <button class="mobile-tab" onclick="mobileTab('clientes',this)"><i class="ti ti-users" style="font-size:14px;vertical-align:-1px"></i> Clientes</button>
-    <button class="mobile-tab" onclick="mobileTab('historial',this)"><i class="ti ti-history" style="font-size:14px;vertical-align:-1px"></i> Historial</button>
+    <button class="mobile-tab" onclick="mobileTab('historial',this)"><i class="ti ti-history" style="font-size:14px;vertical-align:-1px"></i> Ofertas</button>
     <button class="mobile-tab" onclick="mobileTab('dashboard',this)"><i class="ti ti-chart-bar" style="font-size:14px;vertical-align:-1px"></i> Intel</button>
     <button class="mobile-tab" onclick="mobileTab('stock',this)"><i class="ti ti-package" style="font-size:14px;vertical-align:-1px"></i> Stock</button>
     <button class="mobile-tab" onclick="mobileTab('dashboard',this)"><i class="ti ti-chart-bar" style="font-size:14px;vertical-align:-1px"></i> Intel</button>
@@ -576,7 +576,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
     </div>
     <div id="historialView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
       <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
-        <strong style="font-size:15px;align-self:center">Historial de ofertas</strong>
+        <strong style="font-size:15px;align-self:center">Ofertas</strong>
         <div class="field-group">
           <label>N° Oferta</label>
           <input type="text" id="hFiltNum" placeholder="COT-2026-..." oninput="filtrarHistorial()" style="min-width:120px">
@@ -593,12 +593,11 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         </div>
         <div class="field-group">
           <label>Estado</label>
-          <select id="hFiltEstado" onchange="filtrarHistorial()" style="min-width:110px">
-            <option value="">Todos</option>
-            <option>Enviada</option>
-            <option>En negociación</option>
-            <option>Cerrada-Ganada</option>
-            <option>Cerrada-Perdida</option>
+          <select id="hFiltEstado" onchange="filtrarHistorial()" style="min-width:130px">
+            <option value="Enviada" selected>Abiertas (Enviada)</option>
+            <option value="Cerrada-Ganada">✓ Ganadas</option>
+            <option value="Cerrada-Perdida">✗ Perdidas</option>
+            <option value="">Todas</option>
           </select>
         </div>
         <div class="field-group">
@@ -3168,7 +3167,7 @@ function generarPDF(d, soloRetornar=false){
     +'};'
     +'window.guardarFirmaEnSharePoint=async function(){'
     +'if(!hayTrazo){alert("Primero dibuje la firma.");return;}'
-    +'if(!window.opener||window.opener.closed||!window.opener.guardarHTMLEnSharePoint){alert("No se puede guardar: cierre esta ventana y vuelva a abrir el PDF desde el Historial (la ventana original del cotizador ya no está disponible).");return;}'
+    +'if(!window.opener||window.opener.closed||!window.opener.guardarHTMLEnSharePoint){alert("No se puede guardar: cierre esta ventana y vuelva a abrir el PDF desde Ofertas (la ventana original del cotizador ya no está disponible).");return;}'
     +'var btn=document.getElementById("btnGuardarFirma");'
     +'if(btn){btn.disabled=true;btn.textContent="Guardando...";}'
     +'try{'
@@ -3192,7 +3191,7 @@ function generarPDF(d, soloRetornar=false){
     +'setTimeout(function(){URL.revokeObjectURL(url);},1000);'
     +'};'
     +'window.enviarLinkCliente=async function(){'
-    +'if(!hayOpener||!window.opener.crearLinkAnonimoParaOferta){alert("No se puede generar el link: vuelve a abrir esta oferta desde el Historial en el cotizador.");return;}'
+    +'if(!hayOpener||!window.opener.crearLinkAnonimoParaOferta){alert("No se puede generar el link: vuelve a abrir esta oferta desde Ofertas en el cotizador.");return;}'
     +'var btnLC=document.getElementById("btnLinkCliente");'
     +'if(btnLC){btnLC.disabled=true;btnLC.textContent="Generando...";}'
     +'try{'
@@ -3217,7 +3216,7 @@ async function cargarHistorial(){
         num:f.ID_SYNERGY||f.Title||'—',
         cliente:f.Cliente||'—',
         vendedor:f.Vendedor||'—',
-        estado:f.Estado||'—',
+        estado:normalizarEstado(f.Estado),
         total:Math.round(f.GranTotal||0),
         fecha:fechaRaw?new Date(fechaRaw):null,
         fechaStr:fechaRaw?new Date(fechaRaw).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—',
@@ -3289,6 +3288,7 @@ function verRevisionesFamilia(baseNum){
   if(chk) chk.checked=false;
   const numInput=document.getElementById('hFiltNum');
   if(numInput) numInput.value=baseNum;
+  const estRev=document.getElementById('hFiltEstado'); if(estRev) estRev.value='';
   filtrarHistorial();
 }
 
@@ -3536,7 +3536,7 @@ function mostrarResumenSeguimientoInicio(){
         +'<div style="font-size:16px;font-weight:700;color:var(--gris)">📅 Tus seguimientos de los próximos 8 días</div>'
         +'<button onclick="this.closest(\'.modal-seg-inicio\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3);line-height:1">×</button>'
       +'</div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(nombre?nombre+', tienes ':'Tienes ')+'<strong>'+total+'</strong> seguimiento'+(total!==1?'s':'')+' pendiente'+(total!==1?'s':'')+'. Clic en una oferta para verla en el Historial.</div>'
+      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(nombre?nombre+', tienes ':'Tienes ')+'<strong>'+total+'</strong> seguimiento'+(total!==1?'s':'')+' pendiente'+(total!==1?'s':'')+'. Clic en una oferta para verla en Ofertas.</div>'
       +(vencidos.length
         ?'<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--radius-lg);padding:12px 14px;margin:10px 0">'
            +'<div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px">⚠ Vencidos ('+vencidos.length+')</div>'
@@ -3685,6 +3685,7 @@ function verOfertaDesdeSeguimiento(num){
   switchView('historial');
   const chk=document.getElementById('histSoloVigentes'); if(chk) chk.checked=false;
   const el=document.getElementById('hFiltNum'); if(el) el.value=num;
+  const estSeg=document.getElementById('hFiltEstado'); if(estSeg) estSeg.value='';
   filtrarHistorial();
 }
 
@@ -3852,7 +3853,7 @@ async function seleccionarClienteDetalle(idx){
       <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px;margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:13px;font-weight:700;color:var(--text)">📊 Ofertas a este cliente <span style="font-size:11px;color:var(--text2);font-weight:400">(${totalOfertas})</span></div>
-          ${totalOfertas?`<button onclick="verOfertasClienteEnHistorial('${c.titulo.replace(/'/g,"\\'")}')" class="btn-sec" style="padding:4px 10px;font-size:11px"><i class="ti ti-list"></i> Ver en Historial</button>`:''}
+          ${totalOfertas?`<button onclick="verOfertasClienteEnHistorial('${c.titulo.replace(/'/g,"\\'")}')" class="btn-sec" style="padding:4px 10px;font-size:11px"><i class="ti ti-list"></i> Ver en Ofertas</button>`:''}
         </div>
         ${totalOfertas?`
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
@@ -3929,6 +3930,7 @@ function verOfertasClienteEnHistorial(nombreCliente){
   switchView('historial');
   const el=document.getElementById('hFiltCliente');
   if(el) el.value=nombreCliente;
+  const estCli=document.getElementById('hFiltEstado'); if(estCli) estCli.value='';
   filtrarHistorial();
 }
 
@@ -4371,10 +4373,12 @@ function actualizarBadgeCarrito(){
 // ══ DASHBOARD INTELIGENCIA COMERCIAL ══════════════════════════════════
 const ESTADOS_CONFIG = {
   'Enviada':       {color:'#F59E0B',bg:'#FEF3C7',text:'#92400E'},
-  'En negociación':{color:'#3B82F6',bg:'#DBEAFE',text:'#1E3A8A'},
   'Cerrada-Ganada':{color:'#22C55E',bg:'#DCFCE7',text:'#14532D'},
   'Cerrada-Perdida':{color:'#EF4444',bg:'#FEE2E2',text:'#7F1D1D'},
 };
+// Solo existen 3 estados: Enviada (abierta), Cerrada-Ganada y Cerrada-Perdida. Un valor vacío o
+// viejo en SharePoint (ej. "En negociación", que ya no se usa) se trata como Enviada.
+function normalizarEstado(e){ return (e==='Cerrada-Ganada'||e==='Cerrada-Perdida')?e:'Enviada'; }
 
 let dashCharts={};
 let dashData=[];
@@ -4441,7 +4445,7 @@ async function cargarDashboard(){
         num:f.ID_SYNERGY||f.Title||'',
         cliente:f.Cliente||'',
         vendedor:f.Vendedor||'',
-        estado:f.Estado||'Enviada',
+        estado:normalizarEstado(f.Estado),
         total:parseFloat(f.GranTotal||0),
         prob:parseFloat(f.Probabilidad||0),
         fecha:fechaRaw?new Date(fechaRaw):null,
@@ -4514,14 +4518,13 @@ function renderDashboard(){
   const ganadas=datos.filter(d=>d.estado==='Cerrada-Ganada');
   const perdidas=datos.filter(d=>d.estado==='Cerrada-Perdida');
   const enviadas=datos.filter(d=>d.estado==='Enviada');
-  const negociacion=datos.filter(d=>d.estado==='En negociación');
   const cerradas=ganadas.length+perdidas.length;
   const tasaCierre=cerradas>0?Math.round(ganadas.length/cerradas*100):0;
-  const pipeline=[...enviadas,...negociacion].reduce((s,d)=>s+d.total,0);
+  const pipeline=enviadas.reduce((s,d)=>s+d.total,0);
 
   const kpis=[
     {label:'Total Ofertas',val:total,sub:anio,icon:'ti-file-text',color:'#575756'},
-    {label:'Pipeline Activo',val:'USD '+Math.round(pipeline).toLocaleString('es-CO'),sub:`${enviadas.length} env. · ${negociacion.length} neg.`,icon:'ti-trending-up',color:'#3B82F6'},
+    {label:'Pipeline Activo',val:'USD '+Math.round(pipeline).toLocaleString('es-CO'),sub:`${enviadas.length} ofertas abiertas`,icon:'ti-trending-up',color:'#3B82F6'},
     {label:'Cerradas Ganadas',val:'USD '+Math.round(ganadas.reduce((s,d)=>s+d.total,0)).toLocaleString('es-CO'),sub:`${ganadas.length} ofertas`,icon:'ti-trophy',color:'#22C55E'},
     {label:'Tasa de Cierre',val:tasaCierre+'%',sub:`${ganadas.length} gan. / ${cerradas} cerradas`,icon:'ti-target',color:tasaCierre>=50?'#22C55E':'#F59E0B'},
   ];
@@ -4630,7 +4633,7 @@ function renderDashboard(){
     'tipologia'
   );
 
-  // ── Chart 5: Probabilidad promedio x Vendedor (solo ofertas abiertas: Enviada/En negociación —
+  // ── Chart 5: Probabilidad promedio x Vendedor (solo ofertas abiertas: Enviada —
   // en cerradas la probabilidad ya no aplica, quedó ganada o perdida) ──
   const probMap={};
   datos.filter(d=>!['Cerrada-Ganada','Cerrada-Perdida'].includes(d.estado)).forEach(d=>{
