@@ -408,6 +408,8 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <div style="display:flex;gap:4px;align-items:center">
             <select id="cierreSel" onchange="onCierreChange(this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
               <option value="" selected>— Sin definir —</option>
+              <option value="8">8 días</option>
+              <option value="15">15 días</option>
               <option value="30">30 días</option>
               <option value="60">60 días</option>
               <option value="90">90 días</option>
@@ -416,6 +418,18 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             <input type="date" id="cierreCustomInput" onchange="actualizarCierreLabel()" style="display:none;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
           </div>
           <div id="cierreLabel" style="font-size:10px;color:var(--text2);margin-top:2px"></div>
+        </div>
+        <div class="field-group" style="margin:0">
+          <label style="font-size:10px">Seguimiento</label>
+          <div style="display:flex;gap:4px;align-items:center">
+            <select id="segSel" onchange="onSegChange(this.value)" title="Día en que quieres que la app te recuerde hacer seguimiento a esta oferta" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+              <option value="" selected>Automático (cierre − 5 días)</option>
+              <option value="8">En 8 días</option>
+              <option value="15">En 15 días</option>
+              <option value="__custom_seg__">✏️ Elegir fecha...</option>
+            </select>
+            <input type="date" id="segCustomInput" onchange="actualizarCierreLabel()" style="display:none;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+          </div>
         </div>
         <div class="field-group" style="margin:0">
           <label style="font-size:10px">Voltaje requerido</label>
@@ -1067,13 +1081,47 @@ function parsearFechaSharePoint(valor){
   const d=String(valor).includes('T')?new Date(valor):new Date(valor+'T00:00:00');
   return isNaN(d.getTime())?null:d;
 }
+// yyyy-mm-dd en hora LOCAL (para <input type="date">). toISOString().split('T')[0] da el día UTC,
+// que en Colombia (UTC-5) se corre al día siguiente si la fecha guardada tiene hora de la tarde/noche.
+function aFechaInput(d){
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+// Fecha de Seguimiento ELEGIDA A MANO por el vendedor (columna FechaSeguimiento). Si no la hay,
+// la Fecha de Seguimiento sigue siendo la automática: FechaCierre − 5 días. sel: '' = automática,
+// '8'/'15' = hoy + N días, '__custom_seg__' = la fecha del input.
+function fechaSegDesdeSel(sel, custom){
+  if(!sel) return null;
+  if(sel==='__custom_seg__') return custom?new Date(custom+'T00:00:00'):null;
+  const dias=parseInt(sel);
+  if(!dias) return null;
+  const f=new Date(); f.setHours(0,0,0,0); f.setDate(f.getDate()+dias);
+  return f;
+}
+function calcularFechaSegForm(){
+  return fechaSegDesdeSel(document.getElementById('segSel')?.value, document.getElementById('segCustomInput')?.value);
+}
+function onSegChange(val){
+  const custom=document.getElementById('segCustomInput');
+  if(val==='__custom_seg__'){
+    custom.style.display='inline-block';
+    if(!custom.value){
+      const f=new Date(); f.setDate(f.getDate()+8);
+      custom.value=aFechaInput(f);
+    }
+    custom.focus();
+  } else {
+    custom.style.display='none';
+  }
+  actualizarCierreLabel();
+}
 function onCierreChange(val){
   const custom=document.getElementById('cierreCustomInput');
   if(val==='__custom_cierre__'){
     custom.style.display='inline-block';
     if(!custom.value){
       const hoy=new Date(); hoy.setDate(hoy.getDate()+30);
-      custom.value=hoy.toISOString().split('T')[0];
+      custom.value=aFechaInput(hoy);
     }
     custom.focus();
   } else {
@@ -1100,10 +1148,11 @@ function actualizarCierreLabel(){
   const el=document.getElementById('cierreLabel');
   if(!el) return;
   const f=calcularFechaCierreForm();
-  if(!f){ el.textContent=''; return; }
-  const seg=calcularFechaSeguimiento(f);
+  const m=calcularFechaSegForm();
+  const seg=m||calcularFechaSeguimiento(f);
+  if(!f&&!seg){ el.textContent=''; return; }
   const fmt=d=>d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'});
-  el.textContent='Cierre: '+fmt(f)+' · Seguimiento: '+fmt(seg);
+  el.textContent=(f?'Cierre: '+fmt(f):'')+(f&&seg?' · ':'')+(seg?'Seguimiento: '+fmt(seg)+(m?' (manual)':''):'');
 }
 // Etiqueta de qué opción se eligió (30/60/90 días o fecha personalizada) — se guarda aparte de
 // FechaCierre solo como registro histórico (para saber qué "cubeta" usó el vendedor al crear
@@ -1474,10 +1523,12 @@ async function showApp(account){
 // exactamente el que la app manda, Graph descarta el campo (o rechaza la oferta) sin que se
 // note. Esta función lee las columnas reales de la lista, empareja las que necesitamos por
 // nombre interno o visible (tolerando espacios/guiones/mayúsculas) y avisa cuáles faltan.
-const SP_COLS_COT={FechaCierre:'FechaCierre',PosibleCierre:'PosibleCierre'};
+const SP_COLS_COT={FechaCierre:'FechaCierre',PosibleCierre:'PosibleCierre',FechaSeguimiento:'FechaSeguimiento',ResultadoOferta:'ResultadoOferta'};
 const SP_COLS_ALIAS={
   FechaCierre:['fechacierre','fechadecierre','fechaposiblecierre','fechaestimadadecierre'],
-  PosibleCierre:['posiblecierre','posibledecierre']
+  PosibleCierre:['posiblecierre','posibledecierre'],
+  FechaSeguimiento:['fechaseguimiento','fechadeseguimiento'],
+  ResultadoOferta:['resultadooferta','resultadodeoferta']
 };
 async function resolverColumnasCotizaciones(){
   if(!siteId||!listIdCotizaciones) return;
@@ -1496,11 +1547,13 @@ async function resolverColumnasCotizaciones(){
       const t=tipo(c);
       if(logico==='FechaCierre'&&!['FechaHora','Texto'].includes(t)) tipoRaro.push(logico+' es de tipo '+t+' (debe ser Fecha y hora)');
       if(logico==='PosibleCierre'&&!['Texto'].includes(t)) tipoRaro.push(logico+' es de tipo '+t+' (debe ser Una línea de texto)');
+      if(logico==='FechaSeguimiento'&&!['FechaHora'].includes(t)) tipoRaro.push(logico+' es de tipo '+t+' (debe ser Fecha y hora)');
+      if(logico==='ResultadoOferta'&&!['Texto'].includes(t)) tipoRaro.push(logico+' es de tipo '+t+' (debe ser Varias líneas de texto)');
     });
     console.log('[AYJ] Nombres internos que usará la app para Seguimiento:',JSON.stringify(SP_COLS_COT));
     if(faltan.length){
       console.warn('[AYJ] NO existen en la lista Cotizaciones:',faltan);
-      showToast('⚠ En la lista Cotizaciones de SharePoint no existe(n) la(s) columna(s): '+faltan.join(', ')+'. Sin ella(s) el Seguimiento no puede guardarse ni mostrarse.','error');
+      showToast('⚠ En la lista Cotizaciones de SharePoint no existe(n) la(s) columna(s): '+faltan.join(', ')+'. Sin ella(s) esos datos no se guardan ni se muestran (créalas en la lista Cotizaciones con ese nombre exacto).','error');
     }
     if(tipoRaro.length){
       console.warn('[AYJ] Columnas con tipo inesperado:',tipoRaro);
@@ -2204,6 +2257,10 @@ function nuevaCotizacion(){
   if(cierreCustom){cierreCustom.style.display='none';cierreCustom.value='';}
   const cierreLbl=document.getElementById('cierreLabel');
   if(cierreLbl) cierreLbl.textContent='';
+  const segSelEl=document.getElementById('segSel');
+  if(segSelEl) segSelEl.value='';
+  const segCustomEl=document.getElementById('segCustomInput');
+  if(segCustomEl){segCustomEl.style.display='none';segCustomEl.value='';}
   // Limpiar modo edición
   modoEdicion=null;
   // Bloquear precios
@@ -2362,6 +2419,9 @@ async function guardarCotizacion(){
       fields[SP_COLS_COT.FechaCierre]=fechaCierreForm.toISOString();
       fields[SP_COLS_COT.PosibleCierre]=obtenerPosibleCierreLabel();
     }
+    // Seguimiento elegido a mano (opcional): si no hay, la app usa FechaCierre − 5 días.
+    const fechaSegForm=calcularFechaSegForm();
+    if(fechaSegForm) fields[SP_COLS_COT.FechaSeguimiento]=fechaSegForm.toISOString();
     let itemCreado;
     const guardarEnSP = async (f) => {
       // Si una o más columnas nuevas (ej. FechaCierre) todavía no existen en SharePoint, Graph
@@ -3172,8 +3232,10 @@ async function cargarHistorial(){
         validez:f.Validez||'',
         idSynergy:f.IDSynergy||'',
         fechaCierre:parsearFechaSharePoint(f[SP_COLS_COT.FechaCierre]),
-        fechaSeguimiento:calcularFechaSeguimiento(parsearFechaSharePoint(f[SP_COLS_COT.FechaCierre])),
+        seguimientoManual:parsearFechaSharePoint(f[SP_COLS_COT.FechaSeguimiento]),
+        fechaSeguimiento:parsearFechaSharePoint(f[SP_COLS_COT.FechaSeguimiento])||calcularFechaSeguimiento(parsearFechaSharePoint(f[SP_COLS_COT.FechaCierre])),
         posibleCierre:f[SP_COLS_COT.PosibleCierre]||'',
+        resultado:String(f[SP_COLS_COT.ResultadoOferta]||'').trim(),
       };
     });
     filtrarHistorial();
@@ -3327,12 +3389,19 @@ function filtrarHistorial(){
         +'<td><strong>'+r.cliente+'</strong>'+(vp?'<div style="font-size:10px;color:var(--text2);margin-top:2px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+vp.full+'">'+vp.corto+'</div>':'')+'</td>'
         +'<td style="font-size:12px">'+r.vendedor+'</td>'
         +'<td>'
-          +'<select onchange="aplicarEstado(\''+r.id+'\',this.value)" title="Cambiar estado" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:none;cursor:pointer;background:'+estadoBg+';color:'+estadoColor+';font-family:inherit">'
+          +'<select onchange="cambiarEstadoHistorial(\''+r.id+'\',this)" title="Cambiar estado" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:none;cursor:pointer;background:'+estadoBg+';color:'+estadoColor+';font-family:inherit">'
             +(['Enviada','Cerrada-Ganada','Cerrada-Perdida'].includes(r.estado)?'':'<option value="'+r.estado+'" selected>'+r.estado+'</option>')
             +'<option value="Enviada"'+(r.estado==='Enviada'?' selected':'')+'>Enviada</option>'
             +'<option value="Cerrada-Ganada"'+(r.estado==='Cerrada-Ganada'?' selected':'')+'>✓ Ganada</option>'
             +'<option value="Cerrada-Perdida"'+(r.estado==='Cerrada-Perdida'?' selected':'')+'>✗ Perdida</option>'
           +'</select>'
+          +(()=>{
+            if(r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida') return '';
+            const ganada=r.estado==='Cerrada-Ganada';
+            const lbl=ganada?'Pedido':'Motivo';
+            const hay=!!r.resultado;
+            return '<div onclick="editarResultadoIdx(\''+r.id+'\')" title="'+(hay?_escRes(lbl+': '+r.resultado)+' — clic para editar':'Clic para registrar '+(ganada?'el pedido creado en Synergy':'el motivo de la pérdida'))+'" style="margin-top:3px;font-size:10px;cursor:pointer;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+(hay?'color:var(--text2)':'color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px;display:inline-block')+'">'+(hay?lbl+': '+_escRes(r.resultado):'+ '+(ganada?'Pedido Synergy':'Motivo'))+'</div>';
+          })()
         +'</td>'
         +'<td style="white-space:nowrap">'
           +(()=>{
@@ -3342,7 +3411,7 @@ function filtrarHistorial(){
             const estilo=r.fechaSeguimiento
               ?(segVencido?'background:#FEE2E2;color:#991B1B;font-weight:600':'background:var(--bg);color:var(--text2)')
               :'background:#fff;border:1px dashed var(--border);color:var(--text3)';
-            return '<span onclick="abrirModalCierre(\''+r.id+'\','+JSON.stringify(r.fechaCierre?r.fechaCierre.toISOString().split('T')[0]:null)+')" title="Clic para definir/editar el Posible Cierre" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:10px;'+estilo+'">'+segTexto+'</span>';
+            return '<span onclick="abrirModalCierre(\''+r.id+'\','+JSON.stringify(r.fechaCierre?aFechaInput(r.fechaCierre):null)+','+JSON.stringify(r.seguimientoManual?aFechaInput(r.seguimientoManual):null)+')" title="Clic para definir/editar el Posible Cierre" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:10px;'+estilo+'">'+segTexto+'</span>';
           })()
         +'</td>'
         +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
@@ -4811,8 +4880,20 @@ async function editarOferta(itemId, r){
     const cierreCustom=document.getElementById('cierreCustomInput');
     if(cierreSel&&cierreCustom){
       cierreSel.value='__custom_cierre__';
-      cierreCustom.value=r.fechaCierre.toISOString().split('T')[0];
+      cierreCustom.value=aFechaInput(r.fechaCierre);
       cierreCustom.style.display='inline-block';
+      actualizarCierreLabel();
+    }
+  }
+
+  // Restaurar seguimiento elegido a mano (si lo había); si era automático, queda en Automático.
+  if(r.seguimientoManual){
+    const segSel=document.getElementById('segSel');
+    const segCustom=document.getElementById('segCustomInput');
+    if(segSel&&segCustom){
+      segSel.value='__custom_seg__';
+      segCustom.value=aFechaInput(r.seguimientoManual);
+      segCustom.style.display='inline-block';
       actualizarCierreLabel();
     }
   }
@@ -4900,15 +4981,76 @@ async function borrarOferta(itemId, numOferta, vendedor){
   }catch(e){showToast('Error: '+e.message,'error');}
 }
 
-async function aplicarEstado(itemId, nuevoEstado, modal){
+// Cambio de estado desde el <select> del Historial. Al pasar a Ganada/Perdida se exige el
+// "Resultado de Oferta" (pedido de Synergy / motivo de la pérdida) antes de guardar el estado.
+function cambiarEstadoHistorial(id, selectEl){
+  const nuevo=selectEl.value;
+  if(nuevo==='Cerrada-Ganada'||nuevo==='Cerrada-Perdida'){
+    abrirModalResultado(id, nuevo, '', true);
+    return;
+  }
+  aplicarEstado(id, nuevo, null);
+}
+function editarResultadoIdx(id){
+  const r=historialData.find(h=>h.id===id);
+  if(r) abrirModalResultado(id, r.estado, r.resultado||'', false);
+}
+function _escRes(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function abrirModalResultado(itemId, estado, valorActual, cambiaEstado){
+  const ganada=estado==='Cerrada-Ganada';
+  const modal=document.createElement('div');
+  modal.className='modal-resultado';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;display:flex;align-items:center;justify-content:center';
+  const campo=ganada
+    ?'<input type="text" id="resultadoTexto" value="'+_escRes(valorActual)+'" placeholder="Ej. 12345" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;box-sizing:border-box">'
+    :'<textarea id="resultadoTexto" rows="4" placeholder="Ej. Precio, plazo de entrega, eligió a la competencia, se canceló el proyecto…" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical">'+_escRes(valorActual)+'</textarea>';
+  modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
+    +'<div style="font-size:14px;font-weight:700;color:var(--gris);margin-bottom:4px">'+(ganada?'✓ Oferta ganada':'✗ Oferta perdida')+'</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+(ganada?'N° de pedido creado en Synergy *':'Motivo de la pérdida *')+'</div>'
+    +campo
+    +'<div style="font-size:10px;color:var(--text3);margin:6px 0 16px">'+(ganada?'Obligatorio para marcar la oferta como ganada.':'Texto libre por ahora; más adelante se puede convertir en opciones fijas.')+'</div>'
+    +'<button onclick="guardarResultadoOferta(\''+itemId+'\',\''+estado+'\','+(cambiaEstado?'true':'false')+',this.closest(\'.modal-resultado\'))" class="btn-primary" style="width:100%;margin-bottom:8px">Guardar</button>'
+    +'<button onclick="cancelarResultadoOferta(this.closest(\'.modal-resultado\'))" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text2)">Cancelar</button>'
+    +'</div>';
+  document.body.appendChild(modal);
+  document.getElementById('resultadoTexto').focus();
+}
+// Cancelar deja la oferta como estaba; se vuelve a pintar la tabla para que el <select> del
+// estado recupere su valor real (el usuario ya lo había movido).
+function cancelarResultadoOferta(modal){
+  if(modal) modal.remove();
+  filtrarHistorial();
+}
+async function guardarResultadoOferta(itemId, estado, cambiaEstado, modal){
+  const txt=(document.getElementById('resultadoTexto')?.value||'').trim();
+  if(!txt){
+    showToast(estado==='Cerrada-Ganada'?'Ingresa el N° de pedido creado en Synergy':'Ingresa el motivo de la pérdida','error');
+    return;
+  }
+  if(cambiaEstado){
+    await aplicarEstado(itemId, estado, modal, txt);
+    return;
+  }
   try{
-    const token=await getToken();
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
-      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({Estado:nuevoEstado})
-    });
+    const descartadas=await patchCotizacionResiliente(itemId,{[SP_COLS_COT.ResultadoOferta]:txt});
+    if(modal) modal.remove();
+    if(descartadas.length) showToast('⚠ NO se guardó: SharePoint no reconoce la columna '+descartadas.join(', ')+' en la lista Cotizaciones','error');
+    else showToast('✓ Resultado de la oferta actualizado','success');
+    cargarHistorial();
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+
+async function aplicarEstado(itemId, nuevoEstado, modal, resultado){
+  try{
+    const r0=historialData.find(h=>h.id===itemId);
+    const patch={Estado:nuevoEstado};
+    if(resultado!==undefined) patch[SP_COLS_COT.ResultadoOferta]=resultado;
+    // Si se reabre una oferta que tenía resultado, ese resultado ya no aplica: se limpia.
+    else if(nuevoEstado==='Enviada'&&r0&&r0.resultado) patch[SP_COLS_COT.ResultadoOferta]='';
+    const descartadas=await patchCotizacionResiliente(itemId,patch);
     if(modal)modal.remove();
-    showToast('✓ Estado actualizado a '+nuevoEstado,'success');
+    if(descartadas.length) showToast('⚠ Estado actualizado a '+nuevoEstado+', pero NO se guardó el resultado: SharePoint no reconoce la columna '+descartadas.join(', ')+' en la lista Cotizaciones','error');
+    else showToast('✓ Estado actualizado a '+nuevoEstado,'success');
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
 }
@@ -4918,20 +5060,61 @@ async function aplicarEstado(itemId, nuevoEstado, modal){
 // es un PATCH directo sobre el mismo registro — pensado sobre todo para llenar retroactivamente
 // el Posible Cierre de ofertas viejas (creadas antes de que existiera este campo) sin generar
 // revisiones de más. Recalcula la Fecha de Seguimiento automáticamente (FechaCierre − 5 días).
-function abrirModalCierre(itemId, fechaCierreISO){
+// PATCH de campos de una oferta que tolera columnas que todavía no existan en SharePoint: si Graph
+// rechaza un campo ("Field 'X' is not recognized") lo quita y reintenta. Devuelve los campos que
+// NO se pudieron guardar, para que quien llama NO diga "guardado" cuando no lo está.
+async function patchCotizacionResiliente(itemId, fieldsPatch){
+  const token=await getToken();
+  const descartadas=[];
+  let intentos=0;
+  while(Object.keys(fieldsPatch).length){
+    intentos++;
+    const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
+      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify(fieldsPatch)
+    });
+    if(r.ok) break;
+    const t=await r.text();
+    const m=t.match(/Field '([^']+)' is not recognized/i);
+    if(m&&fieldsPatch[m[1]]!==undefined&&intentos<8){
+      console.warn('Columna "'+m[1]+'" no existe todavía en SharePoint — se reintenta sin ese campo:',t);
+      descartadas.push(m[1]);
+      delete fieldsPatch[m[1]];
+      continue;
+    }
+    console.error('[AYJ] Error en PATCH de oferta:',r.status,t);
+    throw new Error('PATCH '+r.status+': '+t);
+  }
+  return descartadas;
+}
+
+function abrirModalCierre(itemId, fechaCierreISO, segManualISO){
   const modal=document.createElement('div');
   modal.className='modal-cierre';
+  modal.dataset.segInicial=segManualISO?'1':'';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML=`<div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
-    <div style="font-size:14px;font-weight:700;color:var(--gris);margin-bottom:16px">Posible cierre — oferta</div>
-    <select id="modalCierreSel" onchange="onModalCierreChange()" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box">
+  const estiloSel='width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box';
+  modal.innerHTML=`<div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="font-size:14px;font-weight:700;color:var(--gris);margin-bottom:14px">Posible cierre y seguimiento</div>
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Posible cierre</div>
+    <select id="modalCierreSel" onchange="onModalCierreChange()" style="${estiloSel}">
       <option value="">— Sin definir —</option>
+      <option value="8">8 días</option>
+      <option value="15">15 días</option>
       <option value="30">30 días</option>
       <option value="60">60 días</option>
       <option value="90">90 días</option>
       <option value="__custom_cierre__">✏️ Elegir fecha...</option>
     </select>
-    <input type="date" id="modalCierreCustomInput" onchange="actualizarModalCierrePreview()" style="display:none;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box">
+    <input type="date" id="modalCierreCustomInput" onchange="actualizarModalCierrePreview()" style="display:none;${estiloSel}">
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;margin-top:6px">Seguimiento</div>
+    <select id="modalSegSel" onchange="onModalSegChange()" style="${estiloSel}">
+      <option value="">Automático (cierre − 5 días)</option>
+      <option value="8">En 8 días</option>
+      <option value="15">En 15 días</option>
+      <option value="__custom_seg__">✏️ Elegir fecha...</option>
+    </select>
+    <input type="date" id="modalSegCustomInput" onchange="actualizarModalCierrePreview()" style="display:none;${estiloSel}">
     <div id="modalCierrePreview" style="font-size:11px;color:var(--text2);margin-bottom:16px;min-height:14px"></div>
     <button onclick="aplicarCierre('${itemId}',this.closest('.modal-cierre'))" class="btn-primary" style="width:100%;margin-bottom:8px">Guardar</button>
     <button onclick="this.closest('.modal-cierre').remove()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text2)">Cancelar</button>
@@ -4947,6 +5130,13 @@ function abrirModalCierre(itemId, fechaCierreISO){
     custom.value=fechaCierreISO;
     custom.style.display='block';
   }
+  if(segManualISO){
+    const sel=document.getElementById('modalSegSel');
+    const custom=document.getElementById('modalSegCustomInput');
+    sel.value='__custom_seg__';
+    custom.value=segManualISO;
+    custom.style.display='block';
+  }
   actualizarModalCierrePreview();
 }
 function onModalCierreChange(){
@@ -4957,7 +5147,22 @@ function onModalCierreChange(){
     custom.style.display='block';
     if(!custom.value){
       const hoy=new Date(); hoy.setDate(hoy.getDate()+30);
-      custom.value=hoy.toISOString().split('T')[0];
+      custom.value=aFechaInput(hoy);
+    }
+  } else {
+    custom.style.display='none';
+  }
+  actualizarModalCierrePreview();
+}
+function onModalSegChange(){
+  const sel=document.getElementById('modalSegSel');
+  const custom=document.getElementById('modalSegCustomInput');
+  if(!sel||!custom) return;
+  if(sel.value==='__custom_seg__'){
+    custom.style.display='block';
+    if(!custom.value){
+      const f=new Date(); f.setDate(f.getDate()+8);
+      custom.value=aFechaInput(f);
     }
   } else {
     custom.style.display='none';
@@ -4976,53 +5181,39 @@ function calcularFechaModalCierre(){
   const f=new Date(); f.setDate(f.getDate()+dias);
   return f;
 }
+function calcularFechaModalSeg(){
+  return fechaSegDesdeSel(document.getElementById('modalSegSel')?.value, document.getElementById('modalSegCustomInput')?.value);
+}
 function actualizarModalCierrePreview(){
   const el=document.getElementById('modalCierrePreview');
   if(!el) return;
   const f=calcularFechaModalCierre();
-  if(!f){ el.textContent=''; return; }
-  const seg=calcularFechaSeguimiento(f);
+  const m=calcularFechaModalSeg();
+  const seg=m||calcularFechaSeguimiento(f);
+  if(!f&&!seg){ el.textContent=''; return; }
   const fmt=d=>d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
-  el.textContent='Cierre: '+fmt(f)+' · Seguimiento: '+fmt(seg);
+  el.textContent=(f?'Cierre: '+fmt(f):'Sin fecha de cierre')+(seg?' · Seguimiento: '+fmt(seg)+(m?' (manual)':''):'');
 }
 async function aplicarCierre(itemId, modal){
   const f=calcularFechaModalCierre();
+  const manual=calcularFechaModalSeg();
   const sel=document.getElementById('modalCierreSel')?.value;
   const posibleCierreLabel=!sel?'':(sel==='__custom_cierre__'?'Personalizada':sel+' días');
-  let fieldsPatch=f
+  const fieldsPatch=f
     ?{[SP_COLS_COT.FechaCierre]:f.toISOString(),[SP_COLS_COT.PosibleCierre]:posibleCierreLabel}
     :{[SP_COLS_COT.FechaCierre]:null,[SP_COLS_COT.PosibleCierre]:''};
-  const columnasDescartadas=[];
-  console.log('[AYJ] Guardando Posible Cierre — itemId:',itemId,'payload:',fieldsPatch);
+  // FechaSeguimiento solo se manda si hay una fecha manual, o si la oferta tenía una y ahora se
+  // vuelve a "Automático" (hay que limpiarla). Así no se pide una columna a quien no la usa.
+  if(manual) fieldsPatch[SP_COLS_COT.FechaSeguimiento]=manual.toISOString();
+  else if(modal&&modal.dataset.segInicial) fieldsPatch[SP_COLS_COT.FechaSeguimiento]=null;
   try{
-    const token=await getToken();
-    // Mismo resguardo que guardarEnSP(): si alguna columna todavía no existe en SharePoint,
-    // reintenta sin ella en vez de fallar por completo.
-    let intentos=0;
-    while(true){
-      intentos++;
-      const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdCotizaciones}/items/${itemId}/fields`,{
-        method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify(fieldsPatch)
-      });
-      if(r.ok){ console.log('[AYJ] Posible Cierre guardado OK, respuesta Graph:',await r.text()); break; }
-      const t=await r.text();
-      const m=t.match(/Field '([^']+)' is not recognized/i);
-      if(m&&fieldsPatch[m[1]]!==undefined&&intentos<5){
-        console.warn('Columna "'+m[1]+'" no existe todavía en SharePoint — se reintenta sin ese campo:',t);
-        columnasDescartadas.push(m[1]);
-        delete fieldsPatch[m[1]];
-        continue;
-      }
-      console.error('[AYJ] Error guardando Posible Cierre:',r.status,t);
-      throw new Error('PATCH '+r.status+': '+t);
-    }
+    const descartadas=await patchCotizacionResiliente(itemId,fieldsPatch);
     if(modal) modal.remove();
     // Si Graph rechazó columnas y se reintentó sin ellas, NO se guardó nada de eso: no decir "✓".
-    if(columnasDescartadas.length){
-      showToast('⚠ NO se guardó: SharePoint no reconoce la(s) columna(s) '+columnasDescartadas.join(', ')+' en la lista Cotizaciones','error');
+    if(descartadas.length){
+      showToast('⚠ NO se guardó: SharePoint no reconoce la(s) columna(s) '+descartadas.join(', ')+' en la lista Cotizaciones','error');
     } else {
-      showToast(f?'✓ Posible cierre actualizado':'✓ Posible cierre borrado','success');
+      showToast(f||manual?'✓ Seguimiento actualizado':'✓ Posible cierre borrado','success');
     }
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
