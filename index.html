@@ -73,6 +73,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .btn-cat.add-stock:hover{background:var(--green-light)}
 .btn-cat.add-import{border:1px solid var(--blue);color:var(--blue-dark);background:none}
 .btn-cat.add-import:hover{background:var(--blue-light)}
+.btn-cat.add-pedido{border:1px solid var(--amber);color:var(--amber);background:none}
+.btn-cat.add-pedido:hover{background:var(--amber-light)}
+.stock-badge.pedido{background:var(--amber-light);color:var(--amber)}
+.stock-badge.reservada{background:#FFEDD5;color:#C2410C;font-weight:600;cursor:pointer}
+.grupo-actions{flex-wrap:wrap}
 .btn-cat.remove{border:1px solid #e24b4a;color:var(--red);background:none}
 .btn-cat.remove:hover{background:var(--red-light)}
 .bp-card{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:#fff;padding:10px 12px}
@@ -1837,7 +1842,7 @@ async function cargarMaquinas(){
     selT.innerHTML='<option value="">Todas las tipologías</option>';
     tipologias.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;selT.appendChild(o);});
     procesarCatalogo();
-    document.getElementById('catalogoCount').textContent=`${grupos.length} productos · ${bajosPedido.length} bajo pedido`;
+    { const u=catalogoUnificado(); document.getElementById('catalogoCount').textContent=`${u.length} productos · ${u.filter(e=>e.bp).length} con bajo pedido`; }
     renderCatalogo();
   }catch(e){
     console.error('[AYJ] cargarMaquinas error:', e.message, e.stack);
@@ -1920,6 +1925,60 @@ function onTrmChange(){
   renderCatalogo();calcTotales();renderCarrito();
 }
 
+// ── CATÁLOGO UNIFICADO: UNA SOLA TARJETA POR MÁQUINA ──────────────────────────────────
+// Antes salían dos tarjetas separadas ("Disponibles" y "Bajo Pedido") para la misma máquina. Ahora se
+// junta por nombre y la tarjeta muestra todos los estados a la vez:
+//   En stock (n) · En importación (n) · Bajo pedido (ILIMITADO) · Reservada (n)
+// Las RESERVADAS solo se muestran como información (no se pueden cotizar): se suman a máquinas que ya
+// están en el catálogo; una máquina que solo tenga unidades reservadas se ve en la pestaña "Reservadas".
+function catalogoUnificado(){
+  const norm=t=>String(t||'').toLowerCase().trim();
+  const mapa=new Map();
+  grupos.forEach(g=>mapa.set(norm(g.title),{g,bp:null,reservadas:[]}));
+  bajosPedido.forEach(m=>{
+    const k=norm(m.title);
+    let e=mapa.get(k);
+    if(!e){ e={g:null,bp:null,reservadas:[]}; mapa.set(k,e); }
+    if(!e.bp) e.bp=m;
+  });
+  if(typeof rawReservadas!=='undefined') rawReservadas.forEach(r=>{ const e=mapa.get(norm(r.titulo)); if(e) e.reservadas.push(r); });
+  return [...mapa.values()].sort((a,b)=>(a.g||a.bp).title.localeCompare((b.g||b.bp).title,'es'));
+}
+function verReservadasDe(titulo){
+  const mias=document.getElementById('resMias'); if(mias) mias.checked=false;
+  const q=document.getElementById('resBuscar'); if(q) q.value=titulo;
+  const f=document.getElementById('resFiltro'); if(f) f.value='';
+  switchView('reservadas');
+}
+function buildCatalogCard(e){
+  const div=e.g?buildGrupoCard(e.g):buildBpCard(e.bp);
+  const inBP=e.bp&&carrito.some(i=>i.id===e.bp.id);
+  if(inBP) div.classList.add('en-carrito');
+  // ── Bajo pedido (ilimitado): etiqueta + botón dentro de la misma tarjeta ──
+  if(e.bp){
+    if(e.g){
+      const fila=div.querySelector('.stock-row');
+      if(fila) fila.insertAdjacentHTML('beforeend','<span class="stock-badge pedido"><i class="ti ti-truck" style="font-size:10px"></i> Bajo Pedido: ILIMITADO</span>');
+      let acc=div.querySelector('.grupo-actions');
+      if(!acc){ acc=document.createElement('div'); acc.className='grupo-actions'; div.appendChild(acc); }
+      acc.insertAdjacentHTML('beforeend',inBP
+        ?`<button class="btn-cat remove" onclick="toggleBP('${e.bp.id}')"><i class="ti ti-x"></i> Quitar Bajo Pedido</button>`
+        :`<button class="btn-cat add-pedido" onclick="toggleBP('${e.bp.id}')"><i class="ti ti-truck"></i> Bajo Pedido</button>`);
+    } else {
+      const b=div.querySelector('.bp-badge'); if(b) b.textContent='Bajo Pedido: ILIMITADO';
+    }
+  }
+  // ── Reservadas: solo informativo; clic lleva a la pestaña Reservadas filtrada por esta máquina ──
+  if(e.reservadas.length){
+    const fmt=d=>d?d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'sin fecha';
+    const detalle=e.reservadas.slice(0,8).map(r=>r.idMQ+' · hasta '+fmt(r.hasta)+(r.vendedor?' · '+r.vendedor.split(' ')[0]:'')).join('\n');
+    const html='<span class="stock-badge reservada" title="'+_escRes(detalle)+'\n(clic para ver las reservadas)" onclick="verReservadasDe(this.dataset.t)" data-t="'+_escRes((e.g||e.bp).title)+'"><i class="ti ti-lock" style="font-size:10px"></i> Reservada: '+e.reservadas.length+'</span>';
+    const fila=div.querySelector('.stock-row');
+    if(fila) fila.insertAdjacentHTML('beforeend',html);
+    else { const b=div.querySelector('.bp-badge'); if(b) b.insertAdjacentHTML('afterend',html); }
+  }
+  return div;
+}
 function renderCatalogo(){
   const q=document.getElementById('searchInput').value.toLowerCase().trim();
   const marca=document.getElementById('filtroMarca').value;
@@ -1927,28 +1986,17 @@ function renderCatalogo(){
   const tipologia=document.getElementById('filtroTipologia').value;
   const el=document.getElementById('maqList');
   el.innerHTML='';
-  if(tipo!=='pedido'){
-    let gF=grupos;
-    if(q)gF=gF.filter(g=>g.title.toLowerCase().includes(q)||g.marca.toLowerCase().includes(q)||(g.tipologia||'').toLowerCase().includes(q)||(g.modelo||'').toLowerCase().includes(q));
-    if(marca)gF=gF.filter(g=>g.marca===marca);
-    if(tipologia)gF=gF.filter(g=>g.tipologia===tipologia);
-    if(gF.length){
-      const lbl=document.createElement('div');lbl.className='section-label';
-      lbl.innerHTML=`<i class="ti ti-package" style="font-size:11px"></i> Disponibles (${gF.length})`;
-      el.appendChild(lbl);gF.forEach(g=>el.appendChild(buildGrupoCard(g)));
-    }
-  }
-  if(tipo!=='disponible'){
-    let bF=bajosPedido;
-    if(q)bF=bF.filter(m=>m.title.toLowerCase().includes(q)||m.marca.toLowerCase().includes(q));
-    if(marca)bF=bF.filter(m=>m.marca===marca);
-    if(tipologia)bF=bF.filter(m=>m.tipologia===tipologia);
-    const seen=new Set();bF=bF.filter(m=>{if(seen.has(m.title.toLowerCase()))return false;seen.add(m.title.toLowerCase());return true;});
-    if(bF.length){
-      const lbl=document.createElement('div');lbl.className='section-label';lbl.style.marginTop='10px';
-      lbl.innerHTML=`<i class="ti ti-truck" style="font-size:11px"></i> Bajo Pedido (${bF.length})`;
-      el.appendChild(lbl);bF.forEach(m=>el.appendChild(buildBpCard(m)));
-    }
+  let lista=catalogoUnificado();
+  if(tipo==='disponible') lista=lista.filter(e=>e.g);
+  if(tipo==='pedido') lista=lista.filter(e=>e.bp);
+  if(q) lista=lista.filter(e=>{ const a=e.g||e.bp; return a.title.toLowerCase().includes(q)||(a.marca||'').toLowerCase().includes(q)||(a.tipologia||'').toLowerCase().includes(q)||(a.modelo||'').toLowerCase().includes(q); });
+  if(marca) lista=lista.filter(e=>(e.g||e.bp).marca===marca);
+  if(tipologia) lista=lista.filter(e=>(e.g||e.bp).tipologia===tipologia);
+  if(lista.length){
+    const lbl=document.createElement('div');lbl.className='section-label';
+    lbl.innerHTML=`<i class="ti ti-package" style="font-size:11px"></i> Catálogo (${lista.length})`;
+    el.appendChild(lbl);
+    lista.forEach(e=>el.appendChild(buildCatalogCard(e)));
   }
   if(!el.querySelector('.grupo-card')&&!el.querySelector('.bp-card'))el.innerHTML='<div class="loading-list">Sin resultados</div>';
 }
@@ -2021,7 +2069,10 @@ function quitarGrupo(key,tipo){carrito=carrito.filter(i=>!(i.grupoKey===key&&i.t
 function toggleBP(id){
   const idx=carrito.findIndex(i=>i.id===id);
   if(idx>=0)carrito.splice(idx,1);
-  else{const m=bajosPedido.find(x=>x.id===id);if(!m)return;carrito.push({id:m.id,grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia||'',tarifa:m.tarifa,costoAYJ:m.costoAYJ||0,descripcion:m.descripcion,fichaTecnica:m.fichaTecnica,ytVideo:m.ytVideo||'',cantidad:1});showToast('Agregado: '+m.title,'success');}
+  else{const m=bajosPedido.find(x=>x.id===id);if(!m)return;
+    // Las filas "Bajo Pedido" suelen venir sin TARIFA (se veía USD 0): si la máquina también tiene stock/importación se usa su tarifa y datos.
+    const gq=grupos.find(x=>x.key===String(m.title).toLowerCase().trim());
+    carrito.push({id:m.id,grupoKey:null,tipo:'pedido',nombre:m.title,marca:m.marca,modelo:m.modelo,tipologia:m.tipologia||'',tarifa:m.tarifa||(gq?gq.tarifa:0)||0,costoAYJ:m.costoAYJ||(gq?gq.costoAYJ:0)||0,descripcion:m.descripcion||(gq?gq.descripcion:''),fichaTecnica:m.fichaTecnica||(gq?gq.fichaTecnica:''),ytVideo:m.ytVideo||(gq?gq.ytVideo:'')||'',cantidad:1});showToast('Agregado: '+m.title,'success');}
   renderCarrito();renderCatalogo();calcTotales();
 }
 
