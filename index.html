@@ -3335,7 +3335,7 @@ function generarPDF(d, soloRetornar=false){
     +'<td style="width:48%;padding-left:16px;vertical-align:top;">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
     +'<tr><td style="padding:5px 10px;color:#666;border-bottom:1px solid #eee;">Subtotal</td><td style="padding:5px 10px;text-align:right;border-bottom:1px solid #eee;">'
-    +(d.modoCOP?fCOP(d.subUSD):d.modoUSD?fUSD(d.subUSD):fUSD(d.subUSD)+'<br><span style="font-size:10px;color:#aaa;">'+fCOP(d.subUSD)+'</span>')
+    +(d.modoCOP?'<div style="font-weight:700;font-size:13px;color:#575756;white-space:nowrap;">'+fCOP(d.subUSD)+'</div>':d.modoUSD?'<div style="font-weight:700;font-size:13px;color:#575756;white-space:nowrap;">'+fUSD(d.subUSD)+'</div>':'<div style="font-weight:700;font-size:13px;color:#575756;white-space:nowrap;">'+fUSD(d.subUSD)+'</div><div style="font-size:11px;color:#999;margin-top:3px;white-space:nowrap;">'+fCOP(d.subUSD)+'</div>')
     +'</td></tr>'
     +descRow
     +'<tr style="background:#f5f7f0"><td style="padding:6px 10px;color:#575756;font-weight:700;border-bottom:1px solid #eee;">Subtotal s/IVA</td><td style="padding:6px 10px;text-align:right;border-bottom:1px solid #eee;font-weight:700;">'
