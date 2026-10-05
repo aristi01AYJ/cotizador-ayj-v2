@@ -87,7 +87,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .bp-sub{font-size:11px;color:var(--text2);margin-top:2px}
 .bp-badge{font-size:10px;padding:2px 8px;border-radius:20px;background:var(--amber-light);color:var(--amber);margin-top:6px;display:inline-block}
 .btn-add-bp{margin-top:8px;width:100%;padding:5px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);font-size:12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px}
-.btn-add-bp:hover{background:var(--green-light)}
+.btn-add-bp:not(.remove){border-color:var(--amber);color:var(--amber)}
+.btn-add-bp:not(.remove):hover{background:var(--amber-light)}
 .btn-add-bp.remove{border-color:#e24b4a;color:var(--red)}
 .btn-add-bp.remove:hover{background:var(--red-light)}
 .content{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -2055,7 +2056,7 @@ function buildBpCard(m){
   const pdfIcon=m.fichaTecnica?`<a href="${m.fichaTecnica}" target="_blank" style="color:var(--red);font-size:15px;" title="Ver ficha técnica"><i class="ti ti-file-type-pdf"></i></a>`:'';
   const ytIcon=m.ytVideo?`<a href="${m.ytVideo}" target="_blank" style="color:#FF0000;font-size:15px;" title="Ver video en YouTube"><i class="ti ti-brand-youtube"></i></a>`:'';
   const iconos=(pdfIcon||ytIcon)?`<div style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:4px;">${pdfIcon}${ytIcon}</div>`:'';
-  div.innerHTML=`<div class="bp-top"><div style="min-width:0"><div class="bp-name">${m.title}</div><div class="bp-sub">${m.marca}${m.modelo?' · '+m.modelo:''}${m.tipologia?' · '+m.tipologia:''}</div><span class="bp-badge">Bajo Pedido</span></div><div class="grupo-precio">${iconos}<div class="precio-usd">${fmtUSD(m.tarifa)}</div><div class="precio-cop">${fmtCOP(m.tarifa)}</div></div></div><button class="btn-add-bp ${inCart?'remove':''}" onclick="toggleBP('${m.id}')"><i class="ti ti-${inCart?'x':'shopping-cart'}"></i> ${inCart?'Eliminar del Carrito':'Agregar al Carrito'}</button>`;
+  div.innerHTML=`<div class="bp-top"><div style="min-width:0"><div class="bp-name">${m.title}</div><div class="bp-sub">${m.marca}${m.modelo?' · '+m.modelo:''}${m.tipologia?' · '+m.tipologia:''}</div><span class="bp-badge">Bajo Pedido</span></div><div class="grupo-precio">${iconos}<div class="precio-usd">${fmtUSD(m.tarifa)}</div><div class="precio-cop">${fmtCOP(m.tarifa)}</div></div></div><button class="btn-add-bp ${inCart?'remove':''}" onclick="toggleBP('${m.id}')"><i class="ti ti-${inCart?'x':'truck'}"></i> ${inCart?'Quitar Bajo Pedido':'Bajo Pedido'}</button>`;
   return div;
 }
 
