@@ -3146,12 +3146,14 @@ function generarPDF(d, soloRetornar=false){
           ?'<div style="'+(grande?'font-weight:700;':'')+'font-size:'+fs1+'px;color:#575756;">'+fUSD(v)+'</div>'
           :'<div style="'+(grande?'font-weight:700;':'')+'font-size:'+fs1+'px;color:#575756;">'+fUSD(v)+'</div><div style="font-size:'+fs2+'px;color:#999;margin-top:1px;">'+fCOP(v)+'</div>';
       if(!factor||factor===1) return lista;
+      // Referencia con descuento: sutil, entre paréntesis, sin rótulo (rojo suave, peso normal).
+      const c='#b5574b';
       const rojo=d.modoCOP
-        ?'<div style="font-weight:700;font-size:'+fs1+'px;color:#c0392b;">'+fCOP(vn)+'</div>'
+        ?'<div style="font-size:'+fs2+'px;color:'+c+';margin-top:3px;">('+fCOP(vn)+')</div>'
         :d.modoUSD
-          ?'<div style="font-weight:700;font-size:'+fs1+'px;color:#c0392b;">'+fUSD(vn)+'</div>'
-          :'<div style="font-weight:700;font-size:'+fs1+'px;color:#c0392b;">'+fUSD(vn)+'</div><div style="font-size:'+fs2+'px;color:#c0392b;margin-top:1px;">'+fCOP(vn)+'</div>';
-      return lista+'<div style="margin-top:4px;padding-top:3px;border-top:1px dashed #e7b4ae;"><div style="font-size:9px;color:#c0392b;text-transform:uppercase;letter-spacing:0.3px;">Referencia con desc. '+(Math.round(d.desc*100)/100)+'%</div>'+rojo+'</div>';
+          ?'<div style="font-size:'+fs2+'px;color:'+c+';margin-top:3px;">('+fUSD(vn)+')</div>'
+          :'<div style="font-size:'+fs2+'px;color:'+c+';margin-top:3px;">('+fUSD(vn)+')</div><div style="font-size:'+(fs2-1)+'px;color:'+c+';opacity:0.85;">('+fCOP(vn)+')</div>';
+      return lista+rojo;
     };
     return '<tr>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;font-size:11px;color:#999;text-align:center;">'+(idx+1)+'</td>'
