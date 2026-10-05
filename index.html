@@ -3424,7 +3424,7 @@ function filtrarHistorial(){
             const estilo=r.fechaSeguimiento
               ?(segVencido?'background:#FEE2E2;color:#991B1B;font-weight:600':'background:var(--bg);color:var(--text2)')
               :'background:#fff;border:1px dashed var(--border);color:var(--text3)';
-            return '<span onclick="abrirModalCierre(\''+r.id+'\','+JSON.stringify(r.fechaCierre?aFechaInput(r.fechaCierre):null)+','+JSON.stringify(r.seguimientoManual?aFechaInput(r.seguimientoManual):null)+')" title="Clic para definir/editar el Posible Cierre" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:10px;'+estilo+'">'+segTexto+'</span>';
+            return '<span onclick="abrirModalCierre(\''+r.id+'\','+(r.fechaCierre?"'"+aFechaInput(r.fechaCierre)+"'":'null')+','+(r.seguimientoManual?"'"+aFechaInput(r.seguimientoManual)+"'":'null')+')" title="Clic para definir/editar el Posible Cierre" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:10px;'+estilo+'">'+segTexto+'</span>';
           })()
         +'</td>'
         +'<td class="total">USD '+r.total.toLocaleString('es-CO')+'</td>'
@@ -5173,6 +5173,7 @@ function abrirModalCierre(itemId, fechaCierreISO, segManualISO){
   const modal=document.createElement('div');
   modal.className='modal-cierre';
   modal.dataset.segInicial=segManualISO?'1':'';
+  modal.dataset.cierreInicial=fechaCierreISO||'';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;display:flex;align-items:center;justify-content:center';
   const estiloSel='width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box';
   modal.innerHTML=`<div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
@@ -5280,13 +5281,20 @@ async function aplicarCierre(itemId, modal){
   const manual=calcularFechaModalSeg();
   const sel=document.getElementById('modalCierreSel')?.value;
   const posibleCierreLabel=!sel?'':(sel==='__custom_cierre__'?'Personalizada':sel+' días');
-  const fieldsPatch=f
-    ?{[SP_COLS_COT.FechaCierre]:f.toISOString(),[SP_COLS_COT.PosibleCierre]:posibleCierreLabel}
-    :{[SP_COLS_COT.FechaCierre]:null,[SP_COLS_COT.PosibleCierre]:''};
+  // Solo se reescribe el Posible Cierre si de verdad cambió: si el usuario solo movió el
+  // seguimiento, la fecha de cierre (y su etiqueta histórica "30 días", etc.) se dejan intactas.
+  const cierreInicial=modal?modal.dataset.cierreInicial||'':'';
+  const cierreSinCambio=f?(!!cierreInicial&&aFechaInput(f)===cierreInicial):!cierreInicial;
+  const fieldsPatch={};
+  if(!cierreSinCambio){
+    if(f){ fieldsPatch[SP_COLS_COT.FechaCierre]=f.toISOString(); fieldsPatch[SP_COLS_COT.PosibleCierre]=posibleCierreLabel; }
+    else { fieldsPatch[SP_COLS_COT.FechaCierre]=null; fieldsPatch[SP_COLS_COT.PosibleCierre]=''; }
+  }
   // FechaSeguimiento solo se manda si hay una fecha manual, o si la oferta tenía una y ahora se
   // vuelve a "Automático" (hay que limpiarla). Así no se pide una columna a quien no la usa.
   if(manual) fieldsPatch[SP_COLS_COT.FechaSeguimiento]=manual.toISOString();
   else if(modal&&modal.dataset.segInicial) fieldsPatch[SP_COLS_COT.FechaSeguimiento]=null;
+  if(!Object.keys(fieldsPatch).length){ if(modal) modal.remove(); showToast('Sin cambios','success'); return; }
   try{
     const descartadas=await patchCotizacionResiliente(itemId,fieldsPatch);
     if(modal) modal.remove();
@@ -5294,7 +5302,7 @@ async function aplicarCierre(itemId, modal){
     if(descartadas.length){
       showToast('⚠ NO se guardó: SharePoint no reconoce la(s) columna(s) '+descartadas.join(', ')+' en la lista Cotizaciones','error');
     } else {
-      showToast(f||manual?'✓ Seguimiento actualizado':'✓ Posible cierre borrado','success');
+      showToast(!f&&!manual&&!cierreSinCambio?'✓ Posible cierre borrado':'✓ Seguimiento actualizado','success');
     }
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
