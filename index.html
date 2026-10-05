@@ -3121,7 +3121,7 @@ function generarPDF(d, soloRetornar=false){
   const fTRM=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
   const garantiaTexto=d.garantia||'12 meses o 2.000 horas';
   const cli=d.clienteInfo||{};
-  const hayDesc=(d.desc||0)>0;   // con descuento: columna extra "P. Unit. Desc."
+  const hayDesc=(d.desc||0)>0;   // con descuento: valores en rojo bajo la tarifa
 
   const filas=d.items.map((item,idx)=>{
     const esUltimaUnidad=item.tipo==='stock'&&!item.stockIlimitado&&(item.stockCount===1||item.cantidad===1&&item.stockCount<=1);
@@ -3134,16 +3134,25 @@ function generarPDF(d, soloRetornar=false){
     const sumHijosPDF=esIncluido?0:d.items.filter(x=>x.incluidoEn===item.id).reduce((s,x)=>s+(x.tarifa||0),0);
     const tarifaMostrar=esIncluido?0:((item.tarifa||0)+sumHijosPDF);
     const unitMostrar=esIncluido?0:tarifaMostrar/(item.cantidad||1);
-    // Precio unitario de lista (tarifa) sin tachar + columna aparte con el precio unitario YA descontado (el total de la fila sigue a precio lista; el descuento se aplica en el resumen).
-    const unitNeto=(!esIncluido&&hayDesc)?unitMostrar*(1-d.desc/100):unitMostrar;
-    const unitHTML=fm=>'<div style="font-size:12px;color:#575756;">'+fm(unitMostrar)+'</div>';
-    const netTd=hayDesc?('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;background:#f5f7f0;">'
-      +(d.modoCOP
-        ?'<div style="font-size:12px;font-weight:700;color:#575756;">'+fCOP(unitNeto)+'</div>'
+    // Con descuento: en "P. Unit." y en "Total" se muestra la tarifa de lista y debajo, en rojo, el valor ya descontado (USD y COP). El rojo es solo referencia consultiva (el valor a pagar sigue en el resumen: Subtotal → Descuento → Subtotal s/IVA).
+    const factor=(!esIncluido&&hayDesc)?(1-d.desc/100):1;
+    const unitNeto=unitMostrar*factor;
+    const tarifaNeto=tarifaMostrar*factor;
+    const celdaPrecio=(v,vn,grande)=>{
+      const fs1=grande?13:12, fs2=grande?11:10;
+      const lista=d.modoCOP
+        ?'<div style="'+(grande?'font-weight:700;':'')+'font-size:'+fs1+'px;color:#575756;">'+fCOP(v)+'</div>'
         :d.modoUSD
-          ?'<div style="font-size:12px;font-weight:700;color:#575756;">'+fUSD(unitNeto)+'</div>'
-          :'<div style="font-size:12px;font-weight:700;color:#575756;">'+fUSD(unitNeto)+'</div><div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP(unitNeto)+'</div>')
-      +'</td>'):'';
+          ?'<div style="'+(grande?'font-weight:700;':'')+'font-size:'+fs1+'px;color:#575756;">'+fUSD(v)+'</div>'
+          :'<div style="'+(grande?'font-weight:700;':'')+'font-size:'+fs1+'px;color:#575756;">'+fUSD(v)+'</div><div style="font-size:'+fs2+'px;color:#999;margin-top:1px;">'+fCOP(v)+'</div>';
+      if(!factor||factor===1) return lista;
+      const rojo=d.modoCOP
+        ?'<div style="font-weight:700;font-size:'+fs1+'px;color:#c0392b;">'+fCOP(vn)+'</div>'
+        :d.modoUSD
+          ?'<div style="font-weight:700;font-size:'+fs1+'px;color:#c0392b;">'+fUSD(vn)+'</div>'
+          :'<div style="font-weight:700;font-size:'+fs1+'px;color:#c0392b;">'+fUSD(vn)+'</div><div style="font-size:'+fs2+'px;color:#c0392b;margin-top:1px;">'+fCOP(vn)+'</div>';
+      return lista+'<div style="margin-top:4px;padding-top:3px;border-top:1px dashed #e7b4ae;"><div style="font-size:9px;color:#c0392b;text-transform:uppercase;letter-spacing:0.3px;">Referencia con desc. '+(Math.round(d.desc*100)/100)+'%</div>'+rojo+'</div>';
+    };
     return '<tr>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;font-size:11px;color:#999;text-align:center;">'+(idx+1)+'</td>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;">'
@@ -3164,26 +3173,12 @@ function generarPDF(d, soloRetornar=false){
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:center;vertical-align:top;font-size:13px;font-weight:600;color:#575756;">'
       +(item.cantidad||1)
       +'</td>'
-      +(d.modoUSD?'':('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
-      +(d.modoCOP
-        ?unitHTML(fCOP)
-        :unitHTML(fUSD)+'<div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP(unitMostrar)+'</div>'
-      )
-      +'</td>'))
-      +(d.modoUSD?('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
-      +unitHTML(fUSD)
-      +'</td>'):'')
-      +netTd
+      +(d.modoUSD?'':('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'+celdaPrecio(unitMostrar,unitNeto,false)+'</td>'))
+      +(d.modoUSD?('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'+celdaPrecio(unitMostrar,unitNeto,false)+'</td>'):'')
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;white-space:nowrap;vertical-align:top;">'
       +(esIncluido
         ?'<div style="font-weight:700;font-size:13px;color:#92400E;">USD 0</div>'
-        :(d.modoCOP
-          ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fCOP(tarifaMostrar)+'</div>'
-          :d.modoUSD
-            ?'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(tarifaMostrar)+'</div>'
-            :'<div style="font-weight:700;font-size:13px;color:#575756;">'+fUSD(tarifaMostrar)+'</div>'
-             +'<div style="font-size:11px;color:#999;margin-top:3px;">'+fCOP(tarifaMostrar)+'</div>'
-        ))
+        :celdaPrecio(tarifaMostrar,tarifaNeto,true))
       +'</td>'
       +'</tr>';
   }).join('');
@@ -3325,7 +3320,7 @@ function generarPDF(d, soloRetornar=false){
     +'<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Descripción del Equipo</th>'
     +'<th style="padding:10px 8px;text-align:center;font-size:10px;font-weight:600;width:50px;text-transform:uppercase;">Cant.</th>'
     +(d.modoUSD?'':'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;">'+( d.modoCOP?'P. Unit. COP':'P. Unit. USD')+'</th>')
-    +(d.modoCOP?(hayDesc?'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;background:#6b7a3a;">P. Unit. Desc. COP</th>':'')+'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:140px;text-transform:uppercase;">Total COP</th>':d.modoUSD?'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;">P. Unit. USD</th>'+(hayDesc?'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;background:#6b7a3a;">P. Unit. Desc. USD</th>':'')+'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:130px;text-transform:uppercase;">Total USD</th>':(hayDesc?'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;background:#6b7a3a;">P. Unit. Desc. USD</th>':'')+'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:130px;text-transform:uppercase;">Total USD</th>')
+    +(d.modoCOP?'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:140px;text-transform:uppercase;">Total COP</th>':d.modoUSD?'<th style="padding:10px 10px;text-align:right;font-size:10px;font-weight:600;width:110px;text-transform:uppercase;">P. Unit. USD</th>'+'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:130px;text-transform:uppercase;">Total USD</th>':'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:600;width:130px;text-transform:uppercase;">Total USD</th>')
     +'</tr></thead>'
     +'<tbody>'+filas+'</tbody></table>'
 
