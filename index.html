@@ -267,6 +267,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
       <button id="navHistorial" onclick="switchView('historial')">Ofertas</button>
       <button id="navSeguimiento" onclick="switchView('seguimiento')" style="position:relative"><i class="ti ti-calendar-event"></i> Seguimiento<span id="badgeSeguimiento" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+      <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
       <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
       <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
       <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
@@ -642,6 +643,35 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
         <div id="segVencidosWrap"></div>
         <div id="segRangoWrap"></div>
+      </div>
+    </div>
+
+    <!-- RESERVADAS — máquinas con ESTADO_ = RESERVADA (próximas a venderse) -->
+    <div id="reservadasView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
+        <strong style="font-size:15px;align-self:center">🔒 Máquinas reservadas</strong>
+        <div class="field-group">
+          <label>Buscar</label>
+          <input type="text" id="resBuscar" placeholder="Máquina, ID, cliente…" oninput="renderReservadas()" style="min-width:200px">
+        </div>
+        <div class="field-group">
+          <label>Vencimiento</label>
+          <select id="resFiltro" onchange="renderReservadas()" style="min-width:150px">
+            <option value="">Todas</option>
+            <option value="vencida">Vencidas</option>
+            <option value="pronto">Vencen en ≤ 8 días</option>
+            <option value="sinfecha">Sin fecha</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);margin-left:auto;white-space:nowrap" title="Muestra solo las reservadas a tu nombre. Desmárcalo para ver las de todos los asesores.">
+          <input type="checkbox" id="resMias" checked onchange="renderReservadas()" style="cursor:pointer">
+          Mis reservadas
+        </label>
+        <button class="btn-sec" title="Recargar el catálogo y las reservas" onclick="cargarMaquinas().then(renderReservadas)"><i class="ti ti-refresh"></i></button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
+        <div id="resKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px"></div>
+        <div id="resBody"></div>
       </div>
     </div>
 
@@ -1606,16 +1636,152 @@ function mapItem(i){
   };
 }
 
+// ── MÁQUINAS RESERVADAS ──────────────────────────────────────────────────────────────
+// En TODAS_2025 una unidad con ESTADO_ = RESERVADA está próxima a venderse: no se ofrece en el
+// catálogo, pero su vendedor necesita verla y que se le recuerde antes de que venza la reserva.
+// Los datos salen del MISMO fetch de cargarMaquinas() (no hay una llamada extra para el catálogo).
+//   · "RESERVADA HASTA:"  → columna fecha (nombre interno RESERVADAHASTA_x003a_, detectada por /columns)
+//   · Observaciones        → casi siempre el cliente al que se reservó
+//   · Vendedor             → columna Persona: Graph solo devuelve VendedorLookupId, así que el nombre se
+//                            resuelve con la lista de usuarios del sitio; si falla, se usa el último
+//                            editor del registro (en esta lista, quien reserva es quien edita).
+let rawReservadas=[];
+
+function diasHastaReserva(fecha){
+  if(!fecha) return null;
+  const h=new Date(); h.setHours(0,0,0,0);
+  const d=new Date(fecha.getFullYear(),fecha.getMonth(),fecha.getDate());   // día calendario local (SharePoint guarda 07:00Z)
+  return Math.round((d-h)/86400000);
+}
+function estadoReserva(r){
+  const d=diasHastaReserva(r.hasta);
+  if(d===null) return {clave:'sinfecha',dias:null,texto:'Sin fecha',color:'#6B7280',bg:'#F3F4F6',orden:9999};
+  if(d<0) return {clave:'vencida',dias:d,texto:'Vencida hace '+Math.abs(d)+' día'+(Math.abs(d)!==1?'s':''),color:'#991B1B',bg:'#FEE2E2',orden:d};
+  if(d===0) return {clave:'hoy',dias:0,texto:'Vence hoy',color:'#92400E',bg:'#FEF3C7',orden:0};
+  if(d<=8) return {clave:'pronto',dias:d,texto:'En '+d+' día'+(d!==1?'s':''),color:'#92400E',bg:'#FEF3C7',orden:d};
+  return {clave:'ok',dias:d,texto:'En '+d+' días',color:'#166534',bg:'#DCFCE7',orden:d};
+}
+const _esMiaReserva=r=>!!r.vendedor&&asesorLabel(r.vendedor)===asesorLabel(currentUserName);
+// Las que piden acción: vencidas, por vencer (≤ 8 días) o sin fecha. Solo las del usuario.
+function reservasPendientes(){
+  return rawReservadas.filter(r=>_esMiaReserva(r)&&['vencida','hoy','pronto','sinfecha'].includes(estadoReserva(r).clave))
+    .sort((a,b)=>estadoReserva(a).orden-estadoReserva(b).orden);
+}
+function actualizarBadgeReservadas(){
+  const badge=document.getElementById('badgeReservadas');
+  if(!badge) return;
+  // Mismo criterio que el badge de Seguimiento: vencidas + próximos 3 días (+ sin fecha), solo las propias.
+  const n=rawReservadas.filter(r=>{ if(!_esMiaReserva(r)) return false; const e=estadoReserva(r); return e.clave==='vencida'||e.clave==='sinfecha'||(e.dias!==null&&e.dias<=3); }).length;
+  if(n>0){ badge.textContent=n; badge.style.display='inline-block'; } else badge.style.display='none';
+}
+function mapReservada(i,campos){
+  const f=i.fields||{};
+  return {
+    id:i.id,
+    titulo:(f.Title||'').trim(),
+    idMQ:String(f.ID_MQ||'').trim(),
+    origen:String(f.ESTADO||'').toLowerCase().includes('importa')?'importacion':'stock',
+    marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
+    tipologia:String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),
+    hasta:parsearFechaSharePoint(f[campos.hastaField]),
+    obs:String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),
+    pedido:String(f.PEDIDOSYNERGY||'').trim(),
+    vendedor:''
+  };
+}
+async function resolverVendedoresReservas(items,reservas){
+  const nombreDirecto=i=>{
+    let v=i.fields&&i.fields.Vendedor;
+    if(Array.isArray(v)) v=v[0];
+    if(v&&typeof v==='object') return String(v.LookupValue||v.Title||v.displayName||v.Email||'').trim();
+    return typeof v==='string'?v.trim():'';
+  };
+  let mapa={}, intentoMapa=false;
+  if(items.some(i=>!nombreDirecto(i)&&(i.fields&&(i.fields.VendedorLookupId||i.fields.VendedorId)))){
+    intentoMapa=true;
+    for(const ruta of ["lists('User%20Information%20List')","lists/User%20Information%20List"]){
+      try{
+        const usuarios=await graphGetAll(`/sites/${siteId}/${ruta}/items?expand=fields(select=Title,EMail)&$top=500`);
+        usuarios.forEach(u=>{ const t=String(u.fields&&u.fields.Title||'').trim(); if(t) mapa[String(u.id)]=t; });
+        if(Object.keys(mapa).length) break;
+      }catch(e){ console.warn('[AYJ] Lista de usuarios del sitio ('+ruta+'):',e.message); }
+    }
+  }
+  const origen={campo:0,lookup:0,editor:0,ninguno:0};
+  reservas.forEach((r,k)=>{
+    const i=items[k], f=i.fields||{};
+    let v=nombreDirecto(i);
+    if(v){ origen.campo++; }
+    else if((v=mapa[String(f.VendedorLookupId||f.VendedorId||'')])){ origen.lookup++; }
+    else if((v=(i.lastModifiedBy&&i.lastModifiedBy.user&&i.lastModifiedBy.user.displayName)||'')){ origen.editor++; }
+    else origen.ninguno++;
+    r.vendedor=String(v||'').replace(/\s+/g,' ').trim();
+  });
+  console.log('[AYJ] Máquinas reservadas:',reservas.length,'· asesor resuelto por →',origen,intentoMapa?'· usuarios del sitio leídos: '+Object.keys(mapa).length:'');
+}
+async function cargarReservadasDe(todos,campos){
+  const items=todos.filter(i=>String((i.fields&&i.fields.ESTADO_)||'').trim().toUpperCase()==='RESERVADA');
+  rawReservadas=items.map(i=>mapReservada(i,campos));
+  await resolverVendedoresReservas(items,rawReservadas);
+  actualizarBadgeReservadas();
+}
+function irAReservadas(){ switchView('reservadas'); }
+function reservaTarjeta(r){
+  const e=estadoReserva(r);
+  return '<div onclick="irAReservadas()" style="background:#fff;border:1px solid var(--border);border-left:4px solid '+e.color+';border-radius:var(--radius);padding:9px 12px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">'
+    +'<div style="min-width:0"><div style="font-weight:600;font-size:13px">'+_escRes(r.titulo)+' <span style="font-weight:400;color:var(--text2);font-size:11px">'+_escRes(r.idMQ)+'</span></div>'
+    +'<div style="font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_escRes(r.obs||'Sin observaciones')+'</div></div>'
+    +'<span style="background:'+e.bg+';color:'+e.color+';padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;flex-shrink:0">'+e.texto+'</span></div>';
+}
+function renderReservadas(){
+  const body=document.getElementById('resBody'); if(!body) return;
+  const q=(document.getElementById('resBuscar')?.value||'').toLowerCase().trim();
+  const fv=document.getElementById('resFiltro')?.value||'';
+  const solo=document.getElementById('resMias')?.checked;
+  const base=rawReservadas.filter(r=>!solo||_esMiaReserva(r));
+  const cuenta=fn=>base.filter(r=>fn(estadoReserva(r).clave)).length;
+  const kpi=(t,n,c)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:24px;font-weight:800;color:'+c+'">'+n+'</div></div>';
+  document.getElementById('resKpis').innerHTML=
+    kpi('Reservadas',base.length,'var(--gris)')+kpi('Vencidas',cuenta(c=>c==='vencida'),'#B91C1C')+kpi('Vencen en ≤ 8 días',cuenta(c=>c==='hoy'||c==='pronto'),'#B45309')+kpi('Sin fecha',cuenta(c=>c==='sinfecha'),'#6B7280');
+  const lista=base.filter(r=>{
+    const c=estadoReserva(r).clave;
+    if(fv==='vencida'&&c!=='vencida') return false;
+    if(fv==='pronto'&&c!=='hoy'&&c!=='pronto') return false;
+    if(fv==='sinfecha'&&c!=='sinfecha') return false;
+    return !q||(r.titulo+' '+r.idMQ+' '+r.obs+' '+r.vendedor+' '+r.marca+' '+r.tipologia).toLowerCase().includes(q);
+  }).sort((a,b)=>estadoReserva(a).orden-estadoReserva(b).orden||a.titulo.localeCompare(b.titulo,'es'));
+  if(!lista.length){
+    body.innerHTML='<div class="loading-list" style="padding:30px">'+(solo&&!base.length?'No tienes máquinas reservadas ✓':'Sin resultados')+'</div>';
+    actualizarBadgeReservadas(); return;
+  }
+  const fmt=d=>d?d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—';
+  body.innerHTML='<table class="hist-table"><thead><tr><th>Máquina</th><th>Origen</th><th>Reservada hasta</th><th>Observaciones / cliente</th><th>Asesor</th><th style="width:34px"></th></tr></thead><tbody>'
+    +lista.map(r=>{
+      const e=estadoReserva(r);
+      const origen=r.origen==='importacion'?'<span style="background:#e8eef7;color:#2a4a7a;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">En importación</span>':'<span style="background:#eaf2d7;color:#4a6a0a;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">En stock</span>';
+      return '<tr>'
+        +'<td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2);margin-top:2px">'+_escRes(r.idMQ)+(r.marca||r.tipologia?' · '+_escRes([r.marca,r.tipologia].filter(Boolean).join(' · ')):'')+'</div></td>'
+        +'<td>'+origen+'</td>'
+        +'<td style="white-space:nowrap"><div style="font-size:12px">'+fmt(r.hasta)+'</div><span style="background:'+e.bg+';color:'+e.color+';font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-block;margin-top:2px;'+(e.clave==='sinfecha'?'border:1px dashed #9CA3AF;':'')+'">'+e.texto+'</span></td>'
+        +'<td style="max-width:340px;font-size:12px">'+_escRes(r.obs||'—')+(r.pedido?'<div style="font-size:10px;color:var(--text2);margin-top:2px">Pedido Synergy: '+_escRes(r.pedido)+'</div>':'')+'</td>'
+        +'<td style="font-size:12px">'+_escRes(r.vendedor||'—')+'</td>'
+        +'<td><a href="https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(r.id)+'" target="_blank" title="Abrir este registro en SharePoint (para extender o liberar la reserva)" style="color:var(--text2);font-size:15px"><i class="ti ti-external-link"></i></a></td>'
+        +'</tr>';
+    }).join('')+'</tbody></table>';
+  actualizarBadgeReservadas();
+}
+
 async function cargarMaquinas(){
   if(!siteId||!listIdMaquinas){document.getElementById('maqList').innerHTML='<div class="loading-list">Lista no encontrada</div>';return;}
   try{
-    let marcaField='Marca', tipologiaField='Tipologia';
+    let marcaField='Marca', tipologiaField='Tipologia', hastaField='RESERVADAHASTA_x003a_';
     try{
       const cols=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns?$select=name,displayName`);
       cols.value.forEach(c=>{
         const dn=(c.displayName||'').toLowerCase().trim(); // guardado contra displayName undefined/columnas de sistema
         if(dn==='marca') marcaField=c.name;
         if(dn==='tipologia'||dn==='tipología') tipologiaField=c.name;
+        if(dn.replace(/[^a-z]/g,'')==='reservadahasta') hastaField=c.name;   // "RESERVADA HASTA:" (el nombre interno lleva _x003a_ por los dos puntos)
       });
     }catch(e){console.warn('[AYJ] No se pudo leer /columns para detectar el nombre interno de Tipología — usando fallbacks fijos:',e.message);}
 
@@ -1659,6 +1825,9 @@ async function cargarMaquinas(){
         stockIlimitado:f.StockIlimitado===true||f.StockIlimitado===1||String(f.StockIlimitado||'').trim().toLowerCase()==='true'||String(f.StockIlimitado||'').trim().toLowerCase()==='sí'||String(f.StockIlimitado||'').trim().toLowerCase()==='si',
       };
     }).filter(m=>m.estadoDisp==='DISPONIBLE'||m.estadoDisp==='BAJO PEDIDO');
+    // Las RESERVADAS no entran al catálogo vendible; alimentan la pestaña "Reservadas" y sus recordatorios.
+    try{ await cargarReservadasDe(todos,{marcaField,tipologiaField,hastaField}); }
+    catch(eRes){ console.warn('[AYJ] No se pudieron preparar las máquinas reservadas (el catálogo sigue normal):',eRes.message); }
     const marcas=[...new Set(rawMaquinas.map(m=>m.marca).filter(Boolean))].sort();
     const sel=document.getElementById('filtroMarca');
     sel.innerHTML='<option value="">Todas las marcas</option>';
@@ -3475,6 +3644,7 @@ function switchView(v){
   document.getElementById('historialView').style.display=v==='historial'?'flex':'none';
   document.getElementById('clientesView').style.display=v==='clientes'?'flex':'none';
   document.getElementById('seguimientoView').style.display=v==='seguimiento'?'flex':'none';
+  document.getElementById('reservadasView').style.display=v==='reservadas'?'flex':'none';
   document.getElementById('dashboardView').style.display=v==='dashboard'?'flex':'none';
   if(v==='dashboard')cargarDashboard();
   document.getElementById('stockView').style.display=v==='stock'?'flex':'none';
@@ -3482,12 +3652,13 @@ function switchView(v){
   // Ocultar sidebar en vistas de pantalla completa
   const sidebar=document.querySelector('.sidebar');
   if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock')?'none':'';
-  ['navNueva','navHistorial','navClientes','navSeguimiento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
-  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',dashboard:'navDashboard',stock:'navStock'};
+  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
+  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',reservadas:'navReservadas',dashboard:'navDashboard',stock:'navStock'};
   if(navMap[v])document.getElementById(navMap[v]).className='active';
   if(v==='historial')cargarHistorial();
   if(v==='clientes')renderTablaClientes();
   if(v==='seguimiento') abrirSeguimiento();
+  if(v==='reservadas') renderReservadas();
   // Sincronizar tabs móvil
   if(esMobil()){
     const tabMap={nueva:'carrito',historial:'historial',clientes:'clientes'};
@@ -3504,11 +3675,11 @@ function switchView(v){
 let _segModo='semana'; // 'dia' | 'semana' | 'mes'
 let _segFecha=new Date();
 
-// ── RESUMEN DE SEGUIMIENTOS AL INICIAR SESIÓN ──
+// ── RESUMEN AL INICIAR SESIÓN: seguimientos + máquinas reservadas ──
 // Cada vez que se carga la app (inicio de sesión o recarga) y solo si hay algo pendiente: ventana con
-// los seguimientos vencidos y los de los próximos 8 días (hoy incluido; no se limita a la semana
-// calendario) de las ofertas activas del usuario. Se llama desde showApp() cuando el Historial ya
-// cargó. (Antes salía una vez al día vía localStorage; se quitó a pedido del usuario, 3-oct-2026.)
+// (1) los seguimientos vencidos y los de los próximos 8 días (hoy incluido; no se limita a la semana
+// calendario) de las ofertas activas del usuario y (2) sus máquinas RESERVADAS vencidas, por vencer
+// (≤ 8 días) o sin fecha. Se llama desde showApp() cuando el Historial y el catálogo ya cargaron.
 function mostrarResumenSeguimientoInicio(){
   try{
     const hoy=new Date(); hoy.setHours(0,0,0,0);
@@ -3522,7 +3693,9 @@ function mostrarResumenSeguimientoInicio(){
     );
     const vencidos=mias.filter(r=>r.fechaSeguimiento<hoy).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
     const semana=mias.filter(r=>r.fechaSeguimiento>=hoy&&r.fechaSeguimiento<=finVentana).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
-    if(!vencidos.length&&!semana.length) return;
+    const reservas=reservasPendientes();
+    const nSeg=vencidos.length+semana.length, nRes=reservas.length;
+    if(!nSeg&&!nRes) return;
 
     const etiquetaDia=d=>{
       const dias=Math.round((d-hoy)/86400000);
@@ -3539,32 +3712,44 @@ function mostrarResumenSeguimientoInicio(){
       semanaHTML+=segTarjeta(r,hoy);
     });
     const nombre=(currentUserName||'').split(' ')[0];
-    const total=vencidos.length+semana.length;
+    const titulo=nSeg&&nRes?'📅 Tus pendientes':nSeg?'📅 Tus seguimientos de los próximos 8 días':'🔒 Tus máquinas reservadas';
+    const partes=[];
+    if(nSeg) partes.push('<strong>'+nSeg+'</strong> seguimiento'+(nSeg!==1?'s':'')+' pendiente'+(nSeg!==1?'s':''));
+    if(nRes) partes.push('<strong>'+nRes+'</strong> máquina'+(nRes!==1?'s':'')+' reservada'+(nRes!==1?'s':'')+' que requiere'+(nRes!==1?'n':'')+' atención');
+    const segHTML=nSeg
+      ?(vencidos.length
+          ?'<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--radius-lg);padding:12px 14px;margin:10px 0">'
+             +'<div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px">⚠ Seguimientos vencidos ('+vencidos.length+')</div>'
+             +vencidos.map(r=>segTarjeta(r,hoy)).join('')
+           +'</div>'
+          :'')+semanaHTML
+      :'';
+    const resHTML=nRes
+      ?'<div style="margin-top:'+(nSeg?'18px':'10px')+';border-top:'+(nSeg?'1px solid var(--border);padding-top:14px':'none')+'">'
+         +'<div style="font-size:13px;font-weight:700;color:var(--gris);margin-bottom:8px">🔒 Máquinas reservadas — vencidas, por vencer (≤ 8 días) o sin fecha ('+nRes+')</div>'
+         +reservas.map(reservaTarjeta).join('')
+       +'</div>'
+      :'';
     const modal=document.createElement('div');
     modal.className='modal-seg-inicio';
     modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;display:flex;align-items:center;justify-content:center';
-    modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:22px;width:580px;max-width:94vw;max-height:84vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">'
+    modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:22px;width:600px;max-width:94vw;max-height:84vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
-        +'<div style="font-size:16px;font-weight:700;color:var(--gris)">📅 Tus seguimientos de los próximos 8 días</div>'
+        +'<div style="font-size:16px;font-weight:700;color:var(--gris)">'+titulo+'</div>'
         +'<button onclick="this.closest(\'.modal-seg-inicio\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3);line-height:1">×</button>'
       +'</div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(nombre?nombre+', tienes ':'Tienes ')+'<strong>'+total+'</strong> seguimiento'+(total!==1?'s':'')+' pendiente'+(total!==1?'s':'')+'. Clic en una oferta para verla en Ofertas.</div>'
-      +(vencidos.length
-        ?'<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--radius-lg);padding:12px 14px;margin:10px 0">'
-           +'<div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px">⚠ Vencidos ('+vencidos.length+')</div>'
-           +vencidos.map(r=>segTarjeta(r,hoy)).join('')
-         +'</div>'
-        :'')
-      +semanaHTML
+      +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(nombre?nombre+', tienes ':'Tienes ')+partes.join(' y ')+'. Clic en una tarjeta para abrirla.</div>'
+      +segHTML+resHTML
       +'<div style="display:flex;gap:8px;margin-top:16px">'
-        +'<button onclick="this.closest(\'.modal-seg-inicio\').remove();switchView(\'seguimiento\')" class="btn-primary" style="flex:1">Ir a Seguimiento</button>'
+        +(nSeg?'<button onclick="this.closest(\'.modal-seg-inicio\').remove();switchView(\'seguimiento\')" class="btn-primary" style="flex:1">Ir a Seguimiento</button>':'')
+        +(nRes?'<button onclick="this.closest(\'.modal-seg-inicio\').remove();irAReservadas()" class="'+(nSeg?'btn-sec':'btn-primary')+'" style="flex:1">Ver reservadas</button>':'')
         +'<button onclick="this.closest(\'.modal-seg-inicio\').remove()" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text2)">Cerrar</button>'
       +'</div>'
       +'</div>';
-    // Clic en una tarjeta → verOfertaDesdeSeguimiento() (inline) navega al Historial; aquí se cierra la ventana.
-    modal.addEventListener('click',e=>{ if(e.target.closest('[onclick^="verOfertaDesdeSeguimiento"]')) modal.remove(); });
+    // Clic en una tarjeta → navega (verOfertaDesdeSeguimiento / irAReservadas, inline); aquí se cierra la ventana.
+    modal.addEventListener('click',e=>{ if(e.target.closest('[onclick^="verOfertaDesdeSeguimiento"],[onclick^="irAReservadas"]')) modal.remove(); });
     document.body.appendChild(modal);
-  }catch(e){ console.warn('[AYJ] No se pudo mostrar el resumen de seguimientos:',e.message); }
+  }catch(e){ console.warn('[AYJ] No se pudo mostrar el resumen de inicio:',e.message); }
 }
 
 async function abrirSeguimiento(){
