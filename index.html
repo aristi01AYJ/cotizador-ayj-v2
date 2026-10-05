@@ -2255,7 +2255,7 @@ function editarPrecioItem(idx, nuevoPrecioUnit){
   calcTotales();
 }
 
-let descMaximo=20; // 20 normal, 30 con clave
+let descMaximo=20; // 20 normal, 40 con clave (casos especiales; el total con el +3% especial no pasa de 40)
 
 const TABLA_MG={0:[50.0,7.5],1:[49.495,7.424],2:[48.98,7.347],3:[48.454,7.268],4:[47.917,7.188],5:[47.368,7.105],6:[46.809,7.021],7:[46.237,6.935],8:[45.652,6.848],9:[45.055,6.758],10:[44.444,6.667],11:[43.82,6.573],12:[43.182,6.477],13:[42.529,6.379],14:[41.86,6.279],15:[41.176,6.176],16:[40.476,6.071],17:[39.759,5.964],18:[39.024,5.854],19:[38.272,5.741],20:[37.5,5.625],21:[36.709,5.506],22:[35.897,5.385],23:[35.065,5.26],24:[34.211,5.132],25:[33.333,5.0],26:[32.432,4.865],27:[31.507,4.726],28:[30.556,4.583],29:[29.577,4.437],30:[28.571,4.286],31:[27.536,4.13],32:[26.471,3.971],33:[25.373,3.806],34:[24.242,3.636],35:[23.077,3.462],36:[21.875,3.281],37:[20.635,3.095],38:[19.355,2.903],39:[18.033,2.705],40:[16.667,2.5],41:[15.254,2.288],42:[13.793,2.069],43:[12.281,1.842],44:[10.714,1.607],45:[9.091,1.364],46:[7.407,1.111],47:[5.66,0.849],48:[3.846,0.577],49:[1.961,0.294],50:[0.0,0.0]};
 
@@ -2303,7 +2303,7 @@ function calcMG(){
 }
 
 function solicitarClaveDesc(){
-  if(descMaximo===30){
+  if(descMaximo===40){
     // Ya desbloqueado — relockear
     descMaximo=20;
     const input=document.getElementById('descInput');
@@ -2317,29 +2317,36 @@ function solicitarClaveDesc(){
     showToast('Descuento vuelto al límite normal (20%)','success');
     return;
   }
-  const clave=prompt('Ingresa la clave para habilitar descuento hasta 30%:');
+  const clave=prompt('Ingresa la clave para habilitar descuento hasta 40%:');
   if(clave===null) return;
   if(clave==='AYJ860'){
-    descMaximo=30;
-    document.getElementById('descMaxLabel').textContent='máx 30% 🔓';
+    descMaximo=40;
+    document.getElementById('descMaxLabel').textContent='máx 40% 🔓';
     document.getElementById('descMaxLabel').style.color='var(--amber)';
     document.getElementById('descLockBtn').textContent='🔓';
     document.getElementById('descLockBtn').title='Bloquear (volver a 20%)';
-    showToast('✓ Descuento especial hasta 30% habilitado','success');
+    showToast('✓ Descuento especial hasta 40% habilitado','success');
   } else {
     showToast('Clave incorrecta','error');
   }
 }
 
+function topeDescBase(){
+  // Sin clave: base ≤ 20 (+3% especial opcional). Con clave: el TOTAL (base + especial) ≤ 40.
+  const esp=document.getElementById('descEspecialChk').checked?3:0;
+  return descMaximo>20?descMaximo-esp:descMaximo;
+}
 function validarDescuento(input){
   let val=parseFloat(input.value)||0;
-  if(val>descMaximo){val=descMaximo;input.value=descMaximo;}
+  const tope=topeDescBase();
+  if(val>tope){val=tope;input.value=tope;}
   if(val<0){val=0;input.value=0;}
   actualizarDescBadge();
   calcTotales();
 }
 
 function toggleDescEspecial(checked){
+  { const di=document.getElementById('descInput'), tope=topeDescBase(); if(parseFloat(di.value)>tope){ di.value=tope; showToast('Descuento base ajustado a '+tope+'% (con el +3% especial el total máximo es '+descMaximo+'%)','success'); } }
   const label=document.getElementById('descEspecialLabel');
   const wrap=document.getElementById('descCausalWrap');
   const causal=document.getElementById('descEspecialCausal');
@@ -3126,6 +3133,12 @@ function generarPDF(d, soloRetornar=false){
     const sumHijosPDF=esIncluido?0:d.items.filter(x=>x.incluidoEn===item.id).reduce((s,x)=>s+(x.tarifa||0),0);
     const tarifaMostrar=esIncluido?0:((item.tarifa||0)+sumHijosPDF);
     const unitMostrar=esIncluido?0:tarifaMostrar/(item.cantidad||1);
+    // El cliente quiere ver el precio unitario YA descontado: se muestra el de lista tachado y el neto (el total de la fila sigue a precio lista; el descuento se aplica en el resumen).
+    const conDesc=!esIncluido&&(d.desc||0)>0;
+    const unitNeto=conDesc?unitMostrar*(1-d.desc/100):unitMostrar;
+    const unitHTML=fm=>conDesc
+      ?'<div style="font-size:10px;color:#aaa;text-decoration:line-through;">'+fm(unitMostrar)+'</div><div style="font-size:12px;font-weight:700;color:#575756;">'+fm(unitNeto)+'</div>'
+      :'<div style="font-size:12px;color:#575756;">'+fm(unitMostrar)+'</div>';
     return '<tr>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;font-size:11px;color:#999;text-align:center;">'+(idx+1)+'</td>'
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;">'
@@ -3148,13 +3161,12 @@ function generarPDF(d, soloRetornar=false){
       +'</td>'
       +(d.modoUSD?'':('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
       +(d.modoCOP
-        ?'<div style="font-size:12px;color:#575756;">'+fCOP(unitMostrar)+'</div>'
-        :'<div style="font-size:12px;color:#575756;">'+fUSD(unitMostrar)+'</div>'
-         +'<div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP(unitMostrar)+'</div>'
+        ?unitHTML(fCOP)
+        :unitHTML(fUSD)+'<div style="font-size:10px;color:#aaa;margin-top:1px;">'+fCOP(unitNeto)+'</div>'
       )
       +'</td>'))
       +(d.modoUSD?('<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;vertical-align:top;white-space:nowrap;">'
-      +'<div style="font-size:12px;color:#575756;">'+fUSD(unitMostrar)+'</div>'
+      +unitHTML(fUSD)
       +'</td>'):'')
       +'<td style="padding:8px 10px;border-bottom:1px solid #ececec;text-align:right;white-space:nowrap;vertical-align:top;">'
       +(esIncluido
