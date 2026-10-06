@@ -2637,7 +2637,7 @@ async function guardarCotizacion(){
       Garantia:garantia,
       CondicionPago:condPago,
       Validez:validez,
-      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR'}))),
+      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR',...liqItemParaGuardar(i)}))),
     };
     // Posible cierre (opcional) — si no se definió, simplemente no se mandan estos campos.
     // PosibleCierre es solo registro histórico de qué opción se eligió (30/60/90/Personalizada);
@@ -5131,13 +5131,13 @@ async function editarOferta(itemId, r){
   switchView('nueva');
 
   // Cargar items — buscar en grupos/rawMaquinas para recuperar datos completos
-  carrito=r.items.map(i=>{
+  carrito=r.items.map((i,idx)=>{
     // Buscar en grupos y rawMaquinas por nombre
     const g=grupos.find(x=>x.title===i.nombre||x.key===i.nombre);
     const m=rawMaquinas?.find(x=>x.title===i.nombre);
     const fuente=g||m||{};
     return {
-      id:i.nombre+'_edit',
+      id:i.origen==='LIQ'?('liq_'+Date.now()+'_'+idx):i.nombre+'_edit',
       grupoKey:g?.key||null,
       tipo:i.tipo||'stock',
       nombre:i.nombre,
@@ -5153,6 +5153,8 @@ async function editarOferta(itemId, r){
       stockCount:fuente.stockCount||0,
       stockIlimitado:fuente.stockIlimitado||false,
       horasInstalacion:fuente.horasInstalacion||0,
+      // Ítem liquidado: se restaura como tal (antes volvía como catálogo y sin datos de liquidación)
+      ...(i.origen==='LIQ'?{origen:'liquidador',costoTotal:(i.liq&&i.liq.costoTotal)||i.costoAYJ||0,margenLiq:(i.liq&&i.liq.margenLiq)||0,_liqSnapshot:(i.liq&&i.liq.s)||undefined,_instSnapshot:(i.liq&&i.liq.i)||undefined,_finSnapshot:(i.liq&&i.liq.f)||undefined}:{}),
     };
   });
 
@@ -5262,7 +5264,11 @@ async function editarOferta(itemId, r){
   }
 
   // Aviso liquidador
-  showToast('⚠ Liquidador no restaurado — recalcule manualmente si es necesario','error');
+  {
+    const liqSin=carrito.filter(i=>i.origen==='liquidador'&&!i._liqSnapshot);
+    liqRehidratarCarrito();
+    if(liqSin.length) showToast('⚠ '+liqSin.map(i=>i.nombre).join(', ')+': esta oferta se guardó antes de que se almacenara la liquidación, así que sus datos no están disponibles — vuelve a ingresarlos en el Liquidador (en adelante quedarán guardados)','error');
+  }
 
   // Generar número con sufijo de revisión
   const baseNum=r.num.replace(/-R\d+$/, ''); // quitar revisión anterior si existe
@@ -6317,6 +6323,48 @@ async function generarNumLiquidacion(){
 
 // ── LIQUIDADOR MULTI-MÁQUINA ──────────────────────────
 let liqEditandoId=null; // ID del item del carrito que se está editando
+
+// ── PERSISTENCIA DEL LIQUIDADOR EN LA OFERTA ──────────────────────────────────────────
+// Antes, al guardar la oferta solo viajaban nombre/tarifa/costo y la liquidación (FOB, aranceles, instalación,
+// financiación, margen…) se perdía: al reabrir ("Editar") la máquina volvía como catálogo (TAR) y vacía. Ahora cada
+// ítem liquidado guarda en Items un resumen numérico (sin los HTML, que pesan) y al reabrir se restaura el ítem como
+// liquidador y se regeneran los HTML corriendo el cálculo con esos números.
+function liqSnapSinHTML(o){
+  if(!o) return null;
+  const c={...o};
+  delete c.htmlCostos; delete c.htmlResultados; delete c.htmlDetalle;
+  return c;
+}
+function liqItemParaGuardar(i){
+  if(!(i&&i.id&&String(i.id).startsWith('liq_'))) return {};
+  return {liq:{s:liqSnapSinHTML(i._liqSnapshot),i:liqSnapSinHTML(i._instSnapshot),f:liqSnapSinHTML(i._finSnapshot),costoTotal:i.costoTotal||0,margenLiq:i.margenLiq||0}};
+}
+// Carga cada ítem liquidado en el Liquidador (sin avisos), captura los HTML que genera y lo deja listo.
+function liqRehidratarCarrito(){
+  const liqs=carrito.filter(i=>i._liqSnapshot&&i.id&&String(i.id).startsWith('liq_'));
+  if(!liqs.length) return;
+  const toastOrig=window.showToast;
+  window.showToast=function(){};
+  try{
+    liqs.forEach(it=>{
+      liqEditandoId=null;
+      liqEditarItem(it.id); // carga los campos del snapshot y recalcula
+      const g=id=>document.getElementById(id)?.innerHTML||'';
+      it._liqSnapshot.htmlCostos=g('liqCostosTable');
+      it._liqSnapshot.htmlResultados=g('liqResultados');
+      if(it._instSnapshot) it._instSnapshot.htmlDetalle=g('instResultados');
+      if(it._finSnapshot) it._finSnapshot.htmlDetalle=g('finResultados');
+      liqEditarItem(it.id); // segunda llamada = cancela la edición y limpia los campos
+    });
+  }catch(e){ console.warn('[AYJ] No se pudieron regenerar los detalles del liquidador:',e.message); }
+  finally{
+    window.showToast=toastOrig;
+    liqEditandoId=null;
+    const btn=document.getElementById('liqBtnAgregar');
+    if(btn){ btn.innerHTML='<i class="ti ti-shopping-cart"></i> + Agregar'; btn.style.background='#80A61B'; }
+    try{ liqRefreshChips(); }catch(e2){}
+  }
+}
 
 function liqGetItem(){
   const precio=window._liqPrecioUSD||0;
