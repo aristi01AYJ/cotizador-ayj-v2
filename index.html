@@ -6218,7 +6218,7 @@ function liqCalc(){
     +fila('Marketing (1.5% del FOB)',fU(garantiaUSD/3),fC(garantiaUSD/3))
     +fila('🔧 Instalación',fU(instalacion),fC(instalacion))
     +fila('💳 Financiación',fU(costoFin),fC(costoFin))
-    +fila('Otros'+(document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''),fU(otros),fC(otros))
+    +fila('Otros'+(otros>0&&document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''),fU(otros),fC(otros))
     +(()=>{
       const impocosto=fleteNal+descargue+garantiaUSD+instalacion+costoFin+otros;
       return impocosto>0?`<div class="liq-row" style="background:#EFF6FF;border-radius:4px;padding:5px 4px;margin:4px 0;border-left:3px solid #3B82F6"><span style="color:#1E40AF;font-weight:600;font-size:11px">📦 IMPOCOSTO (sin IVA)</span><span style="text-align:right"><strong style="color:#1E40AF">${fU(impocosto)}</strong><br><span style="font-size:10px;color:#888">${fC(impocosto)}</span></span></div>`:'';
@@ -6427,6 +6427,7 @@ function liqAgregarAlCarrito(){
         fleteNal:parseFloat(document.getElementById('liqFleteNal')?.value)||0,
         descargue:parseFloat(document.getElementById('liqDescargue')?.value)||0,
         otros:parseFloat(document.getElementById('liqOtros')?.value)||0,
+        otrosDesc:document.getElementById('liqOtrosDesc')?.value||'',
         garantia:parseFloat(document.getElementById('liqGarantia')?.value)||0.03,
         instalacion:parseFloat(document.getElementById('liqInstalacion')?.value)||0,
         costoFin:parseFloat(document.getElementById('liqCostoFin')?.value)||0,
@@ -6487,6 +6488,7 @@ function liqAgregarAlCarrito(){
       fleteNal:parseFloat(document.getElementById('liqFleteNal')?.value)||0,
       descargue:parseFloat(document.getElementById('liqDescargue')?.value)||0,
       otros:parseFloat(document.getElementById('liqOtros')?.value)||0,
+      otrosDesc:document.getElementById('liqOtrosDesc')?.value||'',
       garantia:parseFloat(document.getElementById('liqGarantia')?.value)||0.03,
       instalacion:parseFloat(document.getElementById('liqInstalacion')?.value)||0,
       costoFin:parseFloat(document.getElementById('liqCostoFin')?.value)||0,
@@ -6541,6 +6543,7 @@ function liqLimpiarCampos(){
   ['liqFOB','liqFleteInt','liqFleteNal','liqDescargue','liqOtros','liqInstalacion','liqCostoFin','liqCostoAYJ'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value=0;
   });
+  { const od=document.getElementById('liqOtrosDesc'); if(od){ od.value=''; od.style.display='none'; } }
   const sel=document.getElementById('liqMaquinaSel');
   if(sel) sel.value='';
   const inp=document.getElementById('liqMaquinaInput');
@@ -6598,6 +6601,8 @@ function liqEditarItem(id){
     set('liqFOB',s.FOB); set('liqFleteInt',s.fleteInt);
     set('liqFleteNal',s.fleteNal); set('liqDescargue',s.descargue);
     set('liqOtros',s.otros); set('liqInstalacion',s.instalacion);
+    set('liqOtrosDesc',s.otrosDesc||'');
+    { const od=document.getElementById('liqOtrosDesc'); if(od) od.style.display=(parseFloat(s.otros)||0)>0?'block':'none'; }
     set('liqCostoFin',s.costoFin);
     // Restaurar CIF/CostoAYJ
     if(s.CIF) set('liqCostoAYJ', s.CIF);
@@ -6692,6 +6697,7 @@ async function guardarLiquidacion(){
   // Snapshot completo de los campos
   const snapshot={
     TRM,FOB,
+    otrosDesc:document.getElementById('liqOtrosDesc')?.value||'',
     fleteInt:parseFloat(document.getElementById('liqFleteInt')?.value)||0,
     arancel:document.getElementById('liqArancel')?.value||0,
     agente:document.getElementById('liqAgente')?.value||0,
@@ -7209,7 +7215,7 @@ function liqImprimir(soloRetornar=false){
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Marketing (1.5% del FOB)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(garantiaUSD/3)}<br><span style="font-size:10px;color:#aaa">${fC(garantiaUSD/3)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Instalación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(instalacion)}<br><span style="font-size:10px;color:#aaa">${fC(instalacion)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Costo Financiación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(costoFin)}<br><span style="font-size:10px;color:#aaa">${fC(costoFin)}</span></td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Otros${document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(otros)}<br><span style="font-size:10px;color:#aaa">${fC(otros)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Otros${otros>0&&document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(otros)}<br><span style="font-size:10px;color:#aaa">${fC(otros)}</span></td></tr>
         <tr style="background:#fafafa"><td style="padding:6px 8px;font-weight:700">TOTAL COSTOS (sin IVA)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#EF4444">${fU(totalCostosUSD)}<br><span style="font-size:10px;color:#aaa">${fC(totalCostosUSD)}</span></td></tr>
         ${esFOB?`<tr style="background:#FEF3C7"><td style="padding:5px 8px;color:#92400E">⚠ IVA Nacionalización 19% (recuperable)</td><td style="padding:5px 8px;text-align:right;color:#F59E0B;font-weight:600">${fU(ivaImportUSD)}<br><span style="font-size:10px;color:#aaa">${fC(ivaImportUSD)}</span></td></tr>`:''}
         <tr style="background:#f0f0f0"><td style="padding:6px 8px;font-weight:700">TOTAL REAL (con IVA)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#575756">${fU(totalConIvaUSD)}<br><span style="font-size:10px;color:#aaa">${fC(totalConIvaUSD)}</span></td></tr>
