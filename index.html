@@ -5518,6 +5518,9 @@ function usuarioPorNombre(lista,nombre){
 }
 
 // Unidades físicas (seriales) del catálogo para una máquina: disponibles + reservadas.
+// N° de cotización para escribir en LISTS: "COT-2026-620-R4" → "COT-2026-620 R4"
+function numCotizacionLista(num){ return String(num||'').replace(/-R(\d+)$/,' R$1').trim(); }
+
 function unidadesDe(titulo){
   const k=_kTitulo(titulo), out=[];
   rawMaquinas.forEach(m=>{
@@ -5617,7 +5620,7 @@ function renderPedidoVenta(){
   // ── vista previa de lo que se escribirá ──
   const syn=document.getElementById('pedSynergy')?.value||'';
   const prev=[];
-  filas.filter(f=>f.unidad).forEach(f=>prev.push('<li><strong>'+esc(f.unidad.idMQ)+'</strong> ('+esc(f.nombre)+') → ESTADO_ <b>VENDIDA</b> · Cliente: '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+' · Pedido Synergy: '+esc(syn||'—')+(f.unidad.reservada?' <span style="color:#B45309">(estaba reservada)</span>':'')+'</li>'));
+  filas.filter(f=>f.unidad).forEach(f=>prev.push('<li><strong>'+esc(f.unidad.idMQ)+'</strong> ('+esc(f.nombre)+') → ESTADO_ <b>VENDIDA</b> · Cliente: '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+' · Pedido Synergy: '+esc(syn||'—')+' · Observaciones: +'+esc(numCotizacionLista(r.num))+(f.unidad.reservada?' <span style="color:#B45309">(estaba reservada)</span>':'')+'</li>'));
   const nBP=filas.filter(f=>f.bp).length;
   if(nBP) prev.push('<li>🚚 <b>'+nBP+' unidad(es) bajo pedido</b>: no se modifica LISTS; quedan como nota para Casa Matriz en el paquete.</li>');
   prev.push('<li>Oferta <strong>'+esc(r.num)+'</strong> → <b>Cerrada-Ganada</b> con resultado "'+esc(syn||'—')+'"</li>');
@@ -5665,7 +5668,7 @@ function pedidoRefrescarPrev(){
   const syn=document.getElementById('pedSynergy')?.value||'';
   const ul=document.getElementById('pedPrev'); if(!ul) return;
   const esc=_escRes, r=P.r, filas=pedidoFilas(), prev=[];
-  filas.filter(f=>f.unidad).forEach(f=>prev.push('<li><strong>'+esc(f.unidad.idMQ)+'</strong> ('+esc(f.nombre)+') → ESTADO_ <b>VENDIDA</b> · Cliente: '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+' · Pedido Synergy: '+esc(syn||'—')+(f.unidad.reservada?' <span style="color:#B45309">(estaba reservada)</span>':'')+'</li>'));
+  filas.filter(f=>f.unidad).forEach(f=>prev.push('<li><strong>'+esc(f.unidad.idMQ)+'</strong> ('+esc(f.nombre)+') → ESTADO_ <b>VENDIDA</b> · Cliente: '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+' · Pedido Synergy: '+esc(syn||'—')+' · Observaciones: +'+esc(numCotizacionLista(r.num))+(f.unidad.reservada?' <span style="color:#B45309">(estaba reservada)</span>':'')+'</li>'));
   const nBP=filas.filter(f=>f.bp).length;
   if(nBP) prev.push('<li>🚚 <b>'+nBP+' unidad(es) bajo pedido</b>: no se modifica LISTS; quedan como nota para Casa Matriz en el paquete.</li>');
   prev.push('<li>Oferta <strong>'+esc(r.num)+'</strong> → <b>Cerrada-Ganada</b> con resultado "'+esc(syn||'—')+'"</li>');
@@ -5735,9 +5738,12 @@ async function pedidoPlanEscritura(r,syn){
   if(cPedido&&(cPedido.text||cPedido.number===undefined)) base[cPedido.name]=syn;
   const camposPara=u=>{
     const f={...base};
-    if(!clienteOk||!asesorOk){
-      f.Observaciones=(u.obsOriginal?u.obsOriginal+' | ':'')+'VENDIDA '+fecha+' · '+(clienteOk?'':'Cliente: '+r.cliente+' · ')+(asesorOk?'':'Asesor: '+r.vendedor+' · ')+'Oferta '+r.num+' · Pedido Synergy '+syn;
-    }
+    const numLista=numCotizacionLista(r.num);
+    // Lo que no se pudo llenar en columnas propias (Cliente/Asesor) se anota aquí para no perderlo.
+    const faltantes=(clienteOk?'':' · Cliente: '+r.cliente)+(asesorOk?'':' · Asesor: '+r.vendedor);
+    const nota=numLista+faltantes;
+    const previa=String(u.obsOriginal||'').trim();
+    f.Observaciones=previa.includes(numLista)?previa:(previa?previa+' | ':'')+nota;
     return f;
   };
   return {camposPara,adv,cols:{estado:colEstado&&colEstado.name,cliente:cCliente&&cCliente.name,asesor:cAsesores.map(c=>c.name),pedido:cPedido&&cPedido.name}};
