@@ -5628,16 +5628,21 @@ function renderPedidoVenta(){
     ? '<div style="text-align:center;padding:10px 0"><div style="font-size:34px">✅</div><div style="font-size:16px;font-weight:700;margin:6px 0">Pedido registrado</div>'
       +'<div style="font-size:12px;color:var(--text2);margin-bottom:14px">La oferta '+esc(r.num)+' quedó Cerrada-Ganada'+(filas.some(f=>f.unidad)?' y los seriales pasaron a VENDIDA en el catálogo':'')+'.'
       +(P.advertencias&&P.advertencias.length?'<div style="margin-top:8px;color:#92400E;text-align:left;background:#FEF3C7;border-radius:6px;padding:8px">⚠ '+P.advertencias.map(esc).join('<br>⚠ ')+'</div>':'')+'</div>'
+      +'<div style="font-size:12px;font-weight:700;margin:4px 0 8px">Paquete de documentos</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
-        +'<button onclick="pedidoImprimirPaquete()" class="btn-primary" style="'+estiloBtn+'">🖨 Paquete del pedido (PDF)</button>'
-        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">📄 Cotización aprobada</a>':'')
-        +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">🔒 MG (PDF)</button>'
+        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">1 · 📄 Oferta (PDF)</a>':'<span style="font-size:11px;color:var(--text3);align-self:center">1 · La oferta no tiene PDF guardado</span>')
+        +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">2 · 🔒 MG (PDF)</button>'
+        +'<button onclick="pedidoImprimirPaquete()" class="btn-primary" style="'+estiloBtn+'">3 · 🖨 Pedido resumen (PDF)</button>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;justify-content:center;margin-top:10px">'
+        +'<button onclick="pedidoAbrirTodos()" style="'+estiloBtn+'border:1px solid #3B82F6;color:#1D4ED8;background:#fff">Abrir los 3 documentos</button>'
         +'<button onclick="cerrarPedido()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">Cerrar</button>'
       +'</div></div>'
     : '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(r.num)+' · '+esc(r.cliente)+' · Asesor: <strong>'+esc(r.vendedor)+'</strong> · USD '+Math.round(r.total||0).toLocaleString('es-CO')+(r.estado==='Cerrada-Ganada'?' · <span style="color:#166534">ya estaba Ganada</span>':'')+'</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
-        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">📄 Cotización aprobada (PDF)</a>':'<span style="font-size:11px;color:var(--text3);align-self:center">Esta oferta no tiene PDF guardado</span>')
-        +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">🔒 MG (PDF)</button>'
+        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">1 · 📄 Oferta (PDF)</a>':'<span style="font-size:11px;color:var(--text3);align-self:center">Esta oferta no tiene PDF guardado</span>')
+        +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">2 · 🔒 MG (PDF)</button>'
+        +'<span style="font-size:11px;color:var(--text3);align-self:center">3 · Pedido resumen: se genera al confirmar</span>'
       +'</div>'
       +'<div style="font-size:12px;font-weight:700;margin-bottom:4px">N° de pedido creado en Synergy *</div>'
       +'<input type="text" id="pedSynergy" value="'+esc(P.synergy||r.idSynergy||'')+'" oninput="_pedido.synergy=this.value;pedidoRefrescarPrev()" placeholder="Ej. 12345" style="width:200px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:14px">'
@@ -5840,27 +5845,98 @@ function pedidoMGBody(r){
     +'<div style="font-size:10px;color:#999">Precio de venta sin IVA (la oferta con IVA/flete: USD '+Math.round(r.total||0).toLocaleString('es-CO')+'). Comisión = 15% del margen % sobre el precio de venta. Cálculo desde los datos guardados en la oferta.</div>'
     +(detalle?'<h2>Detalle de liquidaciones</h2>'+detalle:'');
 }
+// MG REAL: reutiliza el generador de MG de la pestaña Cotizar (mostrarResumenMargenes). Ese generador lee el carrito y el
+// formulario, así que se cargan temporalmente los datos de la oferta guardada (con sus liquidaciones regeneradas) y se
+// restaura todo al terminar. Si algo falla, cae al resumen simple (pedidoMGBody).
 function pedidoImprimirMG(){
-  const r=_pedido&&_pedido.r; if(!r) return;
-  pedidoAbrirDoc('MG '+r.num,pedidoMGBody(r));
+  const P=_pedido; if(!P) return;
+  const r=P.r;
+  const el=id=>document.getElementById(id);
+  const ids=['descInput','descEspecialCausal','descEspecialCausalCustom','descExtraInput','clienteInput','condPagoSel','validezSel','obsInput','vendedorSel'];
+  const guardado={};
+  ids.forEach(id=>{ const e=el(id); if(e) guardado[id]=e.value; });
+  const chk=el('descEspecialChk'), chkAntes=chk?chk.checked:false;
+  const numEl=el('ofertaNum'), numAntes=numEl?numEl.textContent:'';
+  const cont=el('contactoSel'), contAntes=cont?{v:cont.value,c:cont._contactos}:null;
+  const vend=el('vendedorSel'); let optTmp=null;
+  const carritoAntes=carrito;
+  try{
+    carrito=r.items.filter(it=>!it.incluidoEn).map((it,k)=>{
+      const esLiq=it.origen==='LIQ';
+      return {id:esLiq?('liq_pedido_'+k):('ped_'+k),tipo:it.tipo,nombre:it.nombre,marca:it.marca||'',modelo:it.modelo||'',tipologia:it.tipologia||'',
+        tarifa:parseFloat(it.tarifaUSD)||0,costoAYJ:it.costoAYJ||0,cantidad:it.cantidad||1,
+        ...(esLiq?{origen:'liquidador',costoTotal:(it.liq&&it.liq.costoTotal)||it.costoAYJ||0,margenLiq:(it.liq&&it.liq.margenLiq)||0,
+          _liqSnapshot:(it.liq&&it.liq.s)?{...it.liq.s}:undefined,_instSnapshot:(it.liq&&it.liq.i)?{...it.liq.i}:undefined,_finSnapshot:(it.liq&&it.liq.f)?{...it.liq.f}:undefined}:{})};
+    });
+    liqRehidratarCarrito();   // regenera el desglose de costos de cada ítem liquidado
+    const set=(id,v)=>{ const e=el(id); if(e) e.value=v; };
+    set('descInput',parseFloat(r.desc)||0);
+    if(chk) chk.checked=!!r.descEspecial;
+    const causal=el('descEspecialCausal');
+    if(causal){
+      const c=String(r.descEspecialConcepto||'').trim();
+      if(!r.descEspecial||!c) causal.value='';
+      else if([...causal.options].some(o=>o.value===c||o.text===c)) causal.value=c;
+      else { causal.value='__custom__'; set('descEspecialCausalCustom',c); }
+    }
+    set('descExtraInput',parseFloat(r.descExtra)||0);
+    if(numEl) numEl.textContent=r.num;
+    set('clienteInput',r.cliente||'');
+    { const cp=el('condPagoSel'); if(cp&&r.condPago&&[...cp.options].some(o=>o.value===r.condPago)) cp.value=r.condPago; }
+    if(r.validez) set('validezSel',r.validez);
+    set('obsInput','');
+    if(cont){ cont.value=''; cont._contactos=null; }
+    if(vend){
+      if(![...vend.options].some(o=>o.value===r.vendedor)){ optTmp=new Option(r.vendedor,r.vendedor); vend.add(optTmp); }
+      vend.value=r.vendedor;
+    }
+    mostrarResumenMargenes();
+  }catch(e){
+    console.warn('[AYJ] No se pudo generar el MG original; se usa el resumen simple:',e.message);
+    pedidoAbrirDoc('MG '+r.num,pedidoMGBody(r));
+  }finally{
+    carrito=carritoAntes;
+    ids.forEach(id=>{ const e=el(id); if(e&&guardado[id]!==undefined) e.value=guardado[id]; });
+    if(optTmp&&vend) { try{ vend.removeChild(optTmp); }catch(e){} if(guardado.vendedorSel!==undefined) vend.value=guardado.vendedorSel; }
+    if(chk) chk.checked=chkAntes;
+    if(numEl) numEl.textContent=numAntes;
+    if(cont&&contAntes){ cont.value=contAntes.v; cont._contactos=contAntes.c; }
+    try{ actualizarDescBadge(); calcTotales(); renderCarrito(); }catch(e){}
+  }
 }
+
+// PEDIDO RESUMEN: documento 3 del paquete (equipos, seriales asignados, pedidos a Casa Matriz y condiciones).
 function pedidoImprimirPaquete(){
   const P=_pedido; if(!P) return;
   const r=P.r, esc=_escRes;
   const filas=P.filasFinal||pedidoFilas().map(f=>({k:f.k,nombre:f.nombre,tipo:f.tipo,bp:f.bp,idMQ:f.unidad?f.unidad.idMQ:'',origen:f.unidad?f.unidad.origen:'',reservada:!!(f.unidad&&f.unidad.reservada)}));
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
   const syn=P.synergy||'';
+  const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
+  const tipoTxt=t=>t==='stock'?'En stock':t==='importacion'?'En importación':'Bajo pedido';
+  const base=parseFloat(r.desc)||0, esp=r.descEspecial?3:0, extra=parseFloat(r.descExtra)||0;
+  const eff=100*(1-(1-(base+esp)/100)*(1-extra/100));
+  const equipos=r.items.filter(it=>!it.incluidoEn).map(it=>'<tr><td><strong>'+esc(it.nombre)+'</strong>'+(it.marca||it.modelo?'<div style="font-size:10px;color:#777">'+esc([it.marca,it.modelo].filter(Boolean).join(' · '))+'</div>':'')+'</td><td class="r">'+(it.cantidad||1)+'</td><td>'+tipoTxt(it.tipo)+'</td><td class="r">'+fU(it.tarifaUSD)+'</td></tr>').join('');
   const cuerpoSer=filas.filter(f=>!f.bp).map(f=>'<tr><td><strong>'+esc(f.nombre)+'</strong></td><td><strong>'+esc(f.idMQ)+'</strong></td><td>'+(f.origen==='importacion'?'Importación':'Stock')+'</td><td>'+(f.reservada?'Estaba reservada':'Disponible')+'</td></tr>').join('');
   const bp={}; filas.filter(f=>f.bp).forEach(f=>{ bp[f.k]=(bp[f.k]||0)+1; });
   const cuerpoBP=Object.keys(bp).map(k=>'<div class="nota"><strong>'+esc(r.items[k].nombre)+' × '+bp[k]+'</strong> — '+esc(P.notas[k]||'')+'</div>').join('');
-  pedidoAbrirDoc('Paquete pedido '+r.num,
-    '<h1>Orden de Pedido</h1><div style="color:#777">Aristizábal y Jinete S.A.S. · AYJ Maquinaria · '+fecha+'</div>'
-    +'<table style="margin-top:10px"><tr><td style="width:50%"><div style="font-size:10px;color:#80A61B;font-weight:700">OFERTA</div><strong style="font-size:15px">'+esc(r.num)+'</strong><div>Pedido Synergy: <strong>'+esc(syn)+'</strong></div><div>Total oferta: USD '+Math.round(r.total||0).toLocaleString('es-CO')+'</div></td>'
+  pedidoAbrirDoc('Pedido resumen '+r.num,
+    '<h1>Pedido — Resumen</h1><div style="color:#777">Aristizábal y Jinete S.A.S. · AYJ Maquinaria · '+fecha+'</div>'
+    +'<table style="margin-top:10px"><tr><td style="width:50%"><div style="font-size:10px;color:#80A61B;font-weight:700">OFERTA</div><strong style="font-size:15px">'+esc(r.num)+'</strong><div>Pedido Synergy: <strong>'+esc(syn)+'</strong></div></td>'
     +'<td><div style="font-size:10px;color:#80A61B;font-weight:700">CLIENTE</div><strong style="font-size:15px">'+esc(r.cliente)+'</strong><div>Asesor: '+esc(r.vendedor)+'</div></td></tr></table>'
-    +(r.linkPDF?'<div style="margin:6px 0">Cotización aprobada: <a href="'+esc(r.linkPDF)+'">'+esc(r.linkPDF)+'</a></div>':'')
-    +(cuerpoSer?'<h2>Equipos con serial asignado</h2><table><thead><tr><th>Máquina</th><th>Serial (ID_MQ)</th><th>Origen</th><th>Observación</th></tr></thead><tbody>'+cuerpoSer+'</tbody></table><div style="font-size:10px;color:#777">Estos seriales quedaron en estado VENDIDA en el catálogo (LISTS) con cliente, asesor y pedido.</div>':'')
+    +'<h2>Equipos vendidos</h2><table><thead><tr><th>Máquina</th><th class="r">Cant.</th><th>Cotizada como</th><th class="r">Tarifa</th></tr></thead><tbody>'+equipos+'</tbody></table>'
+    +'<div style="text-align:right;font-size:11px;color:#555">'+(eff>0?'Descuento efectivo: '+(Math.round(eff*100)/100)+'% · ':'')+'<strong>Total oferta (con IVA y flete): '+fU(r.total)+'</strong></div>'
+    +(cuerpoSer?'<h2>Seriales asignados</h2><table><thead><tr><th>Máquina</th><th>Serial (ID_MQ)</th><th>Origen</th><th>Observación</th></tr></thead><tbody>'+cuerpoSer+'</tbody></table><div style="font-size:10px;color:#777">Estos seriales quedaron en estado VENDIDA en el catálogo (LISTS) con cliente, asesor y pedido.</div>':'')
     +(cuerpoBP?'<h2>🚚 Pedido a Casa Matriz (Bajo Pedido)</h2>'+cuerpoBP+'<div style="font-size:10px;color:#777">Estas unidades no tienen serial: hay que generar el pedido a Casa Matriz.</div>':'')
-    +'<div class="pb"></div>'+pedidoMGBody(r));
+    +'<h2>Condiciones</h2><table><tr><td style="width:30%;color:#777">Forma de pago</td><td>'+esc(r.condPago||'—')+'</td></tr><tr><td style="color:#777">Garantía</td><td>'+esc(r.garantia||'—')+'</td></tr><tr><td style="color:#777">Validez de la oferta</td><td>'+esc(r.validez||'—')+'</td></tr></table>'
+    +(r.linkPDF?'<div style="margin-top:8px;font-size:10px;color:#777">Oferta aprobada: '+esc(r.linkPDF)+'</div>':''));
+}
+function pedidoAbrirTodos(){
+  const P=_pedido; if(!P) return;
+  if(P.r.linkPDF) window.open(P.r.linkPDF,'_blank');
+  pedidoImprimirMG();
+  pedidoImprimirPaquete();
+  showToast('Si el navegador bloquea alguna ventana, permite las ventanas emergentes de este sitio o abre cada documento con su botón','success');
 }
 
 async function aplicarEstado(itemId, nuevoEstado, modal, resultado){
