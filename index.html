@@ -3542,7 +3542,9 @@ async function cargarHistorial(){
         fecha:fechaRaw?new Date(fechaRaw):null,
         fechaStr:fechaRaw?new Date(fechaRaw).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—',
         items:f.Items?JSON.parse(f.Items||'[]'):[],
-        linkPDF:f.LinkPDF||'',
+        linkPDF:urlDeLink(f.LinkPDF),
+        trm:parseFloat(f.TRM)||0,
+        flete:parseFloat(f.Flete)||0,
         prob:parseFloat(f.Probabilidad||0),
         id:i.id,
         desc:parseFloat(f.DescBase||f.Descuento||0),
@@ -5518,6 +5520,64 @@ function usuarioPorNombre(lista,nombre){
 }
 
 // Unidades físicas (seriales) del catálogo para una máquina: disponibles + reservadas.
+// ── OFERTA (documento 1 del paquete) ─────────────────────────────────────────────────────────────
+// LinkPDF es una columna Hipervínculo: Graph la devuelve como objeto {Url,Description} (no texto) y además SharePoint
+// no muestra los .html en el navegador (los descarga o bloquea). Por eso la oferta guardada se LEE con la sesión del
+// usuario (Graph /shares/.../driveItem/content) y se muestra en una ventana propia, con su botón "Guardar como PDF".
+// Si no se puede leer, se regenera con los datos guardados (generarPDF).
+function urlDeLink(v){
+  if(!v) return '';
+  if(typeof v==='object') return String(v.Url||v.url||'').trim();
+  return String(v).trim();
+}
+async function htmlOfertaGuardada(r){
+  const url=urlDeLink(r.linkPDF);
+  if(!url) return '';
+  const b64=btoa(url).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const token=await getToken();
+  const resp=await fetch('https://graph.microsoft.com/v1.0/shares/u!'+b64+'/driveItem/content',{headers:{Authorization:'Bearer '+token}});
+  if(!resp.ok) throw new Error('HTTP '+resp.status);
+  return await resp.text();
+}
+function htmlOfertaRegenerada(r){
+  const items=r.items.filter(it=>!it.incluidoEn).map((it,k)=>{
+    const g=grupos.find(x=>_kTitulo(x.title)===_kTitulo(it.nombre));
+    const m=rawMaquinas.find(x=>_kTitulo(x.title)===_kTitulo(it.nombre));
+    const fu=g||m||{};
+    return {id:'of_'+k,nombre:it.nombre,tipo:it.tipo||'pedido',cantidad:it.cantidad||1,tarifa:parseFloat(it.tarifaUSD)||0,
+      marca:it.marca||fu.marca||'',modelo:it.modelo||fu.modelo||'',tipologia:it.tipologia||fu.tipologia||'',descripcion:fu.descripcion||'',
+      fichaTecnica:fu.fichaTecnica||'',ytVideo:fu.ytVideo||'',stockCount:fu.stockCount||0,stockIlimitado:fu.stockIlimitado||false};
+  });
+  const base=parseFloat(r.desc)||0, esp=r.descEspecial?3:0, extra=parseFloat(r.descExtra)||0;
+  const eff=100*(1-(1-(base+esp)/100)*(1-extra/100));
+  const trmUsar=r.trm||trm||4200, fleteCOP=r.flete||0;
+  const subUSD=items.reduce((s,i)=>s+i.tarifa,0);
+  const descUSD=subUSD*eff/100, baseUSD=subUSD-descUSD, ivaUSD=baseUSD*0.19;
+  const totalUSD=baseUSD+ivaUSD+(trmUsar>0?fleteCOP/trmUsar:0);
+  const cli=(typeof clientesData!=='undefined'&&clientesData.find(c=>_kTitulo(c.titulo)===_kTitulo(r.cliente)))||{};
+  return generarPDF({numOferta:r.num,idSynergy:r.idSynergy,cliente:r.cliente,clienteInfo:cli,vendedor:r.vendedor,condPago:r.condPago,cuotasPago:null,
+    garantia:r.garantia,validez:r.validez,entrega:'',voltaje:'',obs:'',desc:eff,descBase:base,descEspecial:!!r.descEspecial,descExtra:extra,
+    causalEspecial:r.descEspecialConcepto||'',ivaPct:19,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP:Math.round(totalUSD*trmUsar),
+    modoCOP:false,modoUSD:false,trm:trmUsar,items},true);
+}
+async function pedidoAbrirOferta(){
+  const P=_pedido; if(!P) return;
+  const r=P.r;
+  const w=window.open('','_blank');   // se abre en el mismo clic para que el navegador no la bloquee
+  if(!w){showToast('Permite las ventanas emergentes para ver la oferta','error');return;}
+  try{ w.document.write('<p style="font-family:sans-serif;padding:24px;color:#555">Cargando la oferta…</p>'); }catch(e){}
+  let html='', regenerada=false;
+  try{ html=await htmlOfertaGuardada(r); }
+  catch(e){ console.warn('[AYJ] No se pudo leer la oferta guardada en SharePoint:',e.message); }
+  if(!html||html.length<500){
+    try{ html=htmlOfertaRegenerada(r); regenerada=true; }
+    catch(e2){ try{ w.document.body.innerHTML='<p style="font-family:sans-serif;padding:24px;color:#991B1B">No se pudo generar la oferta: '+_escRes(e2.message)+'</p>'; }catch(e3){} return; }
+  }
+  if(typeof w.document.open==='function') w.document.open();
+  w.document.write(html); w.document.close();
+  if(regenerada) showToast('No se pudo leer el PDF guardado: se regeneró la oferta con los datos guardados (pueden faltar tiempo de entrega, voltaje y observaciones)','error');
+}
+
 // N° de cotización para escribir en LISTS: "COT-2026-620-R4" → "COT-2026-620 R4"
 function numCotizacionLista(num){ return String(num||'').replace(/-R(\d+)$/,' R$1').trim(); }
 
@@ -5633,7 +5693,7 @@ function renderPedidoVenta(){
       +(P.advertencias&&P.advertencias.length?'<div style="margin-top:8px;color:#92400E;text-align:left;background:#FEF3C7;border-radius:6px;padding:8px">⚠ '+P.advertencias.map(esc).join('<br>⚠ ')+'</div>':'')+'</div>'
       +'<div style="font-size:12px;font-weight:700;margin:4px 0 8px">Paquete de documentos</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
-        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">1 · 📄 Oferta (PDF)</a>':'<span style="font-size:11px;color:var(--text3);align-self:center">1 · La oferta no tiene PDF guardado</span>')
+        +'<button onclick="pedidoAbrirOferta()" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);background:#fff">1 · 📄 Oferta (PDF)</button>'
         +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">2 · 🔒 MG (PDF)</button>'
         +'<button onclick="pedidoImprimirPaquete()" class="btn-primary" style="'+estiloBtn+'">3 · 🖨 Pedido resumen (PDF)</button>'
       +'</div>'
@@ -5643,7 +5703,7 @@ function renderPedidoVenta(){
       +'</div></div>'
     : '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(r.num)+' · '+esc(r.cliente)+' · Asesor: <strong>'+esc(r.vendedor)+'</strong> · USD '+Math.round(r.total||0).toLocaleString('es-CO')+(r.estado==='Cerrada-Ganada'?' · <span style="color:#166534">ya estaba Ganada</span>':'')+'</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
-        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">1 · 📄 Oferta (PDF)</a>':'<span style="font-size:11px;color:var(--text3);align-self:center">Esta oferta no tiene PDF guardado</span>')
+        +'<button onclick="pedidoAbrirOferta()" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);background:#fff">1 · 📄 Oferta (PDF)</button>'
         +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">2 · 🔒 MG (PDF)</button>'
         +'<span style="font-size:11px;color:var(--text3);align-self:center">3 · Pedido resumen: se genera al confirmar</span>'
       +'</div>'
@@ -5939,7 +5999,7 @@ function pedidoImprimirPaquete(){
 }
 function pedidoAbrirTodos(){
   const P=_pedido; if(!P) return;
-  if(P.r.linkPDF) window.open(P.r.linkPDF,'_blank');
+  pedidoAbrirOferta();
   pedidoImprimirMG();
   pedidoImprimirPaquete();
   showToast('Si el navegador bloquea alguna ventana, permite las ventanas emergentes de este sitio o abre cada documento con su botón','success');
