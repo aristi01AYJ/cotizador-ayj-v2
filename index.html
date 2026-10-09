@@ -1816,6 +1816,7 @@ async function cargarMaquinas(){
       return{
         id:i.id,
         title:(f.Title||'').trim(),
+        idMQ:String(f.ID_MQ||'').trim(),
         modelo:(f.Modelo||'').trim(),
         marca:(f[marcaField]||f.Marca||f.Marca0||f.MO||'').trim(),
         // f.Tipologia (sin tilde) casi nunca es el nombre interno real en SharePoint — cuando la
@@ -3758,6 +3759,7 @@ function filtrarHistorial(){
           +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
           :'')
         +' <button class="btn-cli-usar" onclick="reasignarOfertaIdx(\''+r.id+'\')" title="Reasignar esta oferta a otro asesor"><i class="ti ti-switch-horizontal"></i></button>'
+        +(r.estado!=='Cerrada-Perdida'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Venta → Pedido: paquete, seriales y cierre" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i></button>':'')
         +' <span style="display:inline-flex;gap:1px;vertical-align:middle;margin-left:2px" title="Probabilidad de cierre">'+estrellasHistorial(r.id,r.prob,r.vendedor)+'</span>'
         +'</td>'
         +'</tr>';
@@ -5469,6 +5471,396 @@ async function guardarResultadoOferta(itemId, estado, cambiaEstado, modal){
     else showToast('✓ Resultado de la oferta actualizado','success');
     cargarHistorial();
   }catch(e){showToast('Error: '+e.message,'error');}
+}
+
+// ── VENTA → PEDIDO (solo V2) ────────────────────────────────────────────────────────────────────────
+// Desde Ofertas (botón 📦) el asesor recibe el "paquete" de una oferta aprobada:
+//   1) Cotización aprobada (PDF ya generado)   2) MG (PDF interno)   3) Selección de seriales (ID_MQ del catálogo)
+//   4) Cierre: cada serial elegido pasa a ESTADO_=VENDIDA en TODAS_2025 con Cliente/Asesor/Pedido Synergy, y la oferta
+//      queda Cerrada-Ganada con el N° de pedido. Las unidades "Bajo Pedido" no tienen serial: salen en el paquete como
+//      nota para hacer el pedido a Casa Matriz.
+// Antes de escribir nada se muestra exactamente qué se va a cambiar y se pide confirmación. Los nombres de las columnas
+// Cliente / Asesor del catálogo se detectan por /columns (texto, persona o búsqueda) y si alguna no se puede llenar, la
+// información se agrega a Observaciones para no perderla.
+let _colsCat=null, _usuariosSitio=null, _pedido=null;
+const _nrmP=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+const _kTitulo=t=>String(t||'').toLowerCase().trim();
+
+async function columnasCatalogo(){
+  if(_colsCat) return _colsCat;
+  const r=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns`);
+  _colsCat=r.value||[];
+  return _colsCat;
+}
+function buscarColCat(cols,candidatos){
+  for(const n of candidatos){
+    const c=cols.find(x=>!x.readOnly&&(_nrmP(x.displayName)===n||_nrmP(x.name)===n));
+    if(c) return c;
+  }
+  return null;
+}
+async function usuariosDelSitio(){
+  if(_usuariosSitio) return _usuariosSitio;
+  const lista=[];
+  for(const ruta of ["lists('User%20Information%20List')","lists/User%20Information%20List"]){
+    try{
+      const us=await graphGetAll(`/sites/${siteId}/${ruta}/items?expand=fields(select=Title,EMail)&$top=500`);
+      us.forEach(u=>{ const t=String(u.fields&&u.fields.Title||'').trim(); if(t) lista.push({id:String(u.id),nombre:t}); });
+      if(lista.length) break;
+    }catch(e){ console.warn('[AYJ] Lista de usuarios del sitio ('+ruta+'):',e.message); }
+  }
+  _usuariosSitio=lista;
+  return lista;
+}
+function usuarioPorNombre(lista,nombre){
+  const n=_nrmP(nombre);
+  return lista.find(x=>_nrmP(x.nombre)===n)||lista.find(x=>asesorLabel(x.nombre)===asesorLabel(nombre))||null;
+}
+
+// Unidades físicas (seriales) del catálogo para una máquina: disponibles + reservadas.
+function unidadesDe(titulo){
+  const k=_kTitulo(titulo), out=[];
+  rawMaquinas.forEach(m=>{
+    if(m.estadoDisp==='DISPONIBLE'&&m.idMQ&&_kTitulo(m.title)===k)
+      out.push({id:m.id,idMQ:m.idMQ,origen:/importa/i.test(m.estadoStock)?'importacion':'stock',reservada:false,vendedor:'',obsOriginal:m.observaciones||''});
+  });
+  rawReservadas.forEach(m=>{
+    if(m.idMQ&&_kTitulo(m.titulo)===k)
+      out.push({id:m.id,idMQ:m.idMQ,origen:m.origen,reservada:true,vendedor:m.vendedor||'',obsOriginal:m.obs||'',reservaObs:m.obs||''});
+  });
+  return out;
+}
+
+async function abrirPedidoIdx(id){
+  const r=historialData.find(h=>h.id===id);
+  if(!r){showToast('Error: oferta no encontrada','error');return;}
+  if(r.estado==='Cerrada-Perdida'){showToast('Esta oferta está marcada como perdida','error');return;}
+  if(!r.items||!r.items.length){showToast('La oferta no tiene ítems guardados','error');return;}
+  if(asesorLabel(currentUserName)!==asesorLabel(r.vendedor)){
+    const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para convertirla en pedido ingresa la clave de administrador:');
+    if(clave===null) return;
+    if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+  }
+  if(!rawMaquinas.length&&!rawReservadas.length){
+    showToast('Cargando catálogo…','success');
+    await cargarMaquinas();
+  }
+  const slots=[];
+  r.items.forEach((it,k)=>{
+    if(it.incluidoEn) return;
+    const n=Math.max(1,parseInt(it.cantidad)||1);
+    const pref=unidadesDe(it.nombre).filter(u=>!u.reservada&&u.origen===(it.tipo==='importacion'?'importacion':'stock'));
+    const usados=new Set();
+    for(let j=0;j<n;j++){
+      let sel='';
+      if(it.tipo==='pedido') sel='BP';
+      else{ const u=pref.find(x=>!usados.has(x.id)); if(u){ sel=u.id; usados.add(u.id); } }
+      slots.push({k,j,sel});
+    }
+  });
+  const notas={};
+  r.items.forEach((it,k)=>{ notas[k]='Solicitar a Casa Matriz — oferta '+r.num+' · cliente '+r.cliente+' · asesor '+r.vendedor; });
+  _pedido={r,slots,notas,hechos:new Set(),ejecutando:false,listo:false,errores:[]};
+  renderPedidoVenta();
+}
+
+function pedidoFilas(){
+  const P=_pedido; if(!P) return [];
+  return P.slots.map(s=>{
+    const it=P.r.items[s.k];
+    const unidad=(s.sel&&s.sel!=='BP')?unidadesDe(it.nombre).find(u=>u.id===s.sel)||null:null;
+    return {k:s.k,j:s.j,nombre:it.nombre,tipo:it.tipo,sel:s.sel,bp:s.sel==='BP',unidad};
+  });
+}
+function pedidoSel(k,j,v){
+  const s=_pedido.slots.find(x=>x.k===k&&x.j===j); if(s) s.sel=v;
+  renderPedidoVenta();
+}
+function pedidoNota(k,v){ if(_pedido) _pedido.notas[k]=v; }
+
+function renderPedidoVenta(){
+  const P=_pedido; if(!P) return;
+  let modal=document.getElementById('modalPedido');
+  const primera=!modal;
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='modalPedido';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:550;display:flex;align-items:center;justify-content:center;padding:14px';
+    document.body.appendChild(modal);
+  }
+  const r=P.r, esc=_escRes;
+  const filas=pedidoFilas();
+  const elegidosEnOtros=(k,j)=>new Set(P.slots.filter(s=>!(s.k===k&&s.j===j)&&s.sel&&s.sel!=='BP').map(s=>s.sel));
+  // ── bloque de seriales ──
+  let htmlSeriales='';
+  r.items.forEach((it,k)=>{
+    const slots=P.slots.filter(s=>s.k===k); if(!slots.length) return;
+    const todas=unidadesDe(it.nombre);
+    const tipoTxt=it.tipo==='stock'?'En stock':it.tipo==='importacion'?'En importación':'Bajo pedido';
+    const hayBP=slots.some(s=>s.sel==='BP');
+    htmlSeriales+='<div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><strong>'+esc(it.nombre)+' <span style="color:var(--text2);font-weight:400">× '+slots.length+'</span></strong><span style="font-size:11px;color:var(--text2)">Cotizado como: '+tipoTxt+' · '+(todas.filter(u=>!u.reservada).length)+' serial(es) disponible(s) en catálogo</span></div>';
+    slots.forEach(s=>{
+      const otros=elegidosEnOtros(s.k,s.j);
+      const opciones=todas.filter(u=>!otros.has(u.id)).sort((a,b)=>(a.reservada-b.reservada)||((a.origen===(it.tipo==='importacion'?'importacion':'stock')?0:1)-(b.origen===(it.tipo==='importacion'?'importacion':'stock')?0:1))||a.idMQ.localeCompare(b.idMQ,'es'));
+      htmlSeriales+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="font-size:11px;color:var(--text2);width:58px">Unidad '+(s.j+1)+'</span>'
+        +'<select onchange="pedidoSel('+s.k+','+s.j+',this.value)" style="flex:1;padding:5px 8px;border:1px solid '+(s.sel?'var(--border)':'#F59E0B')+';border-radius:var(--radius);font-size:12px;font-family:inherit">'
+        +'<option value="">— Elegir serial —</option>'
+        +opciones.map(u=>'<option value="'+esc(u.id)+'"'+(s.sel===u.id?' selected':'')+'>'+esc(u.idMQ)+' · '+(u.origen==='importacion'?'Importación':'Stock')+(u.reservada?' · ⚠ RESERVADA'+(u.vendedor?' ('+asesorLabel(u.vendedor)+')':'')+(u.reservaObs?': '+esc(u.reservaObs.slice(0,40)):''):'')+'</option>').join('')
+        +'<option value="BP"'+(s.sel==='BP'?' selected':'')+'>🚚 Bajo pedido (sin serial) → pedir a Casa Matriz</option>'
+        +'</select></div>';
+    });
+    if(hayBP) htmlSeriales+='<div style="margin-top:8px"><div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:3px">Nota del pedido a Casa Matriz ('+slots.filter(s=>s.sel==='BP').length+' und.)</div>'
+      +'<textarea rows="2" oninput="pedidoNota('+k+',this.value)" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #F59E0B;border-radius:var(--radius);background:#fffbf0;font-size:12px;font-family:inherit;resize:vertical">'+esc(P.notas[k])+'</textarea></div>';
+    htmlSeriales+='</div>';
+  });
+  // ── vista previa de lo que se escribirá ──
+  const syn=document.getElementById('pedSynergy')?.value||'';
+  const prev=[];
+  filas.filter(f=>f.unidad).forEach(f=>prev.push('<li><strong>'+esc(f.unidad.idMQ)+'</strong> ('+esc(f.nombre)+') → ESTADO_ <b>VENDIDA</b> · Cliente: '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+' · Pedido Synergy: '+esc(syn||'—')+(f.unidad.reservada?' <span style="color:#B45309">(estaba reservada)</span>':'')+'</li>'));
+  const nBP=filas.filter(f=>f.bp).length;
+  if(nBP) prev.push('<li>🚚 <b>'+nBP+' unidad(es) bajo pedido</b>: no se modifica LISTS; quedan como nota para Casa Matriz en el paquete.</li>');
+  prev.push('<li>Oferta <strong>'+esc(r.num)+'</strong> → <b>Cerrada-Ganada</b> con resultado "'+esc(syn||'—')+'"</li>');
+  const pendientes=filas.filter(f=>!f.sel).length;
+
+  const estiloBtn='padding:9px 14px;border-radius:var(--radius);font-family:inherit;font-size:13px;cursor:pointer;';
+  const cuerpo=P.listo
+    ? '<div style="text-align:center;padding:10px 0"><div style="font-size:34px">✅</div><div style="font-size:16px;font-weight:700;margin:6px 0">Pedido registrado</div>'
+      +'<div style="font-size:12px;color:var(--text2);margin-bottom:14px">La oferta '+esc(r.num)+' quedó Cerrada-Ganada'+(filas.some(f=>f.unidad)?' y los seriales pasaron a VENDIDA en el catálogo':'')+'.'
+      +(P.advertencias&&P.advertencias.length?'<div style="margin-top:8px;color:#92400E;text-align:left;background:#FEF3C7;border-radius:6px;padding:8px">⚠ '+P.advertencias.map(esc).join('<br>⚠ ')+'</div>':'')+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
+        +'<button onclick="pedidoImprimirPaquete()" class="btn-primary" style="'+estiloBtn+'">🖨 Paquete del pedido (PDF)</button>'
+        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">📄 Cotización aprobada</a>':'')
+        +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">🔒 MG (PDF)</button>'
+        +'<button onclick="cerrarPedido()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">Cerrar</button>'
+      +'</div></div>'
+    : '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(r.num)+' · '+esc(r.cliente)+' · Asesor: <strong>'+esc(r.vendedor)+'</strong> · USD '+Math.round(r.total||0).toLocaleString('es-CO')+(r.estado==='Cerrada-Ganada'?' · <span style="color:#166534">ya estaba Ganada</span>':'')+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
+        +(r.linkPDF?'<a href="'+esc(r.linkPDF)+'" target="_blank" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);text-decoration:none;background:#fff">📄 Cotización aprobada (PDF)</a>':'<span style="font-size:11px;color:var(--text3);align-self:center">Esta oferta no tiene PDF guardado</span>')
+        +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">🔒 MG (PDF)</button>'
+      +'</div>'
+      +'<div style="font-size:12px;font-weight:700;margin-bottom:4px">N° de pedido creado en Synergy *</div>'
+      +'<input type="text" id="pedSynergy" value="'+esc(P.synergy||r.idSynergy||'')+'" oninput="_pedido.synergy=this.value;pedidoRefrescarPrev()" placeholder="Ej. 12345" style="width:200px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;margin-bottom:14px">'
+      +'<div style="font-size:12px;font-weight:700;margin-bottom:6px">Seriales de cada máquina</div>'+htmlSeriales
+      +'<div style="font-size:12px;font-weight:700;margin:14px 0 4px">Qué se va a hacer al confirmar</div>'
+      +'<ul id="pedPrev" style="font-size:12px;line-height:1.55;margin:0 0 10px 18px;padding:0">'+prev.join('')+'</ul>'
+      +(pendientes?'<div style="font-size:12px;color:#B45309;margin-bottom:8px">Faltan '+pendientes+' unidad(es) por elegir serial o "Bajo pedido".</div>':'')
+      +'<div id="pedErrores" style="font-size:12px;color:#991B1B;margin-bottom:8px">'+P.errores.map(esc).join('<br>')+'</div>'
+      +'<div style="display:flex;gap:8px"><button id="pedBtnOk" onclick="pedidoConfirmar()" class="btn-primary" style="flex:1;'+estiloBtn+'">'+(P.ejecutando?'Guardando…':'Confirmar y cerrar la oferta')+'</button>'
+      +'<button onclick="cerrarPedido()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">Cancelar</button></div>';
+  modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);padding:22px;width:760px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:16px;font-weight:700;color:var(--gris)">📦 Venta → Pedido</div>'
+    +'<button onclick="cerrarPedido()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3);line-height:1">×</button></div>'
+    +cuerpo+'</div>';
+  if(!primera){ const i=document.getElementById('pedSynergy'); if(i&&P._foco){ i.focus(); } }
+}
+function pedidoRefrescarPrev(){
+  // Solo repinta la lista "Qué se va a hacer" para no perder el foco del campo Synergy.
+  const P=_pedido; if(!P) return;
+  const syn=document.getElementById('pedSynergy')?.value||'';
+  const ul=document.getElementById('pedPrev'); if(!ul) return;
+  const esc=_escRes, r=P.r, filas=pedidoFilas(), prev=[];
+  filas.filter(f=>f.unidad).forEach(f=>prev.push('<li><strong>'+esc(f.unidad.idMQ)+'</strong> ('+esc(f.nombre)+') → ESTADO_ <b>VENDIDA</b> · Cliente: '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+' · Pedido Synergy: '+esc(syn||'—')+(f.unidad.reservada?' <span style="color:#B45309">(estaba reservada)</span>':'')+'</li>'));
+  const nBP=filas.filter(f=>f.bp).length;
+  if(nBP) prev.push('<li>🚚 <b>'+nBP+' unidad(es) bajo pedido</b>: no se modifica LISTS; quedan como nota para Casa Matriz en el paquete.</li>');
+  prev.push('<li>Oferta <strong>'+esc(r.num)+'</strong> → <b>Cerrada-Ganada</b> con resultado "'+esc(syn||'—')+'"</li>');
+  ul.innerHTML=prev.join('');
+}
+function cerrarPedido(){
+  const m=document.getElementById('modalPedido'); if(m) m.remove();
+  _pedido=null;
+}
+
+// PATCH de una unidad del catálogo tolerante a columnas que no existan (las quita, reintenta y las informa).
+async function patchUnidadResiliente(itemId,fields){
+  const token=await getToken();
+  const descartadas=[];
+  let intentos=0;
+  while(Object.keys(fields).length){
+    intentos++;
+    const resp=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdMaquinas}/items/${itemId}/fields`,{
+      method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(fields)
+    });
+    if(resp.ok) break;
+    const t=await resp.text();
+    const m=t.match(/Field '([^']+)' is not recognized/i);
+    if(m&&fields[m[1]]!==undefined&&intentos<8){ descartadas.push(m[1]); delete fields[m[1]]; continue; }
+    throw new Error('PATCH '+resp.status+': '+t.slice(0,300));
+  }
+  return descartadas;
+}
+
+// Arma qué escribir en cada serial según las columnas reales del catálogo.
+async function pedidoPlanEscritura(r,syn){
+  const cols=await columnasCatalogo();
+  const adv=[];
+  const colEstado=cols.find(c=>c.name==='ESTADO_');
+  let valorVendida='VENDIDA';
+  if(colEstado&&colEstado.choice&&Array.isArray(colEstado.choice.choices)){
+    const op=colEstado.choice.choices.find(x=>/^vendida$/i.test(String(x).trim()));
+    if(op) valorVendida=op;
+    else adv.push('La columna ESTADO_ no tiene la opción "VENDIDA" en su lista de opciones'+(colEstado.choice.allowTextEntry?' (pero admite texto libre).':'; SharePoint puede rechazar el cambio — agrégala en la configuración de la lista.'));
+  }
+  const cCliente=buscarColCat(cols,['cliente','clientefinal','nombrecliente','clientes']);
+  const cAsesores=['asesor','asesorcomercial','vendedor'].map(n=>buscarColCat(cols,[n])).filter((c,i,a)=>c&&a.indexOf(c)===i);
+  const cPedido=buscarColCat(cols,['pedidosynergy','pedidosynergi','pedido']);
+  const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
+  // valores resueltos una sola vez
+  const base={ESTADO_:valorVendida};
+  let clienteOk=false, asesorOk=false;
+  if(cCliente){
+    if(cCliente.text||cCliente.choice){ base[cCliente.name]=r.cliente; clienteOk=true; }
+    else if(cCliente.lookup){
+      if(!clientesData.length){ try{ await cargarClientes(); }catch(e){} }
+      const cl=clientesData.find(c=>_kTitulo(c.titulo)===_kTitulo(r.cliente));
+      if(cl){ base[cCliente.name+'LookupId']=parseInt(cl.id); clienteOk=true; }
+      else adv.push('El cliente "'+r.cliente+'" no se encontró en la lista de Clientes para llenar la columna "'+(cCliente.displayName||cCliente.name)+'" (búsqueda); quedará en Observaciones.');
+    }
+  } else adv.push('No se encontró una columna "Cliente" en el catálogo; el cliente quedará en Observaciones.');
+  if(cAsesores.length){
+    const us=cAsesores.some(c=>c.personOrGroup)?await usuariosDelSitio():[];
+    cAsesores.forEach(c=>{
+      if(c.personOrGroup){
+        const u=usuarioPorNombre(us,r.vendedor);
+        if(u&&!(c.personOrGroup.allowMultipleSelection)){ base[c.name+'LookupId']=parseInt(u.id); asesorOk=true; }
+        else adv.push('No se pudo resolver el usuario "'+r.vendedor+'" para la columna "'+(c.displayName||c.name)+'"; el asesor quedará en Observaciones.');
+      } else if(c.text||c.choice){ base[c.name]=r.vendedor; asesorOk=true; }
+    });
+  } else adv.push('No se encontró una columna "Asesor/Vendedor" en el catálogo; el asesor quedará en Observaciones.');
+  if(cPedido&&(cPedido.text||cPedido.number===undefined)) base[cPedido.name]=syn;
+  const camposPara=u=>{
+    const f={...base};
+    if(!clienteOk||!asesorOk){
+      f.Observaciones=(u.obsOriginal?u.obsOriginal+' | ':'')+'VENDIDA '+fecha+' · '+(clienteOk?'':'Cliente: '+r.cliente+' · ')+(asesorOk?'':'Asesor: '+r.vendedor+' · ')+'Oferta '+r.num+' · Pedido Synergy '+syn;
+    }
+    return f;
+  };
+  return {camposPara,adv,cols:{estado:colEstado&&colEstado.name,cliente:cCliente&&cCliente.name,asesor:cAsesores.map(c=>c.name),pedido:cPedido&&cPedido.name}};
+}
+
+async function pedidoConfirmar(){
+  const P=_pedido; if(!P||P.ejecutando) return;
+  const r=P.r;
+  const syn=(document.getElementById('pedSynergy')?.value||'').trim();
+  if(!syn){showToast('Ingresa el N° de pedido creado en Synergy','error');return;}
+  const filas=pedidoFilas();
+  if(filas.some(f=>!f.sel)){showToast('Elige un serial (o "Bajo pedido") en cada unidad','error');return;}
+  const ajenas=filas.filter(f=>f.unidad&&f.unidad.reservada&&f.unidad.vendedor&&asesorLabel(f.unidad.vendedor)!==asesorLabel(r.vendedor));
+  if(ajenas.length&&!confirm('Estas unidades están reservadas por OTRO asesor:\n'+ajenas.map(f=>f.unidad.idMQ+' ('+asesorLabel(f.unidad.vendedor)+')').join('\n')+'\n\n¿Vender de todos modos?')) return;
+  P.ejecutando=true; P.errores=[]; P.synergy=syn; renderPedidoVenta();
+  try{
+    const unidades=filas.filter(f=>f.unidad);
+    let plan=null;
+    if(unidades.length){
+      plan=await pedidoPlanEscritura(r,syn);
+      P.advertencias=plan.adv;
+      console.log('[AYJ] Venta→Pedido: columnas del catálogo usadas →',plan.cols);
+      if(plan.adv.length&&!confirm('Atención:\n\n• '+plan.adv.join('\n• ')+'\n\n¿Continuar de todos modos?')){ P.ejecutando=false; renderPedidoVenta(); return; }
+    }
+    // 1) seriales en LISTS
+    for(const f of unidades){
+      if(P.hechos.has(f.unidad.id)) continue;
+      try{
+        const desc=await patchUnidadResiliente(f.unidad.id,plan.camposPara(f.unidad));
+        P.hechos.add(f.unidad.id);
+        if(desc.length) P.advertencias=(P.advertencias||[]).concat(['Serial '+f.unidad.idMQ+': SharePoint no reconoció las columnas '+desc.join(', ')+' (no se guardaron).']);
+      }catch(e){ P.errores.push('❌ '+f.unidad.idMQ+': '+e.message); console.error('[AYJ] Venta→Pedido serial',f.unidad.idMQ,e); }
+    }
+    if(P.errores.length){
+      P.errores.push('La oferta NO se cerró. Los seriales ya actualizados quedan como VENDIDA; corrige y vuelve a confirmar (se omiten los que ya están hechos).');
+      P.ejecutando=false; renderPedidoVenta(); showToast('Hubo errores al actualizar seriales — revisa el detalle','error'); return;
+    }
+    // 2) refrescar catálogo local (las unidades vendidas ya no se ofrecen)
+    P.filasFinal=filas.map(f=>({k:f.k,nombre:f.nombre,tipo:f.tipo,bp:f.bp,idMQ:f.unidad?f.unidad.idMQ:'',origen:f.unidad?f.unidad.origen:'',reservada:!!(f.unidad&&f.unidad.reservada)}));
+    rawMaquinas=rawMaquinas.filter(m=>!P.hechos.has(m.id));
+    rawReservadas=rawReservadas.filter(m=>!P.hechos.has(m.id));
+    try{ procesarCatalogo(); renderCatalogo(); actualizarBadgeReservadas(); }catch(e){}
+    // 3) cerrar la oferta
+    const descartadas=await patchCotizacionResiliente(r.id,{Estado:'Cerrada-Ganada',[SP_COLS_COT.ResultadoOferta]:syn});
+    if(descartadas.length) P.advertencias=(P.advertencias||[]).concat(['No se guardó el resultado de la oferta: SharePoint no reconoce la columna '+descartadas.join(', ')+'.']);
+    r.estado='Cerrada-Ganada'; r.resultado=syn;
+    P.listo=true; P.ejecutando=false;
+    renderPedidoVenta();
+    showToast('✓ Pedido registrado — oferta '+r.num+' cerrada','success');
+    cargarHistorial();
+    cargarMaquinas();   // refresco real desde SharePoint
+  }catch(e){
+    P.ejecutando=false; P.errores=['❌ '+e.message]; renderPedidoVenta();
+    showToast('Error: '+e.message,'error'); console.error('[AYJ] Venta→Pedido:',e);
+  }
+}
+
+// ── Documentos ──
+function pedidoAbrirDoc(titulo,cuerpo){
+  const w=window.open('','_blank');
+  if(!w){showToast('Permite popups para ver el documento','error');return;}
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+_escRes(titulo)+'</title><style>'
+    +'*{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#2a2a2a;margin:0;padding:24px 32px;max-width:900px;margin:0 auto}'
+    +'h1{font-size:18px;margin:0 0 2px;color:#575756}h2{font-size:13px;margin:18px 0 6px;color:#575756;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #80A61B;padding-bottom:3px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:6px}th{background:#575756;color:#fff;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase}td{padding:6px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}'
+    +'.r{text-align:right}.conf{background:#FEF2F2;color:#991B1B;font-weight:700;text-align:center;padding:5px;border-radius:4px;margin:8px 0;font-size:11px}.nota{background:#FEF3C7;border-left:3px solid #F59E0B;padding:8px 10px;margin:6px 0;border-radius:0 4px 4px 0}'
+    +'.bar{background:#575756;color:#fff;padding:10px 20px;margin:-24px -32px 18px;display:flex;gap:12px;align-items:center}.bar button{background:#80A61B;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-weight:600;cursor:pointer}'
+    +'@media print{.no-print{display:none!important}body{padding:0}@page{margin:12mm}.pb{page-break-before:always}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'</style></head><body><div class="bar no-print"><span style="flex:1">'+_escRes(titulo)+'</span><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>'+cuerpo+'</body></html>');
+  w.document.close();
+}
+function pedidoMGBody(r){
+  const esc=_escRes;
+  const base=parseFloat(r.desc)||0, esp=r.descEspecial?3:0, extra=parseFloat(r.descExtra)||0;
+  const eff=100*(1-(1-(base+esp)/100)*(1-extra/100));
+  const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
+  let tTar=0,tPv=0,tCosto=0,tCom=0, filas='', detalle='';
+  r.items.filter(it=>!it.incluidoEn).forEach(it=>{
+    const n=Math.max(1,parseInt(it.cantidad)||1);
+    const tarifa=parseFloat(it.tarifaUSD)||0;
+    const esLiq=it.origen==='LIQ';
+    const costo=esLiq?((it.liq&&it.liq.costoTotal)||it.costoAYJ||0)*n:tarifa*0.5;
+    const pv=tarifa*(1-eff/100);
+    const mUSD=pv-costo, mPct=pv>0?mUSD/pv*100:0;
+    const comPct=Math.max(0,mPct)*0.15, com=pv*comPct/100;
+    tTar+=tarifa; tPv+=pv; tCosto+=costo; tCom+=com;
+    const col=mPct>=35?'#166534':mPct>=20?'#92400E':'#991B1B';
+    filas+='<tr><td><strong>'+esc(it.nombre)+'</strong>'+(esLiq?' <span style="font-size:9px;background:#DBEAFE;color:#1E3A8A;padding:1px 5px;border-radius:6px">LIQ</span>':'')+'</td><td class="r">'+n+'</td><td class="r">'+fU(tarifa)+'</td><td class="r">'+fU(pv)+'</td><td class="r">'+fU(costo)+(esLiq?'':'<div style="font-size:9px;color:#999">50% de la tarifa</div>')+'</td><td class="r" style="color:'+col+';font-weight:700">'+fU(mUSD)+'<div style="font-size:10px">'+mPct.toFixed(1)+'%</div></td><td class="r">'+fU(com)+'<div style="font-size:10px;color:#999">'+comPct.toFixed(2)+'%</div></td></tr>';
+    const s=esLiq&&it.liq&&it.liq.s;
+    if(s){
+      const L=(l,v)=>'<tr><td>'+l+'</td><td class="r">'+v+'</td></tr>';
+      detalle+='<div style="margin:8px 0 2px;font-weight:700">'+esc(it.nombre)+' — liquidación</div><table style="width:60%">'
+        +(s.FOB?L('FOB',fU(s.FOB)):'')+(s.fleteInt?L('Flete internacional',fU(s.fleteInt)):'')+(s.arancel?L('Arancel',Math.round(s.arancel*100)+'%'):'')+(s.agente?L('Agente',Math.round(s.agente*100)+'%'):'')
+        +(s.fleteNal?L('Flete nacional',fU(s.fleteNal)):'')+(s.descargue?L('Descargue',fU(s.descargue)):'')+(s.instalacion?L('Instalación',fU(s.instalacion)):'')+(s.costoFin?L('Financiación',fU(s.costoFin)):'')
+        +(s.otros?L('Otros'+(s.otrosDesc?' — '+esc(s.otrosDesc):''),fU(s.otros)):'')+L('Margen objetivo',(s.margen||'')+'%')+'</table>';
+    }
+  });
+  const mTot=tPv-tCosto, mTotPct=tPv>0?mTot/tPv*100:0;
+  const lblDesc=(r.descEspecial?'Descuento '+base+'% + 3% = '+(base+3)+'%':'Descuento '+base+'%')+(extra>0?' + Extra '+extra+'% sobre el total':'')+' = '+(Math.round(eff*100)/100)+'% efectivo';
+  return '<h1>MG — Margen y Comisión</h1><div style="color:#777">'+esc(r.num)+' · '+esc(r.cliente)+' · Asesor: '+esc(r.vendedor)+'</div>'
+    +'<div class="conf">🔒 DOCUMENTO CONFIDENCIAL — Solo para uso interno AYJ</div>'
+    +'<div style="margin-bottom:8px">'+esc(lblDesc)+'</div>'
+    +'<table><thead><tr><th>Máquina</th><th class="r">Cant.</th><th class="r">Tarifa</th><th class="r">Precio venta</th><th class="r">Costo</th><th class="r">Margen</th><th class="r">Comisión</th></tr></thead><tbody>'+filas
+    +'<tr style="background:#f5f7f0;font-weight:700"><td>TOTAL</td><td></td><td class="r">'+fU(tTar)+'</td><td class="r">'+fU(tPv)+'</td><td class="r">'+fU(tCosto)+'</td><td class="r">'+fU(mTot)+'<div style="font-size:10px">'+mTotPct.toFixed(1)+'%</div></td><td class="r">'+fU(tCom)+'</td></tr></tbody></table>'
+    +'<div style="font-size:10px;color:#999">Precio de venta sin IVA (la oferta con IVA/flete: USD '+Math.round(r.total||0).toLocaleString('es-CO')+'). Comisión = 15% del margen % sobre el precio de venta. Cálculo desde los datos guardados en la oferta.</div>'
+    +(detalle?'<h2>Detalle de liquidaciones</h2>'+detalle:'');
+}
+function pedidoImprimirMG(){
+  const r=_pedido&&_pedido.r; if(!r) return;
+  pedidoAbrirDoc('MG '+r.num,pedidoMGBody(r));
+}
+function pedidoImprimirPaquete(){
+  const P=_pedido; if(!P) return;
+  const r=P.r, esc=_escRes;
+  const filas=P.filasFinal||pedidoFilas().map(f=>({k:f.k,nombre:f.nombre,tipo:f.tipo,bp:f.bp,idMQ:f.unidad?f.unidad.idMQ:'',origen:f.unidad?f.unidad.origen:'',reservada:!!(f.unidad&&f.unidad.reservada)}));
+  const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
+  const syn=P.synergy||'';
+  const cuerpoSer=filas.filter(f=>!f.bp).map(f=>'<tr><td><strong>'+esc(f.nombre)+'</strong></td><td><strong>'+esc(f.idMQ)+'</strong></td><td>'+(f.origen==='importacion'?'Importación':'Stock')+'</td><td>'+(f.reservada?'Estaba reservada':'Disponible')+'</td></tr>').join('');
+  const bp={}; filas.filter(f=>f.bp).forEach(f=>{ bp[f.k]=(bp[f.k]||0)+1; });
+  const cuerpoBP=Object.keys(bp).map(k=>'<div class="nota"><strong>'+esc(r.items[k].nombre)+' × '+bp[k]+'</strong> — '+esc(P.notas[k]||'')+'</div>').join('');
+  pedidoAbrirDoc('Paquete pedido '+r.num,
+    '<h1>Orden de Pedido</h1><div style="color:#777">Aristizábal y Jinete S.A.S. · AYJ Maquinaria · '+fecha+'</div>'
+    +'<table style="margin-top:10px"><tr><td style="width:50%"><div style="font-size:10px;color:#80A61B;font-weight:700">OFERTA</div><strong style="font-size:15px">'+esc(r.num)+'</strong><div>Pedido Synergy: <strong>'+esc(syn)+'</strong></div><div>Total oferta: USD '+Math.round(r.total||0).toLocaleString('es-CO')+'</div></td>'
+    +'<td><div style="font-size:10px;color:#80A61B;font-weight:700">CLIENTE</div><strong style="font-size:15px">'+esc(r.cliente)+'</strong><div>Asesor: '+esc(r.vendedor)+'</div></td></tr></table>'
+    +(r.linkPDF?'<div style="margin:6px 0">Cotización aprobada: <a href="'+esc(r.linkPDF)+'">'+esc(r.linkPDF)+'</a></div>':'')
+    +(cuerpoSer?'<h2>Equipos con serial asignado</h2><table><thead><tr><th>Máquina</th><th>Serial (ID_MQ)</th><th>Origen</th><th>Observación</th></tr></thead><tbody>'+cuerpoSer+'</tbody></table><div style="font-size:10px;color:#777">Estos seriales quedaron en estado VENDIDA en el catálogo (LISTS) con cliente, asesor y pedido.</div>':'')
+    +(cuerpoBP?'<h2>🚚 Pedido a Casa Matriz (Bajo Pedido)</h2>'+cuerpoBP+'<div style="font-size:10px;color:#777">Estas unidades no tienen serial: hay que generar el pedido a Casa Matriz.</div>':'')
+    +'<div class="pb"></div>'+pedidoMGBody(r));
 }
 
 async function aplicarEstado(itemId, nuevoEstado, modal, resultado){
