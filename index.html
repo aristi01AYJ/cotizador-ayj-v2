@@ -3761,7 +3761,7 @@ function filtrarHistorial(){
           +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
           :'')
         +' <button class="btn-cli-usar" onclick="reasignarOfertaIdx(\''+r.id+'\')" title="Reasignar esta oferta a otro asesor"><i class="ti ti-switch-horizontal"></i></button>'
-        +(r.estado!=='Cerrada-Perdida'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Venta → Pedido: paquete, seriales y cierre" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i></button>':'')
+        +(r.estado==='Cerrada-Ganada'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Documentos del pedido (oferta ganada)" style="border-color:#16A34A;color:#166534"><i class="ti ti-files"></i></button>':(r.estado!=='Cerrada-Perdida'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Venta → Pedido: paquete, seriales y cierre" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i></button>':''))
         +' <span style="display:inline-flex;gap:1px;vertical-align:middle;margin-left:2px" title="Probabilidad de cierre">'+estrellasHistorial(r.id,r.prob,r.vendedor)+'</span>'
         +'</td>'
         +'</tr>';
@@ -5594,16 +5594,18 @@ function unidadesDe(titulo){
   return out;
 }
 
-async function abrirPedidoIdx(id){
+async function abrirPedidoIdx(id,opts){
   const r=historialData.find(h=>h.id===id);
   if(!r){showToast('Error: oferta no encontrada','error');return;}
   if(r.estado==='Cerrada-Perdida'){showToast('Esta oferta está marcada como perdida','error');return;}
   if(!r.items||!r.items.length){showToast('La oferta no tiene ítems guardados','error');return;}
-  if(asesorLabel(currentUserName)!==asesorLabel(r.vendedor)){
-    const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para convertirla en pedido ingresa la clave de administrador:');
+  if(asesorLabel(currentUserName)!==asesorLabel(r.vendedor)&&!(opts&&opts.forzar)){
+    const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para ver o generar su pedido ingresa la clave de administrador:');
     if(clave===null) return;
     if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
   }
+  // Una oferta YA GANADA no genera otro pedido: solo se consultan sus documentos.
+  if(r.estado==='Cerrada-Ganada'&&!(opts&&opts.forzar)){ pedidoAbrirDocumentos(r); return; }
   if(!rawMaquinas.length&&!rawReservadas.length){
     showToast('Cargando catálogo…','success');
     await cargarMaquinas();
@@ -5688,8 +5690,11 @@ function renderPedidoVenta(){
 
   const estiloBtn='padding:9px 14px;border-radius:var(--radius);font-family:inherit;font-size:13px;cursor:pointer;';
   const cuerpo=P.listo
-    ? '<div style="text-align:center;padding:10px 0"><div style="font-size:34px">✅</div><div style="font-size:16px;font-weight:700;margin:6px 0">Pedido registrado</div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:14px">La oferta '+esc(r.num)+' quedó Cerrada-Ganada'+(filas.some(f=>f.unidad)?' y los seriales pasaron a VENDIDA en el catálogo':'')+'.'
+    ? '<div style="text-align:center;padding:10px 0"><div style="font-size:34px">✅</div><div style="font-size:16px;font-weight:700;margin:6px 0">'+(P.modoDocs?'Documentos del pedido':'Pedido registrado')+'</div>'
+      +'<div style="font-size:12px;color:var(--text2);margin-bottom:14px">'+(P.modoDocs
+        ?(esc(numCotizacionLista(r.num))+' · '+esc(r.cliente)+' · Pedido Synergy: <strong>'+esc(r.resultado||'—')+'</strong>'
+          +(P.sinRegistro?'<div style="margin-top:8px;color:#92400E;text-align:left;background:#FEF3C7;border-radius:6px;padding:8px">Esta oferta se marcó como Ganada sin registrar seriales desde esta herramienta, por eso el Pedido resumen no los incluye.<div style="margin-top:6px"><button onclick="pedidoRegistrarAhora()" style="padding:5px 10px;border:1px solid #92400E;border-radius:6px;background:#fff;color:#92400E;cursor:pointer;font-family:inherit;font-size:11px">Registrar seriales ahora (clave admin)</button></div></div>':''))
+        :('La oferta '+esc(r.num)+' quedó Cerrada-Ganada'+(filas.some(f=>f.unidad)?' y los seriales pasaron a VENDIDA en el catálogo':'')+'.'))
       +(P.advertencias&&P.advertencias.length?'<div style="margin-top:8px;color:#92400E;text-align:left;background:#FEF3C7;border-radius:6px;padding:8px">⚠ '+P.advertencias.map(esc).join('<br>⚠ ')+'</div>':'')+'</div>'
       +'<div style="font-size:12px;font-weight:700;margin:4px 0 8px">Paquete de documentos</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
@@ -5698,7 +5703,7 @@ function renderPedidoVenta(){
         +'<button onclick="pedidoImprimirPaquete()" class="btn-primary" style="'+estiloBtn+'">3 · 🖨 Pedido resumen (PDF)</button>'
       +'</div>'
       +'<div style="display:flex;gap:8px;justify-content:center;margin-top:10px">'
-        +'<button onclick="pedidoAbrirTodos()" style="'+estiloBtn+'border:1px solid #3B82F6;color:#1D4ED8;background:#fff">Abrir los 3 documentos</button>'
+        +'<button onclick="pedidoCompleto()" class="btn-primary" style="'+estiloBtn+'">📑 Generar PDF COMPLETO</button>'
         +'<button onclick="cerrarPedido()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">Cerrar</button>'
       +'</div></div>'
     : '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(r.num)+' · '+esc(r.cliente)+' · Asesor: <strong>'+esc(r.vendedor)+'</strong> · USD '+Math.round(r.total||0).toLocaleString('es-CO')+(r.estado==='Cerrada-Ganada'?' · <span style="color:#166534">ya estaba Ganada</span>':'')+'</div>'
@@ -5847,7 +5852,13 @@ async function pedidoConfirmar(){
     rawReservadas=rawReservadas.filter(m=>!P.hechos.has(m.id));
     try{ procesarCatalogo(); renderCatalogo(); actualizarBadgeReservadas(); }catch(e){}
     // 3) cerrar la oferta
-    const descartadas=await patchCotizacionResiliente(r.id,{Estado:'Cerrada-Ganada',[SP_COLS_COT.ResultadoOferta]:syn});
+    // Se guarda en cada ítem de la oferta lo asignado (ped: seriales, cantidad bajo pedido, nota), así los documentos
+    // se pueden volver a ver después sin generar otro pedido.
+    const porItem={};
+    P.filasFinal.forEach(f=>{ const o=porItem[f.k]||(porItem[f.k]={s:[],bp:0}); if(f.bp) o.bp++; else o.s.push({id:f.idMQ,o:f.origen==='importacion'?'i':'s',r:f.reservada?1:0}); });
+    const hoyISO=new Date().toISOString().slice(0,10);
+    r.items.forEach((it,k)=>{ if(porItem[k]) it.ped={...porItem[k],nota:P.notas[k]||'',f:hoyISO}; });
+    const descartadas=await patchCotizacionResiliente(r.id,{Estado:'Cerrada-Ganada',[SP_COLS_COT.ResultadoOferta]:syn,Items:JSON.stringify(r.items)});
     if(descartadas.length) P.advertencias=(P.advertencias||[]).concat(['No se guardó el resultado de la oferta: SharePoint no reconoce la columna '+descartadas.join(', ')+'.']);
     r.estado='Cerrada-Ganada'; r.resultado=syn;
     P.listo=true; P.ejecutando=false;
@@ -5862,17 +5873,20 @@ async function pedidoConfirmar(){
 }
 
 // ── Documentos ──
+const PEDIDO_CSS='*{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#2a2a2a;margin:0;padding:24px 32px;max-width:900px;margin:0 auto}'
+  +'h1{font-size:18px;margin:0 0 2px;color:#575756}h2{font-size:13px;margin:18px 0 6px;color:#575756;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #80A61B;padding-bottom:3px}'
+  +'table{width:100%;border-collapse:collapse;margin-bottom:6px}th{background:#575756;color:#fff;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase}td{padding:6px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}'
+  +'.r{text-align:right}.conf{background:#FEF2F2;color:#991B1B;font-weight:700;text-align:center;padding:5px;border-radius:4px;margin:8px 0;font-size:11px}.nota{background:#FEF3C7;border-left:3px solid #F59E0B;padding:8px 10px;margin:6px 0;border-radius:0 4px 4px 0}'
+  +'.bar{background:#575756;color:#fff;padding:10px 20px;margin:-24px -32px 18px;display:flex;gap:12px;align-items:center}.bar button{background:#80A61B;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-weight:600;cursor:pointer}'
+  +'@media print{.no-print{display:none!important}body{padding:0}@page{margin:12mm}.pb{page-break-before:always}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';
+function pedidoDocHTML(titulo,cuerpo){
+  return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+_escRes(titulo)+'</title><style>'+PEDIDO_CSS+'</style></head><body>'
+    +'<div class="bar no-print"><span style="flex:1">'+_escRes(titulo)+'</span><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>'+cuerpo+'</body></html>';
+}
 function pedidoAbrirDoc(titulo,cuerpo){
   const w=window.open('','_blank');
   if(!w){showToast('Permite popups para ver el documento','error');return;}
-  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+_escRes(titulo)+'</title><style>'
-    +'*{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#2a2a2a;margin:0;padding:24px 32px;max-width:900px;margin:0 auto}'
-    +'h1{font-size:18px;margin:0 0 2px;color:#575756}h2{font-size:13px;margin:18px 0 6px;color:#575756;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #80A61B;padding-bottom:3px}'
-    +'table{width:100%;border-collapse:collapse;margin-bottom:6px}th{background:#575756;color:#fff;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase}td{padding:6px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}'
-    +'.r{text-align:right}.conf{background:#FEF2F2;color:#991B1B;font-weight:700;text-align:center;padding:5px;border-radius:4px;margin:8px 0;font-size:11px}.nota{background:#FEF3C7;border-left:3px solid #F59E0B;padding:8px 10px;margin:6px 0;border-radius:0 4px 4px 0}'
-    +'.bar{background:#575756;color:#fff;padding:10px 20px;margin:-24px -32px 18px;display:flex;gap:12px;align-items:center}.bar button{background:#80A61B;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-weight:600;cursor:pointer}'
-    +'@media print{.no-print{display:none!important}body{padding:0}@page{margin:12mm}.pb{page-break-before:always}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
-    +'</style></head><body><div class="bar no-print"><span style="flex:1">'+_escRes(titulo)+'</span><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>'+cuerpo+'</body></html>');
+  w.document.write(pedidoDocHTML(titulo,cuerpo));
   w.document.close();
 }
 function pedidoMGBody(r){
@@ -5914,8 +5928,11 @@ function pedidoMGBody(r){
 // MG REAL: reutiliza el generador de MG de la pestaña Cotizar (mostrarResumenMargenes). Ese generador lee el carrito y el
 // formulario, así que se cargan temporalmente los datos de la oferta guardada (con sus liquidaciones regeneradas) y se
 // restaura todo al terminar. Si algo falla, cae al resumen simple (pedidoMGBody).
-function pedidoImprimirMG(){
-  const P=_pedido; if(!P) return;
+// MG REAL: reutiliza el generador de MG de la pestaña Cotizar (mostrarResumenMargenes). Ese generador lee el carrito y el
+// formulario y abre su propia ventana, así que se cargan temporalmente los datos de la oferta guardada (con sus
+// liquidaciones regeneradas), se captura el HTML que escribe y se restaura todo en un finally.
+function pedidoHTMLMG(){
+  const P=_pedido; if(!P) return '';
   const r=P.r;
   const el=id=>document.getElementById(id);
   const ids=['descInput','descEspecialCausal','descEspecialCausalCustom','descExtraInput','clienteInput','condPagoSel','validezSel','obsInput','vendedorSel'];
@@ -5925,8 +5942,10 @@ function pedidoImprimirMG(){
   const numEl=el('ofertaNum'), numAntes=numEl?numEl.textContent:'';
   const cont=el('contactoSel'), contAntes=cont?{v:cont.value,c:cont._contactos}:null;
   const vend=el('vendedorSel'); let optTmp=null;
-  const carritoAntes=carrito;
+  const carritoAntes=carrito, openAntes=window.open;
+  let html='';
   try{
+    window.open=()=>({document:{write:h=>{html=h;},close:()=>{}}});
     carrito=r.items.filter(it=>!it.incluidoEn).map((it,k)=>{
       const esLiq=it.origen==='LIQ';
       return {id:esLiq?('liq_pedido_'+k):('ped_'+k),tipo:it.tipo,nombre:it.nombre,marca:it.marca||'',modelo:it.modelo||'',tipologia:it.tipologia||'',
@@ -5959,8 +5978,9 @@ function pedidoImprimirMG(){
     mostrarResumenMargenes();
   }catch(e){
     console.warn('[AYJ] No se pudo generar el MG original; se usa el resumen simple:',e.message);
-    pedidoAbrirDoc('MG '+r.num,pedidoMGBody(r));
+    html='';
   }finally{
+    window.open=openAntes;
     carrito=carritoAntes;
     ids.forEach(id=>{ const e=el(id); if(e&&guardado[id]!==undefined) e.value=guardado[id]; });
     if(optTmp&&vend) { try{ vend.removeChild(optTmp); }catch(e){} if(guardado.vendedorSel!==undefined) vend.value=guardado.vendedorSel; }
@@ -5969,15 +5989,24 @@ function pedidoImprimirMG(){
     if(cont&&contAntes){ cont.value=contAntes.v; cont._contactos=contAntes.c; }
     try{ actualizarDescBadge(); calcTotales(); renderCarrito(); }catch(e){}
   }
+  return html;
+}
+function pedidoImprimirMG(){
+  const P=_pedido; if(!P) return;
+  const w=window.open('','_blank');
+  if(!w){showToast('Permite las ventanas emergentes para ver el MG','error');return;}
+  let html=pedidoHTMLMG();
+  if(!html) html=pedidoDocHTML('MG '+P.r.num,pedidoMGBody(P.r));
+  w.document.write(html); w.document.close();
 }
 
 // PEDIDO RESUMEN: documento 3 del paquete (equipos, seriales asignados, pedidos a Casa Matriz y condiciones).
-function pedidoImprimirPaquete(){
-  const P=_pedido; if(!P) return;
+function pedidoResumenCuerpo(){
+  const P=_pedido;
   const r=P.r, esc=_escRes;
   const filas=P.filasFinal||pedidoFilas().map(f=>({k:f.k,nombre:f.nombre,tipo:f.tipo,bp:f.bp,idMQ:f.unidad?f.unidad.idMQ:'',origen:f.unidad?f.unidad.origen:'',reservada:!!(f.unidad&&f.unidad.reservada)}));
   const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
-  const syn=P.synergy||'';
+  const syn=P.synergy||r.resultado||'';
   const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
   const tipoTxt=t=>t==='stock'?'En stock':t==='importacion'?'En importación':'Bajo pedido';
   const base=parseFloat(r.desc)||0, esp=r.descEspecial?3:0, extra=parseFloat(r.descExtra)||0;
@@ -5986,23 +6015,93 @@ function pedidoImprimirPaquete(){
   const cuerpoSer=filas.filter(f=>!f.bp).map(f=>'<tr><td><strong>'+esc(f.nombre)+'</strong></td><td><strong>'+esc(f.idMQ)+'</strong></td><td>'+(f.origen==='importacion'?'Importación':'Stock')+'</td><td>'+(f.reservada?'Estaba reservada':'Disponible')+'</td></tr>').join('');
   const bp={}; filas.filter(f=>f.bp).forEach(f=>{ bp[f.k]=(bp[f.k]||0)+1; });
   const cuerpoBP=Object.keys(bp).map(k=>'<div class="nota"><strong>'+esc(r.items[k].nombre)+' × '+bp[k]+'</strong> — '+esc(P.notas[k]||'')+'</div>').join('');
-  pedidoAbrirDoc('Pedido resumen '+r.num,
-    '<h1>Pedido — Resumen</h1><div style="color:#777">Aristizábal y Jinete S.A.S. · AYJ Maquinaria · '+fecha+'</div>'
-    +'<table style="margin-top:10px"><tr><td style="width:50%"><div style="font-size:10px;color:#80A61B;font-weight:700">OFERTA</div><strong style="font-size:15px">'+esc(r.num)+'</strong><div>Pedido Synergy: <strong>'+esc(syn)+'</strong></div></td>'
+  return '<h1>Pedido — Resumen</h1><div style="color:#777">Aristizábal y Jinete S.A.S. · AYJ Maquinaria · '+fecha+'</div>'
+    +'<table style="margin-top:10px"><tr><td style="width:50%"><div style="font-size:10px;color:#80A61B;font-weight:700">OFERTA</div><strong style="font-size:15px">'+esc(numCotizacionLista(r.num))+'</strong><div>Pedido Synergy: <strong>'+esc(syn)+'</strong></div></td>'
     +'<td><div style="font-size:10px;color:#80A61B;font-weight:700">CLIENTE</div><strong style="font-size:15px">'+esc(r.cliente)+'</strong><div>Asesor: '+esc(r.vendedor)+'</div></td></tr></table>'
     +'<h2>Equipos vendidos</h2><table><thead><tr><th>Máquina</th><th class="r">Cant.</th><th>Cotizada como</th><th class="r">Tarifa</th></tr></thead><tbody>'+equipos+'</tbody></table>'
     +'<div style="text-align:right;font-size:11px;color:#555">'+(eff>0?'Descuento efectivo: '+(Math.round(eff*100)/100)+'% · ':'')+'<strong>Total oferta (con IVA y flete): '+fU(r.total)+'</strong></div>'
+    +(P.sinRegistro?'<div class="nota">Esta oferta se marcó como Ganada sin registrar seriales desde la herramienta: los seriales no constan en este documento (consúltalos en LISTS).</div>':'')
     +(cuerpoSer?'<h2>Seriales asignados</h2><table><thead><tr><th>Máquina</th><th>Serial (ID_MQ)</th><th>Origen</th><th>Observación</th></tr></thead><tbody>'+cuerpoSer+'</tbody></table><div style="font-size:10px;color:#777">Estos seriales quedaron en estado VENDIDA en el catálogo (LISTS) con cliente, asesor y pedido.</div>':'')
     +(cuerpoBP?'<h2>🚚 Pedido a Casa Matriz (Bajo Pedido)</h2>'+cuerpoBP+'<div style="font-size:10px;color:#777">Estas unidades no tienen serial: hay que generar el pedido a Casa Matriz.</div>':'')
-    +'<h2>Condiciones</h2><table><tr><td style="width:30%;color:#777">Forma de pago</td><td>'+esc(r.condPago||'—')+'</td></tr><tr><td style="color:#777">Garantía</td><td>'+esc(r.garantia||'—')+'</td></tr><tr><td style="color:#777">Validez de la oferta</td><td>'+esc(r.validez||'—')+'</td></tr></table>'
-    +(r.linkPDF?'<div style="margin-top:8px;font-size:10px;color:#777">Oferta aprobada: '+esc(r.linkPDF)+'</div>':''));
+    +'<h2>Condiciones</h2><table><tr><td style="width:30%;color:#777">Forma de pago</td><td>'+esc(r.condPago||'—')+'</td></tr><tr><td style="color:#777">Garantía</td><td>'+esc(r.garantia||'—')+'</td></tr><tr><td style="color:#777">Validez de la oferta</td><td>'+esc(r.validez||'—')+'</td></tr></table>';
 }
-function pedidoAbrirTodos(){
+function pedidoImprimirPaquete(){
   const P=_pedido; if(!P) return;
-  pedidoAbrirOferta();
-  pedidoImprimirMG();
-  pedidoImprimirPaquete();
-  showToast('Si el navegador bloquea alguna ventana, permite las ventanas emergentes de este sitio o abre cada documento con su botón','success');
+  pedidoAbrirDoc('Pedido resumen '+P.r.num,pedidoResumenCuerpo());
+}
+
+// ── PDF COMPLETO: un solo documento = Pedido resumen → MG (Impocostos) → Oferta ──
+// Los tres son HTML completos con estilos propios que chocarían entre sí; cada uno se mete en su propio Shadow DOM
+// (estilos aislados) dentro de una sola página imprimible, con salto de página entre ellos.
+function pedidoPartirHTML(html){
+  const d=new DOMParser().parseFromString(html,'text/html');
+  d.querySelectorAll('script,.no-print,.print-bar').forEach(e=>e.remove());
+  const css=[...d.querySelectorAll('style')].map(s=>s.textContent).join('\n').replace(/(^|[,}{\s])(html|body)(?=\s*[,{])/g,'$1.b');
+  return {css,body:d.body.innerHTML};
+}
+function _montarShadow(D){
+  D.forEach(function(d,i){
+    var h=document.getElementById('h'+i); if(!h) return;
+    var sr=h.attachShadow({mode:'open'});
+    sr.innerHTML='<style>'+d.css+'</style><div class="b">'+d.body+'</div>';
+  });
+}
+function pedidoEnsamblar(partes,titulo){
+  const data=JSON.stringify(partes).replace(/</g,'\\u003c');
+  return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+_escRes(titulo)+'</title><style>'
+    +'body{margin:0;background:#fff;font-family:"Segoe UI",Arial,sans-serif}.bar{background:#575756;color:#fff;padding:10px 20px;display:flex;gap:12px;align-items:center;position:sticky;top:0;z-index:5}'
+    +'.bar button{background:#80A61B;color:#fff;border:none;padding:8px 22px;border-radius:6px;font-weight:600;cursor:pointer}.host{display:block}.host+.host{break-before:page;page-break-before:always}'
+    +'@page{margin:10mm 12mm;size:A4}@media print{.bar{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'</style></head><body><div class="bar"><span style="flex:1">'+_escRes(titulo)+' · Pedido → MG → Oferta</span><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>'
+    +partes.map((p,i)=>'<div class="host" id="h'+i+'"></div>').join('')
+    +'<script>('+_montarShadow.toString()+')('+data+');<'+'/script></body></html>';
+}
+async function pedidoCompleto(){
+  const P=_pedido; if(!P) return;
+  const r=P.r;
+  const w=window.open('','_blank');
+  if(!w){showToast('Permite las ventanas emergentes para generar el PDF completo','error');return;}
+  try{ w.document.write('<p style="font-family:sans-serif;padding:24px;color:#555">Generando el PDF completo (Pedido · MG · Oferta)…</p>'); }catch(e){}
+  try{
+    const htmlPedido=pedidoDocHTML('Pedido resumen '+r.num,pedidoResumenCuerpo());
+    let htmlMG=pedidoHTMLMG();
+    if(!htmlMG) htmlMG=pedidoDocHTML('MG '+r.num,pedidoMGBody(r));
+    let htmlOferta='', regenerada=false;
+    try{ htmlOferta=await htmlOfertaGuardada(r); }catch(e){ console.warn('[AYJ] No se pudo leer la oferta guardada:',e.message); }
+    if(!htmlOferta||htmlOferta.length<500){ htmlOferta=htmlOfertaRegenerada(r); regenerada=true; }
+    const final=pedidoEnsamblar([htmlPedido,htmlMG,htmlOferta].map(pedidoPartirHTML),'Pedido completo '+numCotizacionLista(r.num)+' · '+r.cliente);
+    if(typeof w.document.open==='function') w.document.open();
+    w.document.write(final); w.document.close();
+    if(regenerada) showToast('La oferta se regeneró con los datos guardados (no se pudo leer el PDF original; pueden faltar entrega, voltaje y observaciones)','error');
+  }catch(e){
+    try{ w.document.body.innerHTML='<p style="font-family:sans-serif;padding:24px;color:#991B1B">No se pudo generar el PDF completo: '+_escRes(e.message)+'</p>'; }catch(e2){}
+    console.error('[AYJ] PDF completo:',e);
+  }
+}
+
+// ── Ofertas YA GANADAS: solo se ven los documentos (no se genera otro pedido) ──
+function pedidoAbrirDocumentos(r){
+  const filasFinal=[], notas={}; let hayRegistro=false;
+  r.items.forEach((it,k)=>{
+    if(it.incluidoEn) return;
+    notas[k]=(it.ped&&it.ped.nota)||('Solicitar a Casa Matriz — oferta '+r.num+' · cliente '+r.cliente+' · asesor '+r.vendedor);
+    if(it.ped){
+      hayRegistro=true;
+      (it.ped.s||[]).forEach(x=>filasFinal.push({k,nombre:it.nombre,tipo:it.tipo,bp:false,idMQ:x.id,origen:x.o==='i'?'importacion':'stock',reservada:!!x.r}));
+      for(let j=0;j<(it.ped.bp||0);j++) filasFinal.push({k,nombre:it.nombre,tipo:it.tipo,bp:true,idMQ:'',origen:'',reservada:false});
+    }
+  });
+  _pedido={r,slots:[],notas,hechos:new Set(),ejecutando:false,listo:true,errores:[],modoDocs:true,sinRegistro:!hayRegistro,filasFinal,synergy:r.resultado||''};
+  renderPedidoVenta();
+}
+async function pedidoRegistrarAhora(){
+  const P=_pedido; if(!P) return;
+  const clave=prompt('Clave de administrador para registrar los seriales de una oferta que ya estaba ganada:');
+  if(clave===null) return;
+  if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+  const id=P.r.id;
+  cerrarPedido();
+  await abrirPedidoIdx(id,{forzar:true});
 }
 
 async function aplicarEstado(itemId, nuevoEstado, modal, resultado){
