@@ -274,6 +274,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <button id="navHistorial" onclick="switchView('historial')">Ofertas</button>
       <button id="navSeguimiento" onclick="switchView('seguimiento')" style="position:relative"><i class="ti ti-calendar-event"></i> Seguimiento<span id="badgeSeguimiento" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
       <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+      <button id="navEvento" onclick="switchView('evento')"><i class="ti ti-confetti"></i> Evento</button>
       <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
       <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
       <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
@@ -743,6 +744,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       </div>
     </div>
 
+    <div id="eventoView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)"></div>
     <div id="dashboardView" style="display:none;flex:1;flex-direction:column;overflow-y:auto;background:var(--bg);padding:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <strong style="font-size:16px">Inteligencia Comercial</strong>
@@ -2763,7 +2765,7 @@ async function guardarCotizacion(){
       Garantia:garantia,
       CondicionPago:condPago,
       Validez:validez,
-      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR',...liqItemParaGuardar(i)}))),
+      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR',...liqItemParaGuardar(i),...(i.evento?{ev:i.evento,cb:i.combo||''}:{})}))),
     };
     // Posible cierre (opcional) — si no se definió, simplemente no se mandan estos campos.
     // PosibleCierre es solo registro histórico de qué opción se eligió (30/60/90/Personalizada);
@@ -3779,7 +3781,7 @@ function filtrarHistorial(){
       const numRevFamilia=soloVig?historialData.filter(h=>ofertaBaseNum(h.num)===ofertaBaseNum(r.num)).length:1;
       const badgeRev=numRevFamilia>1?' <span onclick="verRevisionesFamilia(\''+ofertaBaseNum(r.num).replace(/'/g,"\\'")+'\')" title="Ver las '+numRevFamilia+' revisiones de esta oferta" style="cursor:pointer;font-size:9px;background:#EFF6FF;color:#1E3A8A;padding:1px 5px;border-radius:8px;font-weight:700">'+numRevFamilia+'rev</span>':'';
       return '<tr>'
-        +'<td class="num">'+r.num+badgeRev+'</td>'
+        +'<td class="num">'+r.num+badgeRev+((r.items||[]).some(i=>i.ev)?' <span title="Oferta de evento" style="cursor:default">🎪</span>':'')+'</td>'
         +'<td style="white-space:nowrap;color:var(--text2);font-size:12px">'+r.fechaStr+'</td>'
         +'<td><strong>'+r.cliente+'</strong>'+(vp?'<div style="font-size:10px;color:var(--text2);margin-top:2px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+vp.full+'">'+vp.corto+'</div>':'')+'</td>'
         +'<td style="font-size:12px">'+r.vendedor+'</td>'
@@ -3859,20 +3861,22 @@ function switchView(v){
   document.getElementById('clientesView').style.display=v==='clientes'?'flex':'none';
   document.getElementById('seguimientoView').style.display=v==='seguimiento'?'flex':'none';
   document.getElementById('reservadasView').style.display=v==='reservadas'?'flex':'none';
+  document.getElementById('eventoView').style.display=v==='evento'?'flex':'none';
   document.getElementById('dashboardView').style.display=v==='dashboard'?'flex':'none';
   if(v==='dashboard')cargarDashboard();
   document.getElementById('stockView').style.display=v==='stock'?'flex':'none';
   if(v==='stock')cargarStock();
   // Ocultar sidebar en vistas de pantalla completa
   const sidebar=document.querySelector('.sidebar');
-  if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock')?'none':'';
-  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
-  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',reservadas:'navReservadas',dashboard:'navDashboard',stock:'navStock'};
+  if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock'||v==='evento')?'none':'';
+  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navEvento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
+  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',reservadas:'navReservadas',evento:'navEvento',dashboard:'navDashboard',stock:'navStock'};
   if(navMap[v])document.getElementById(navMap[v]).className='active';
   if(v==='historial')cargarHistorial();
   if(v==='clientes')renderTablaClientes();
   if(v==='seguimiento') abrirSeguimiento();
   if(v==='reservadas') renderReservadas();
+  if(v==='evento') abrirEvento();
   // Sincronizar tabs móvil
   if(esMobil()){
     const tabMap={nueva:'carrito',historial:'historial',clientes:'clientes'};
@@ -5302,6 +5306,7 @@ async function editarOferta(itemId, r){
       horasInstalacion:fuente.horasInstalacion||0,
       // Ítem liquidado: se restaura como tal (antes volvía como catálogo y sin datos de liquidación)
       ...(i.origen==='LIQ'?{origen:'liquidador',costoTotal:(i.liq&&i.liq.costoTotal)||i.costoAYJ||0,margenLiq:(i.liq&&i.liq.margenLiq)||0,_liqSnapshot:(i.liq&&i.liq.s)||undefined,_instSnapshot:(i.liq&&i.liq.i)||undefined,_finSnapshot:(i.liq&&i.liq.f)||undefined}:{}),
+      ...(i.ev?{evento:i.ev,combo:i.cb||''}:{}),
     };
   });
 
@@ -6278,6 +6283,494 @@ async function pedidoRegistrarAhora(){
   const id=P.r.id;
   cerrarPedido();
   await abrirPedidoIdx(id,{forzar:true});
+}
+
+// ── EVENTO (Open House / ferias) ──────────────────────────────────────────────────────────────────────
+// Sección independiente pero del mismo sistema: venta rápida con TARIFA DE EVENTO y COMBOS. Reutiliza el catálogo (con su
+// stock), el login, el carrito y el flujo de oferta: al cerrar, "Pasar a oferta" carga el carrito normal con los precios de
+// evento y se termina con Guardar y PDF (así sirven seguimiento, Ganada/Perdida, pedido con seriales, etc.). Cada ítem queda
+// marcado (`ev`, `cb`) para saber qué ofertas salieron del evento.
+// Configuración (evento activo, precio por máquina, combos, topes) en un JSON en SharePoint:
+//   General/AYJ_COTIZADOR/Evento/eventos.json   (sin listas nuevas). La edita un administrador con la clave del MG.
+const EV_PATH='General/AYJ_COTIZADOR/Evento/eventos.json';
+let EV={cargado:false,cargando:false,data:{activoId:null,eventos:[]},cart:[],q:'',marca:'',tip:'',cliente:'',tel:'',extra:0,admin:false,grp:0,edit:null,tab:'evento',comboEd:null,qp:''};
+
+function evNuevoEvento(nombre){
+  return {id:'ev'+Date.now(),nombre:nombre||'Nuevo evento',desde:'',hasta:'',descPct:10,topeExtra:5,margenMin:15,precios:{},combos:[]};
+}
+function evActivo(d){ d=d||EV.data; return d.eventos.find(e=>e.id===d.activoId)||null; }
+const evEsc=s=>_escRes(s);
+function evInyectarCSS(){
+  if(document.getElementById('evCSS')) return;
+  const st=document.createElement('style'); st.id='evCSS';
+  st.textContent=`
+  #eventoView .ev-wrap{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;padding:14px 18px;overflow:hidden;min-height:0}
+  #eventoView .ev-main{overflow-y:auto;min-height:0;padding-right:4px}
+  #eventoView .ev-side{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  #eventoView .ev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px;margin-bottom:16px}
+  #eventoView .ev-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:11px 12px;display:flex;flex-direction:column;gap:6px;position:relative}
+  #eventoView .ev-card.combo{border:2px solid #F59E0B;background:#FFFBEB}
+  #eventoView .ev-card .nm{font-weight:700;font-size:14px;color:var(--gris);line-height:1.2}
+  #eventoView .ev-card .sub{font-size:11px;color:var(--text2)}
+  #eventoView .ev-precio{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  #eventoView .ev-precio .nuevo{font-size:20px;font-weight:800;color:#166534}
+  #eventoView .ev-precio .viejo{font-size:12px;color:#999;text-decoration:line-through}
+  #eventoView .ev-dto{background:#DC2626;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px}
+  #eventoView .ev-b{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px}
+  #eventoView .ev-b.ok{background:#DCFCE7;color:#166534}#eventoView .ev-b.info{background:#DBEAFE;color:#1E40AF}
+  #eventoView .ev-b.warn{background:#FEF3C7;color:#92400E}#eventoView .ev-b.bad{background:#FEE2E2;color:#991B1B}
+  #eventoView .ev-add{margin-top:auto;padding:9px;border:none;border-radius:var(--radius);background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+  #eventoView .ev-add.combo{background:#F59E0B}
+  #eventoView .ev-add:active{transform:scale(.98)}
+  #eventoView h3.ev-h{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin:6px 0 8px}
+  #eventoView .ev-linea{padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px}
+  #eventoView .ev-qty{display:inline-flex;align-items:center;gap:6px}
+  #eventoView .ev-qty button{width:26px;height:26px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-weight:700}
+  @media(max-width:980px){#eventoView .ev-wrap{grid-template-columns:1fr;overflow-y:auto}#eventoView .ev-main{overflow:visible}#eventoView .ev-side{min-height:420px}}
+  `;
+  document.head.appendChild(st);
+}
+
+// ── persistencia (JSON en la biblioteca de documentos) ──
+async function evLeer(){
+  const token=await getToken();
+  const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${EV_PATH}:/content`,{headers:{Authorization:'Bearer '+token}});
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+async function evEscribir(data){
+  const token=await getToken();
+  // la carpeta puede no existir todavía (si ya existe, Graph responde 409 y se ignora)
+  await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/General/AYJ_COTIZADOR:/children`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({name:'Evento',folder:{},'@microsoft.graph.conflictBehavior':'fail'})}).catch(()=>{});
+  const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${EV_PATH}:/content`,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data,null,1)});
+  if(!r.ok){ const t=await r.text(); throw new Error('HTTP '+r.status+' '+t.slice(0,160)); }
+}
+
+// ── catálogo del evento (reutiliza el catálogo unificado con su stock) ──
+function evEntradas(){
+  return catalogoUnificado().map(e=>{
+    const a=e.g||e.bp;
+    return {key:_kTitulo(a.title),title:a.title,marca:(e.g&&e.g.marca)||(e.bp&&e.bp.marca)||'',modelo:(e.g&&e.g.modelo)||(e.bp&&e.bp.modelo)||'',tipologia:(e.g&&e.g.tipologia)||(e.bp&&e.bp.tipologia)||'',
+      tarifa:(e.g&&e.g.tarifa)||(e.bp&&e.bp.tarifa)||0,costo:(e.g&&e.g.costoAYJ)||(e.bp&&e.bp.costoAYJ)||0,stock:e.g?e.g.stockCount:0,impo:e.g?e.g.importCount:0,
+      bp:!!e.bp,ilimitado:!!(e.g&&e.g.stockIlimitado),descripcion:(e.g&&e.g.descripcion)||(e.bp&&e.bp.descripcion)||'',ficha:(e.g&&e.g.fichaTecnica)||(e.bp&&e.bp.fichaTecnica)||'',
+      yt:(e.g&&e.g.ytVideo)||(e.bp&&e.bp.ytVideo)||'',g:e.g||null,bpRow:e.bp||null};
+  });
+}
+function evEntrada(nombre){ const k=_kTitulo(nombre); return evEntradas().find(x=>x.key===k)||null; }
+function evPrecioUnit(en){
+  const e=evActivo(); if(!e) return en.tarifa;
+  const ov=parseFloat(e.precios&&e.precios[en.key]);
+  if(ov>0) return ov;
+  return Math.round(en.tarifa*(1-(parseFloat(e.descPct)||0)/100));
+}
+function evEnCarrito(key){ return EV.cart.filter(l=>!l.libre&&l.key===key).reduce((s,l)=>s+l.cant,0); }
+function evBadge(en,extraCant){
+  if(en.ilimitado) return ['Disponible','ok'];
+  const libre=en.stock-evEnCarrito(en.key)-(extraCant||0);
+  if(libre>0) return ['En stock: '+libre,'ok'];
+  if(en.impo>0) return ['Impo: '+en.impo,'info'];
+  if(en.bp) return ['Bajo pedido','warn'];
+  return ['Agotado','bad'];
+}
+function evTipoItem(en,cant){
+  if(!en.g) return 'pedido';
+  if(en.ilimitado||en.stock>=cant) return 'stock';
+  if(en.stock+en.impo>=cant) return 'importacion';
+  return 'pedido';
+}
+
+// ── carrito del evento ──
+function evAgregarMaq(key){
+  const en=evEntradas().find(x=>x.key===key); if(!en) return;
+  const ex=EV.cart.find(l=>!l.libre&&!l.grp&&l.key===key);
+  if(ex) ex.cant++;
+  else EV.cart.push({id:'l'+(++EV.grp),key,nombre:en.title,cant:1,unit:evPrecioUnit(en),tarifaUnit:en.tarifa,costoUnit:en.costo||en.tarifa*0.5,libre:false,grp:null});
+  renderEventoCarrito(); renderEventoCatalogo();
+}
+function evCantidad(id,d){
+  const l=EV.cart.find(x=>x.id===id); if(!l) return;
+  l.cant=Math.max(0,l.cant+d);
+  if(l.cant===0) EV.cart=EV.cart.filter(x=>x.id!==id);
+  renderEventoCarrito(); renderEventoCatalogo();
+}
+function evQuitarGrupo(grp){ EV.cart=EV.cart.filter(l=>l.grp!==grp); renderEventoCarrito(); renderEventoCatalogo(); }
+function evAgregarCombo(cid){
+  const e=evActivo(); const cb=e&&e.combos.find(c=>c.id===cid); if(!cb) return;
+  const lineas=[];
+  cb.items.forEach(it=>{
+    const cant=Math.max(1,parseInt(it.cant)||1);
+    if(it.libre){ const p=parseFloat(it.precio)||0; lineas.push({nombre:it.nombre,key:'libre:'+_kTitulo(it.nombre),cant,w:p,tarifaUnit:p,costoUnit:p*0.5,libre:true}); }
+    else{
+      const en=evEntrada(it.nombre);
+      if(!en){ showToast('El combo incluye "'+it.nombre+'" que ya no está en el catálogo','error'); return; }
+      lineas.push({nombre:en.title,key:en.key,cant,w:evPrecioUnit(en),tarifaUnit:en.tarifa,costoUnit:en.costo||en.tarifa*0.5,libre:false});
+    }
+  });
+  if(lineas.length!==cb.items.length) return;
+  // el precio del combo se reparte entre sus piezas en proporción a su valor, y el último ajusta el redondeo
+  const sumW=lineas.reduce((s,l)=>s+l.w*l.cant,0)||1;
+  const precio=parseFloat(cb.precio)||sumW;
+  let acum=0;
+  const grp='g'+(++EV.grp);
+  lineas.forEach((l,i)=>{
+    const tot=(i===lineas.length-1)?(precio-acum):Math.round(l.w*l.cant*precio/sumW);
+    acum+=tot;
+    EV.cart.push({id:'l'+(++EV.grp),key:l.key,nombre:l.nombre,cant:l.cant,unit:tot/l.cant,tarifaUnit:l.tarifaUnit,costoUnit:l.costoUnit,libre:l.libre,grp,comboId:cb.id,comboNombre:cb.nombre});
+  });
+  renderEventoCarrito(); renderEventoCatalogo();
+}
+function evTotales(){
+  const e=evActivo()||{};
+  let tarifa=0,neto=0,costo=0;
+  EV.cart.forEach(l=>{ tarifa+=l.tarifaUnit*l.cant; neto+=l.unit*l.cant; costo+=l.costoUnit*l.cant; });
+  const ex=Math.min(parseFloat(EV.extra)||0,EV.admin?100:(parseFloat(e.topeExtra)||0));
+  const extraUSD=neto*ex/100, total=neto-extraUSD;
+  const margen=total>0?(total-costo)/total*100:0;
+  return {tarifa,neto,costo,ex,extraUSD,total,margen,ahorro:tarifa-total,bajoMinimo:margen<(parseFloat(e.margenMin)||0)};
+}
+
+// ── vista principal ──
+async function abrirEvento(){
+  evInyectarCSS();
+  if(!EV.cargado&&!EV.cargando){
+    EV.cargando=true; renderEvento();
+    try{ const d=await evLeer(); if(d&&Array.isArray(d.eventos)) EV.data=d; }
+    catch(e){ console.warn('[AYJ] Evento: no se pudo leer la configuración:',e.message); showToast('No se pudo leer la configuración del evento: '+e.message,'error'); }
+    EV.cargando=false; EV.cargado=true;
+  }
+  if(!grupos.length&&!bajosPedido.length){ try{ await cargarMaquinas(); }catch(e){} }
+  renderEvento();
+}
+function evEstadoFechas(e){
+  if(!e||(!e.desde&&!e.hasta)) return {txt:'Sin fechas definidas',cls:'warn'};
+  const h=new Date(); h.setHours(0,0,0,0);
+  const d=e.desde?new Date(e.desde+'T00:00:00'):null, f=e.hasta?new Date(e.hasta+'T00:00:00'):null;
+  if(d&&h<d) return {txt:'Empieza en '+Math.round((d-h)/86400000)+' día(s)',cls:'info'};
+  if(f&&h>f) return {txt:'Evento finalizado',cls:'bad'};
+  if(f){ const n=Math.round((f-h)/86400000); return {txt:n===0?'Último día del evento':'Evento en curso · termina en '+n+' día(s)',cls:'ok'}; }
+  return {txt:'Evento en curso',cls:'ok'};
+}
+// Ofertas que salieron de este evento (items marcados con `ev`), sin contar revisiones antiguas
+function evResumenVentas(e){
+  let of=[]; try{ of=soloVigentes(historialData||[]).filter(r=>(r.items||[]).some(i=>i.ev===e.id)); }catch(x){}
+  if(!of.length) return '';
+  const g=of.filter(r=>r.estado==='Cerrada-Ganada');
+  const sum=a=>a.reduce((s,r)=>s+(r.total||0),0);
+  return '<span class="ev-b info" style="font-size:11px" title="Ofertas generadas desde este evento">📈 '+of.length+' oferta(s) · '+fmtUSD(sum(of))+' · '+g.length+' ganada(s) '+fmtUSD(sum(g))+'</span>';
+}
+function renderEvento(){
+  const root=document.getElementById('eventoView'); if(!root) return;
+  const e=evActivo();
+  if(EV.cargando){ root.innerHTML='<div class="loading-list" style="padding:40px">Cargando evento…</div>'; return; }
+  const head='<div style="padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:12px;align-items:center;flex-wrap:wrap;flex-shrink:0">'
+    +'<strong style="font-size:16px">🎪 '+(e?evEsc(e.nombre):'Evento')+'</strong>'
+    +(e?'<span class="ev-b '+evEstadoFechas(e).cls+'" style="font-size:11px">'+evEstadoFechas(e).txt+'</span>'+(e.desde||e.hasta?'<span style="font-size:11px;color:var(--text2)">'+evEsc(e.desde||'')+(e.hasta?' → '+evEsc(e.hasta):'')+'</span>':'')+'<span style="font-size:11px;color:var(--text2)">Dto. de evento: '+(parseFloat(e.descPct)||0)+'% (o precio fijo por máquina)</span>'+evResumenVentas(e):'')
+    +'<span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button class="btn-sec" onclick="evRecargar()" title="Recargar precios, combos y stock"><i class="ti ti-refresh"></i></button>'
+    +'<button class="btn-sec" onclick="evDesbloquear()" id="evBtnMG">'+(EV.admin?'🔓 Admin':'🔒 Admin')+'</button>'
+    +'<button class="btn-sec" onclick="evConfigurar()"><i class="ti ti-settings"></i> Configurar</button></span></div>';
+  if(!e){
+    root.innerHTML=head+'<div style="padding:50px;text-align:center;color:var(--text2)"><div style="font-size:42px">🎪</div><div style="font-size:16px;font-weight:700;margin:8px 0">Todavía no hay un evento activo</div><div style="font-size:13px;margin-bottom:14px">Un administrador debe crear el evento, definir la tarifa y armar los combos.</div><button class="btn-primary" onclick="evConfigurar()"><i class="ti ti-settings"></i> Configurar evento</button></div>';
+    return;
+  }
+  const entradas=evEntradas();
+  const marcas=[...new Set(entradas.map(x=>x.marca).filter(Boolean))].sort();
+  const tips=[...new Set(entradas.map(x=>x.tipologia).filter(Boolean))].sort();
+  root.innerHTML=head
+    +'<div class="ev-wrap"><div class="ev-main">'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+        +'<input type="text" id="evBuscar" placeholder="🔍 Buscar máquina, marca, tipología…" value="'+evEsc(EV.q)+'" oninput="EV.q=this.value;renderEventoCatalogo()" style="flex:1;min-width:200px;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:var(--radius)">'
+        +'<select onchange="EV.marca=this.value;renderEventoCatalogo()" style="padding:9px;border:1px solid var(--border);border-radius:var(--radius)"><option value="">Todas las marcas</option>'+marcas.map(m=>'<option'+(EV.marca===m?' selected':'')+'>'+evEsc(m)+'</option>').join('')+'</select>'
+        +'<select onchange="EV.tip=this.value;renderEventoCatalogo()" style="padding:9px;border:1px solid var(--border);border-radius:var(--radius)"><option value="">Todas las tipologías</option>'+tips.map(m=>'<option'+(EV.tip===m?' selected':'')+'>'+evEsc(m)+'</option>').join('')+'</select>'
+      +'</div><div id="evCatalogo"></div>'
+    +'</div><div class="ev-side"><div id="evCarrito" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div></div>';
+  renderEventoCatalogo(); renderEventoCarrito();
+}
+async function evRecargar(){
+  EV.cargado=false; try{ await cargarMaquinas(); }catch(e){}
+  await abrirEvento(); showToast('Evento recargado','success');
+}
+function renderEventoCatalogo(){
+  const box=document.getElementById('evCatalogo'); if(!box) return;
+  const e=evActivo(); if(!e) return;
+  const q=_kTitulo(EV.q);
+  const fmt=n=>fmtUSD(n);
+  let html='';
+  // combos
+  const combos=(e.combos||[]).filter(c=>!q||_kTitulo(c.nombre+' '+c.items.map(i=>i.nombre).join(' ')).includes(q));
+  if(combos.length){
+    html+='<h3 class="ev-h">🎁 Combos de evento</h3><div class="ev-grid">'+combos.map(c=>{
+      const piezas=c.items.map(it=>{ const en=it.libre?null:evEntrada(it.nombre); return {it,en,cant:Math.max(1,parseInt(it.cant)||1)}; });
+      const tarifaSuma=piezas.reduce((s,p)=>s+((p.it.libre?(parseFloat(p.it.precio)||0):(p.en?p.en.tarifa:0))*p.cant),0);
+      const peor=piezas.reduce((w,p)=>{ if(p.it.libre) return w; if(!p.en) return 'bad'; const b=evBadge(p.en,p.cant-1)[1]; const orden={ok:0,info:1,warn:2,bad:3}; return orden[b]>orden[w]?b:w; },'ok');
+      const txtDisp={ok:'Todo en stock',info:'Incluye importación',warn:'Incluye bajo pedido',bad:'Revisar disponibilidad'}[peor];
+      const ahorro=tarifaSuma-(parseFloat(c.precio)||0);
+      return '<div class="ev-card combo"><div class="nm">🎁 '+evEsc(c.nombre)+'</div>'
+        +'<div class="sub">'+piezas.map(p=>(p.cant>1?p.cant+'× ':'')+evEsc(p.it.nombre)).join(' + ')+'</div>'
+        +'<div class="ev-precio"><span class="nuevo">'+fmt(c.precio)+'</span>'+(tarifaSuma>0?'<span class="viejo">'+fmt(tarifaSuma)+'</span>':'')+(ahorro>0?'<span class="ev-dto">Ahorra '+fmt(ahorro)+'</span>':'')+'</div>'
+        +'<span class="ev-b '+peor+'">'+txtDisp+'</span>'
+        +'<button class="ev-add combo" data-c="'+evEsc(c.id)+'" onclick="evAgregarCombo(this.dataset.c)">+ Agregar combo</button></div>';
+    }).join('')+'</div>';
+  }
+  // máquinas
+  let lista=evEntradas().filter(x=>{
+    if(EV.marca&&x.marca!==EV.marca) return false;
+    if(EV.tip&&x.tipologia!==EV.tip) return false;
+    return !q||_kTitulo(x.title+' '+x.marca+' '+x.tipologia+' '+x.modelo).includes(q);
+  });
+  lista.sort((a,b)=>{ const sa=(a.stock>0||a.ilimitado)?0:a.impo>0?1:2, sb=(b.stock>0||b.ilimitado)?0:b.impo>0?1:2; return sa-sb||a.title.localeCompare(b.title,'es'); });
+  html+='<h3 class="ev-h">⚙ Máquinas ('+lista.length+')</h3><div class="ev-grid">'+lista.map(x=>{
+    const pe=evPrecioUnit(x), dto=x.tarifa>0?Math.round((1-pe/x.tarifa)*100):0;
+    const b=evBadge(x), enC=evEnCarrito(x.key);
+    return '<div class="ev-card"><div class="nm">'+evEsc(x.title)+'</div><div class="sub">'+evEsc([x.marca,x.tipologia].filter(Boolean).join(' · '))+'</div>'
+      +'<div class="ev-precio"><span class="nuevo">'+fmt(pe)+'</span>'+(dto>0?'<span class="viejo">'+fmt(x.tarifa)+'</span><span class="ev-dto">-'+dto+'%</span>':'')+'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center"><span class="ev-b '+b[1]+'">'+b[0]+'</span>'+(enC?'<span style="font-size:11px;color:#166534;font-weight:700">En carrito: '+enC+'</span>':'')+'</div>'
+      +'<button class="ev-add" data-k="'+evEsc(x.key)+'" onclick="evAgregarMaq(this.dataset.k)">+ Agregar</button></div>';
+  }).join('')+'</div>';
+  if(!lista.length&&!combos.length) html='<div class="loading-list">Sin resultados</div>';
+  box.innerHTML=html;
+}
+function renderEventoCarrito(){
+  const box=document.getElementById('evCarrito'); if(!box) return;
+  const e=evActivo(); if(!e) return;
+  const t=evTotales();
+  const grupos_={}; const orden=[];
+  EV.cart.forEach(l=>{ const k=l.grp||l.id; if(!grupos_[k]){ grupos_[k]={grp:l.grp,combo:l.comboNombre,lineas:[]}; orden.push(k); } grupos_[k].lineas.push(l); });
+  const lineas=orden.map(k=>{
+    const g=grupos_[k];
+    if(g.grp) return '<div class="ev-linea" style="background:#FFFBEB"><div style="display:flex;justify-content:space-between;gap:6px"><strong>🎁 '+evEsc(g.combo)+'</strong><button onclick="evQuitarGrupo(this.dataset.g)" data-g="'+evEsc(g.grp)+'" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:16px" title="Quitar combo">×</button></div>'
+      +g.lineas.map(l=>'<div style="font-size:11px;color:var(--text2)">'+(l.cant>1?l.cant+'× ':'')+evEsc(l.nombre)+'</div>').join('')
+      +'<div style="text-align:right;font-weight:700">'+fmtUSD(g.lineas.reduce((s,l)=>s+l.unit*l.cant,0))+'</div></div>';
+    const l=g.lineas[0];
+    return '<div class="ev-linea"><div style="display:flex;justify-content:space-between;gap:6px"><strong>'+evEsc(l.nombre)+'</strong><strong>'+fmtUSD(l.unit*l.cant)+'</strong></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px"><span class="ev-qty"><button data-i="'+l.id+'" onclick="evCantidad(this.dataset.i,-1)">−</button><b>'+l.cant+'</b><button data-i="'+l.id+'" onclick="evCantidad(this.dataset.i,1)">+</button></span>'
+      +'<span style="font-size:11px;color:var(--text2)">'+fmtUSD(l.unit)+' c/u'+(l.tarifaUnit>l.unit?' <s style="color:#aaa">'+fmtUSD(l.tarifaUnit)+'</s>':'')+'</span></div></div>';
+  }).join('');
+  const tope=EV.admin?100:(parseFloat(e.topeExtra)||0);
+  box.innerHTML='<div style="padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700">🛒 Carrito del evento <span style="font-weight:400;color:var(--text2);font-size:12px">('+EV.cart.reduce((s,l)=>s+l.cant,0)+' ud.)</span></div>'
+    +'<div style="flex:1;overflow-y:auto;min-height:80px">'+(lineas||'<div style="padding:26px;text-align:center;color:var(--text3);font-size:13px">Toca <b>+ Agregar</b> en una máquina o combo</div>')+'</div>'
+    +'<div style="padding:10px 14px;border-top:1px solid var(--border);background:var(--bg)">'
+      +'<div style="display:grid;gap:6px;margin-bottom:8px"><input type="text" placeholder="Cliente (nombre o empresa) *" value="'+evEsc(EV.cliente)+'" oninput="EV.cliente=this.value" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius)">'
+      +'<input type="text" placeholder="Teléfono / correo" value="'+evEsc(EV.tel)+'" oninput="EV.tel=this.value" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius)"></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px"><span>Tarifa normal</span><span>'+fmtUSD(t.tarifa)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#166534"><span>Precio de evento</span><span>'+fmtUSD(t.neto)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin:4px 0"><span>Descuento adicional %<span style="color:var(--text3)"> (máx. '+tope+'%)</span></span><input type="number" min="0" max="'+tope+'" step="0.5" value="'+(parseFloat(EV.extra)||0)+'" oninput="evSetExtra(this.value)" style="width:70px;padding:5px;border:1px solid var(--border);border-radius:6px;text-align:right"></div>'
+      +(t.extraUSD>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:#DC2626"><span>− Descuento adicional</span><span>−'+fmtUSD(t.extraUSD)+'</span></div>':'')
+      +'<div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-top:4px"><span>Total</span><span>'+fmtUSD(t.total)+'</span></div>'
+      +'<div style="font-size:11px;color:var(--text2);text-align:right">Antes de IVA · COP '+Math.round(t.total*trm).toLocaleString('es-CO')+'</div>'
+      +(t.ahorro>0?'<div style="text-align:right;font-size:12px;color:#166534;font-weight:700">El cliente ahorra '+fmtUSD(t.ahorro)+'</div>':'')
+      +(EV.admin?'<div style="margin-top:4px;font-size:12px;font-weight:700;color:'+(t.margen>=35?'#166534':t.margen>=(parseFloat(e.margenMin)||0)?'#92400E':'#DC2626')+'">Margen: '+t.margen.toFixed(1)+'%</div>':'')
+      +(t.bajoMinimo&&EV.cart.length?'<div style="margin-top:4px;font-size:11px;color:#B91C1C;background:#FEE2E2;border-radius:6px;padding:5px 8px">⚠ Precio por debajo del mínimo permitido: requiere autorización del administrador.</div>':'')
+      +'<button class="btn-primary" style="width:100%;margin-top:8px;padding:12px;font-size:14px" onclick="evPasarAOferta()"'+(EV.cart.length?'':' disabled')+'><i class="ti ti-file-invoice"></i> Pasar a oferta</button>'
+      +(EV.cart.length?'<button class="btn-sec" style="width:100%;margin-top:6px" onclick="evVaciar()">Vaciar carrito</button>':'')
+    +'</div>';
+}
+function evSetExtra(v){
+  const e=evActivo(); const tope=EV.admin?100:(parseFloat(e&&e.topeExtra)||0);
+  let n=parseFloat(v)||0; if(n>tope) n=tope; if(n<0) n=0;
+  EV.extra=n; renderEventoCarrito();
+}
+function evVaciar(){ if(EV.cart.length&&!confirm('¿Vaciar el carrito del evento?')) return; EV.cart=[]; EV.extra=0; renderEventoCarrito(); renderEventoCatalogo(); }
+function evDesbloquear(){
+  if(EV.admin){ EV.admin=false; renderEventoCarrito(); const b=document.getElementById('evBtnMG'); if(b) b.textContent='🔒 Admin'; return; }
+  const c=prompt('Clave de administrador del evento:');
+  if(c===null) return;
+  if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+  EV.admin=true; renderEventoCarrito(); const b=document.getElementById('evBtnMG'); if(b) b.textContent='🔓 Admin';
+  showToast('✓ Modo administrador: se ve el margen y no hay tope de descuento','success');
+}
+
+// ── cierre: del carrito del evento a una oferta normal ──
+function evPasarAOferta(){
+  const e=evActivo(); if(!e||!EV.cart.length) return;
+  if(!(EV.cliente||'').trim()){ showToast('Escribe el nombre del cliente','error'); const i=document.querySelector('#evCarrito input[type=text]'); if(i) i.focus(); return; }
+  const t=evTotales();
+  if(evEstadoFechas(e).cls==='bad'&&!confirm('El evento ya finalizó ('+(e.hasta||'')+'). ¿Generar la oferta con precios de evento de todos modos?')) return;
+  if(t.bajoMinimo&&!EV.admin){
+    const c=prompt('El precio queda por debajo del margen mínimo. Ingresa la clave de administrador para autorizar:');
+    if(c===null) return;
+    if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+  }
+  if(carrito.length>0&&!confirm('El carrito actual de Nueva Oferta se reemplazará con el del evento. ¿Continuar?')) return;
+  const nuevo=[]; let n=0;
+  EV.cart.forEach(l=>{
+    n++;
+    const total=l.unit*l.cant;
+    if(l.libre){
+      nuevo.push({id:'libre_ev_'+Date.now()+'_'+n,grupoKey:null,tipo:'pedido',nombre:l.nombre,marca:'',modelo:'',tipologia:'EVENTO',tarifa:total,costoAYJ:l.costoUnit||0,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:l.cant,stockCount:0,importCount:0,evento:e.id,combo:l.comboNombre||''});
+      return;
+    }
+    const en=evEntrada(l.nombre);
+    const item={id:(en&&en.bpRow&&!en.g)?en.bpRow.id:'ev_'+Date.now()+'_'+n,grupoKey:en&&en.g?en.g.key:null,tipo:en?evTipoItem(en,l.cant):'pedido',nombre:l.nombre,marca:en?en.marca:'',modelo:en?en.modelo:'',tipologia:en?en.tipologia:'',
+      tarifa:total,costoAYJ:l.costoUnit||0,descripcion:en?en.descripcion:'',fichaTecnica:en?en.ficha:'',ytVideo:en?en.yt:'',cantidad:l.cant,stockCount:en?en.stock:0,importCount:en?en.impo:0,stockIlimitado:en?en.ilimitado:false,evento:e.id,combo:l.comboNombre||''};
+    nuevo.push(item);
+  });
+  carrito=nuevo;
+  const combos=[...new Set(EV.cart.filter(l=>l.comboNombre).map(l=>l.comboNombre))];
+  const nota='🎪 '+e.nombre+(combos.length?' · Combo: '+combos.join(' + '):'')+(e.hasta?' · Precios de evento válidos hasta '+e.hasta:'')+((EV.tel||'').trim()?' · Contacto: '+EV.tel.trim():'');
+  const set=(id,v)=>{ const x=document.getElementById(id); if(x) x.value=v; };
+  set('clienteInput',EV.cliente.trim()); set('obsInput',nota);
+  set('descInput',t.ex); try{ actualizarDescBadge(); }catch(err){}
+  switchView('nueva');
+  renderCarrito(); calcTotales(); renderCatalogo();
+  showToast('✓ Oferta de evento lista: revisa y pulsa "Guardar y PDF"','success');
+  EV.cart=[]; EV.extra=0; EV.cliente=''; EV.tel='';
+}
+
+// ── configuración (administrador) ──
+function evConfigurar(){
+  if(!EV.admin){
+    const c=prompt('Clave de administrador para configurar el evento:');
+    if(c===null) return;
+    if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+    EV.admin=true; renderEventoCarrito(); const b=document.getElementById('evBtnMG'); if(b) b.textContent='🔓 Admin';
+  }
+  EV.edit=JSON.parse(JSON.stringify(EV.data));
+  if(!EV.edit.eventos.length){ const n=evNuevoEvento('Open House'); EV.edit.eventos.push(n); EV.edit.activoId=n.id; }
+  if(!evActivo(EV.edit)) EV.edit.activoId=EV.edit.eventos[0].id;
+  EV.tab='evento'; EV.comboEd=null; EV.qp='';
+  renderEvConfig();
+}
+function evCfgCerrar(){ const m=document.getElementById('modalEvConfig'); if(m) m.remove(); EV.edit=null; EV.comboEd=null; }
+function evCfgTab(t){ EV.tab=t; EV.comboEd=null; renderEvConfig(); }
+function evCfgSet(campo,valor){
+  const e=evActivo(EV.edit); if(!e) return;
+  if(['descPct','topeExtra','margenMin'].includes(campo)) e[campo]=parseFloat(valor)||0; else e[campo]=valor;
+}
+function evCfgActivo(id){ EV.edit.activoId=id; renderEvConfig(); }
+function evCfgNuevoEvento(){
+  const nombre=prompt('Nombre del nuevo evento (copia los precios y combos del actual):','Open House');
+  if(!nombre) return;
+  const base=evActivo(EV.edit);
+  const n=evNuevoEvento(nombre);
+  if(base){ n.descPct=base.descPct; n.topeExtra=base.topeExtra; n.margenMin=base.margenMin; n.precios=JSON.parse(JSON.stringify(base.precios||{})); n.combos=JSON.parse(JSON.stringify(base.combos||[])); }
+  EV.edit.eventos.push(n); EV.edit.activoId=n.id; renderEvConfig();
+}
+function evCfgEliminarEvento(){
+  if(EV.edit.eventos.length<=1){ showToast('Debe existir al menos un evento','error'); return; }
+  const e=evActivo(EV.edit);
+  if(!confirm('¿Eliminar el evento "'+e.nombre+'" con sus precios y combos?')) return;
+  EV.edit.eventos=EV.edit.eventos.filter(x=>x.id!==e.id); EV.edit.activoId=EV.edit.eventos[0].id; renderEvConfig();
+}
+function evCfgPrecio(key,v){
+  const e=evActivo(EV.edit); const n=parseFloat(v);
+  if(n>0) e.precios[key]=n; else delete e.precios[key];
+  const fila=document.getElementById('evPf_'+key.replace(/[^a-z0-9]/g,'_'));
+  if(fila){ const en=evEntradas().find(x=>x.key===key); fila.textContent=(n>0&&en&&en.tarifa>0)?Math.round((1-n/en.tarifa)*100)+'%':''; }
+}
+// combos
+function evComboNuevo(){ EV.comboEd={id:'cb'+Date.now(),nombre:'',precio:0,items:[{nombre:'',cant:1,libre:false,precio:0}],nuevo:true}; renderEvConfig(); }
+function evComboEditar(id){ const e=evActivo(EV.edit); const c=e.combos.find(x=>x.id===id); if(!c) return; EV.comboEd=JSON.parse(JSON.stringify(c)); renderEvConfig(); }
+function evComboEliminar(id){ const e=evActivo(EV.edit); if(!confirm('¿Eliminar este combo?')) return; e.combos=e.combos.filter(x=>x.id!==id); renderEvConfig(); }
+function evComboSet(campo,v){ EV.comboEd[campo]=(campo==='precio')?(parseFloat(v)||0):v; }
+function evComboItemSet(i,campo,v){
+  const it=EV.comboEd.items[i];
+  if(campo==='cant') it.cant=Math.max(1,parseInt(v)||1);
+  else if(campo==='precio') it.precio=parseFloat(v)||0;
+  else if(campo==='libre'){ it.libre=!!v; renderEvConfig(); return; }
+  else it[campo]=v;
+}
+function evComboAddItem(){ EV.comboEd.items.push({nombre:'',cant:1,libre:false,precio:0}); renderEvConfig(); }
+function evComboDelItem(i){ EV.comboEd.items.splice(i,1); if(!EV.comboEd.items.length) EV.comboEd.items.push({nombre:'',cant:1,libre:false,precio:0}); renderEvConfig(); }
+function evComboGuardar(){
+  const c=EV.comboEd, e=evActivo(EV.edit);
+  if(!c.nombre.trim()){ showToast('Ponle nombre al combo','error'); return; }
+  if(!(c.precio>0)){ showToast('Define el precio del combo (USD)','error'); return; }
+  const items=c.items.filter(i=>(i.nombre||'').trim());
+  if(!items.length){ showToast('El combo necesita al menos un ítem','error'); return; }
+  const fallan=items.filter(i=>!i.libre&&!evEntrada(i.nombre));
+  if(fallan.length){ showToast('No están en el catálogo: '+fallan.map(i=>i.nombre).join(', ')+' — elige de la lista o marca "Ítem libre" con su precio','error'); return; }
+  const libreSinPrecio=items.filter(i=>i.libre&&!(i.precio>0));
+  if(libreSinPrecio.length){ showToast('Los ítems libres necesitan precio: '+libreSinPrecio.map(i=>i.nombre).join(', '),'error'); return; }
+  const out={id:c.id,nombre:c.nombre.trim(),precio:c.precio,items:items.map(i=>({nombre:i.nombre.trim(),cant:i.cant||1,libre:!!i.libre,precio:i.libre?i.precio:0}))};
+  const idx=e.combos.findIndex(x=>x.id===c.id);
+  if(idx>=0) e.combos[idx]=out; else e.combos.push(out);
+  EV.comboEd=null; renderEvConfig();
+}
+async function evCfgGuardar(){
+  const btn=document.getElementById('evCfgOk'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    await evEscribir(EV.edit);
+    EV.data=EV.edit; evCfgCerrar();
+    renderEvento(); showToast('✓ Configuración del evento guardada','success');
+  }catch(err){
+    console.error('[AYJ] Evento: no se pudo guardar:',err);
+    showToast('No se pudo guardar: '+err.message,'error');
+    if(btn){ btn.disabled=false; btn.textContent='Guardar'; }
+  }
+}
+function renderEvConfig(){
+  const ed=EV.edit; if(!ed) return;
+  const e=evActivo(ed);
+  let modal=document.getElementById('modalEvConfig');
+  if(!modal){ modal=document.createElement('div'); modal.id='modalEvConfig'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:560;display:flex;align-items:center;justify-content:center;padding:12px'; document.body.appendChild(modal); }
+  const inp='padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;';
+  const tab=(k,t)=>'<button onclick="evCfgTab(\''+k+'\')" style="padding:9px 16px;border:none;border-bottom:3px solid '+(EV.tab===k?'var(--green)':'transparent')+';background:none;font-weight:'+(EV.tab===k?'700':'500')+';cursor:pointer;font-family:inherit;font-size:13px">'+t+'</button>';
+  let cuerpo='';
+  if(EV.tab==='evento'){
+    cuerpo='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><label style="font-size:12px;font-weight:700">Evento activo</label><select onchange="evCfgActivo(this.value)" style="'+inp+'min-width:220px">'+ed.eventos.map(x=>'<option value="'+evEsc(x.id)+'"'+(x.id===ed.activoId?' selected':'')+'>'+evEsc(x.nombre)+'</option>').join('')+'</select>'
+      +'<button class="btn-sec" onclick="evCfgNuevoEvento()">➕ Nuevo evento</button><button class="btn-sec" style="color:#DC2626" onclick="evCfgEliminarEvento()">Eliminar</button></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'
+      +'<div><label style="font-size:11px;font-weight:700">Nombre</label><input type="text" value="'+evEsc(e.nombre)+'" oninput="evCfgSet(\'nombre\',this.value)" style="'+inp+'width:100%"></div>'
+      +'<div><label style="font-size:11px;font-weight:700">Desde</label><input type="date" value="'+evEsc(e.desde||'')+'" onchange="evCfgSet(\'desde\',this.value)" style="'+inp+'width:100%"></div>'
+      +'<div><label style="font-size:11px;font-weight:700">Hasta (vigencia de los precios)</label><input type="date" value="'+evEsc(e.hasta||'')+'" onchange="evCfgSet(\'hasta\',this.value)" style="'+inp+'width:100%"></div>'
+      +'<div><label style="font-size:11px;font-weight:700">Descuento general de evento (%)</label><input type="number" min="0" max="100" step="0.5" value="'+(e.descPct||0)+'" oninput="evCfgSet(\'descPct\',this.value)" style="'+inp+'width:100%"></div>'
+      +'<div><label style="font-size:11px;font-weight:700">Descuento adicional máx. del asesor (%)</label><input type="number" min="0" max="100" step="0.5" value="'+(e.topeExtra||0)+'" oninput="evCfgSet(\'topeExtra\',this.value)" style="'+inp+'width:100%"></div>'
+      +'<div><label style="font-size:11px;font-weight:700">Margen mínimo (%)</label><input type="number" min="0" max="100" step="0.5" value="'+(e.margenMin||0)+'" oninput="evCfgSet(\'margenMin\',this.value)" style="'+inp+'width:100%"></div></div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-top:10px">La tarifa de evento de cada máquina = precio fijo definido en la pestaña <b>Precios</b>, o si no tiene, la tarifa normal menos el descuento general. Debajo del margen mínimo se pide la clave de administrador para pasar la oferta.</div>';
+  } else if(EV.tab==='precios'){
+    const q=_kTitulo(EV.qp);
+    const lista=evEntradas().filter(x=>!q||_kTitulo(x.title+' '+x.marca+' '+x.tipologia).includes(q)).sort((a,b)=>a.title.localeCompare(b.title,'es')).slice(0,120);
+    cuerpo='<input type="text" id="evQp" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qp)+'" oninput="EV.qp=this.value;evCfgPreciosFiltrar()" style="'+inp+'width:100%;margin-bottom:8px">'
+      +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Deja el precio vacío para usar el descuento general ('+(e.descPct||0)+'%). Se muestran las primeras 120 coincidencias.</div>'
+      +'<div id="evPreciosTabla">'+evPreciosHTML(lista,e)+'</div>';
+  } else {
+    if(EV.comboEd){
+      const c=EV.comboEd;
+      cuerpo='<div style="font-weight:700;margin-bottom:8px">'+(c.nuevo?'Nuevo combo':'Editar combo')+'</div>'
+        +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px"><div><label style="font-size:11px;font-weight:700">Nombre del combo</label><input type="text" value="'+evEsc(c.nombre)+'" oninput="evComboSet(\'nombre\',this.value)" placeholder="Ej. Gama 3 + EP7 + Pegante" style="'+inp+'width:100%"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Precio del combo (USD)</label><input type="number" min="0" value="'+(c.precio||'')+'" oninput="evComboSet(\'precio\',this.value)" style="'+inp+'width:100%"></div></div>'
+        +'<div style="font-size:12px;font-weight:700;margin-bottom:4px">Ítems</div>'
+        +c.items.map((it,i)=>'<div style="display:grid;grid-template-columns:2fr 70px auto 100px 30px;gap:6px;align-items:center;margin-bottom:6px">'
+          +'<input type="text" list="evCatDL" value="'+evEsc(it.nombre)+'" oninput="evComboItemSet('+i+',\'nombre\',this.value)" placeholder="'+(it.libre?'Descripción del ítem libre':'Máquina del catálogo…')+'" style="'+inp+'">'
+          +'<input type="number" min="1" value="'+(it.cant||1)+'" oninput="evComboItemSet('+i+',\'cant\',this.value)" style="'+inp+'" title="Cantidad">'
+          +'<label style="font-size:11px;white-space:nowrap"><input type="checkbox"'+(it.libre?' checked':'')+' onchange="evComboItemSet('+i+',\'libre\',this.checked)"> Ítem libre</label>'
+          +(it.libre?'<input type="number" min="0" value="'+(it.precio||'')+'" oninput="evComboItemSet('+i+',\'precio\',this.value)" placeholder="USD c/u" style="'+inp+'">':'<span style="font-size:10px;color:var(--text3)">precio de catálogo</span>')
+          +'<button onclick="evComboDelItem('+i+')" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:16px">×</button></div>').join('')
+        +'<datalist id="evCatDL">'+evEntradas().map(x=>'<option value="'+evEsc(x.title)+'">').join('')+'</datalist>'
+        +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn-sec" onclick="evComboAddItem()">➕ Agregar ítem</button><span style="flex:1"></span><button class="btn-sec" onclick="EV.comboEd=null;renderEvConfig()">Cancelar</button><button class="btn-primary" onclick="evComboGuardar()">Guardar combo</button></div>'
+        +'<div style="font-size:11px;color:var(--text2);margin-top:8px">Los accesorios que no están en el catálogo (ej. bulto de pegante) se agregan como <b>Ítem libre</b> con su precio de lista; el precio del combo se reparte entre sus piezas en proporción a su valor.</div>';
+    } else {
+      const fm=n=>fmtUSD(n);
+      cuerpo='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;color:var(--text2)">'+e.combos.length+' combo(s)</span><button class="btn-primary" onclick="evComboNuevo()">➕ Nuevo combo</button></div>'
+        +(e.combos.map(c=>{
+          const suma=c.items.reduce((s,i)=>{ const en=i.libre?null:evEntrada(i.nombre); return s+((i.libre?i.precio:(en?en.tarifa:0))||0)*(i.cant||1); },0);
+          return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;align-items:center"><div><strong>'+evEsc(c.nombre)+'</strong><div style="font-size:11px;color:var(--text2)">'+c.items.map(i=>(i.cant>1?i.cant+'× ':'')+evEsc(i.nombre)).join(' + ')+'</div></div>'
+            +'<div style="text-align:right;white-space:nowrap"><div style="font-weight:800;color:#166534">'+fm(c.precio)+'</div><div style="font-size:10px;color:#999">suma de tarifas '+fm(suma)+'</div></div>'
+            +'<div style="white-space:nowrap"><button class="btn-sec" data-c="'+evEsc(c.id)+'" onclick="evComboEditar(this.dataset.c)">Editar</button> <button class="btn-sec" style="color:#DC2626" data-c="'+evEsc(c.id)+'" onclick="evComboEliminar(this.dataset.c)">×</button></div></div>';
+        }).join('')||'<div class="loading-list">Aún no hay combos. Crea el primero con "Nuevo combo".</div>');
+    }
+  }
+  modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:860px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⚙ Configurar evento</strong><button onclick="evCfgCerrar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:0 12px;border-bottom:1px solid var(--border)">'+tab('evento','Evento')+tab('precios','Precios por máquina')+tab('combos','Combos')+'</div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;flex:1">'+cuerpo+'</div>'
+    +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="evCfgCerrar()">Cancelar</button><button class="btn-primary" id="evCfgOk" onclick="evCfgGuardar()">Guardar</button></div></div>';
+}
+function evPreciosHTML(lista,e){
+  return '<table class="hist-table"><thead><tr><th>Máquina</th><th style="text-align:right">Tarifa</th><th style="text-align:right">Precio de evento (USD)</th><th style="text-align:right">Dto.</th></tr></thead><tbody>'
+    +lista.map(x=>{ const ov=e.precios[x.key]; const dto=(ov>0&&x.tarifa>0)?Math.round((1-ov/x.tarifa)*100)+'%':'';
+      return '<tr><td><strong>'+evEsc(x.title)+'</strong><div style="font-size:10px;color:var(--text2)">'+evEsc([x.marca,x.tipologia].filter(Boolean).join(' · '))+'</div></td><td style="text-align:right">'+fmtUSD(x.tarifa)+'</td>'
+        +'<td style="text-align:right"><input type="number" min="0" value="'+(ov>0?ov:'')+'" placeholder="'+fmtUSD(Math.round(x.tarifa*(1-(e.descPct||0)/100)))+'" data-k="'+evEsc(x.key)+'" oninput="evCfgPrecio(this.dataset.k,this.value)" style="width:120px;padding:5px;border:1px solid var(--border);border-radius:6px;text-align:right"></td>'
+        +'<td style="text-align:right;color:#DC2626;font-weight:700" id="evPf_'+x.key.replace(/[^a-z0-9]/g,'_')+'">'+dto+'</td></tr>'; }).join('')
+    +'</tbody></table>';
+}
+function evCfgPreciosFiltrar(){
+  const e=evActivo(EV.edit); const q=_kTitulo(EV.qp);
+  const lista=evEntradas().filter(x=>!q||_kTitulo(x.title+' '+x.marca+' '+x.tipologia).includes(q)).sort((a,b)=>a.title.localeCompare(b.title,'es')).slice(0,120);
+  const t=document.getElementById('evPreciosTabla'); if(t) t.innerHTML=evPreciosHTML(lista,e);
 }
 
 async function aplicarEstado(itemId, nuevoEstado, modal, resultado){
