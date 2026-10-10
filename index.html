@@ -2765,7 +2765,7 @@ async function guardarCotizacion(){
       Garantia:garantia,
       CondicionPago:condPago,
       Validez:validez,
-      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR',...liqItemParaGuardar(i),...(i.evento?{ev:i.evento,cb:i.combo||''}:{})}))),
+      Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR',...liqItemParaGuardar(i),...(i.evento?{ev:i.evento,cb:i.combo||''}:{}),...(i.noMaquina?{nm:1}:{})}))),
     };
     // Posible cierre (opcional) — si no se definió, simplemente no se mandan estos campos.
     // PosibleCierre es solo registro histórico de qué opción se eligió (30/60/90/Personalizada);
@@ -5307,6 +5307,7 @@ async function editarOferta(itemId, r){
       // Ítem liquidado: se restaura como tal (antes volvía como catálogo y sin datos de liquidación)
       ...(i.origen==='LIQ'?{origen:'liquidador',costoTotal:(i.liq&&i.liq.costoTotal)||i.costoAYJ||0,margenLiq:(i.liq&&i.liq.margenLiq)||0,_liqSnapshot:(i.liq&&i.liq.s)||undefined,_instSnapshot:(i.liq&&i.liq.i)||undefined,_finSnapshot:(i.liq&&i.liq.f)||undefined}:{}),
       ...(i.ev?{evento:i.ev,combo:i.cb||''}:{}),
+      ...(i.nm?{noMaquina:true}:{}),
     };
   });
 
@@ -5675,7 +5676,7 @@ async function abrirPedidoIdx(id,opts){
   }
   const slots=[];
   r.items.forEach((it,k)=>{
-    if(it.incluidoEn) return;
+    if(it.incluidoEn||it.nm) return;
     const n=Math.max(1,parseInt(it.cantidad)||1);
     const pref=unidadesDe(it.nombre).filter(u=>!u.reservada&&u.origen===(it.tipo==='importacion'?'importacion':'stock'));
     const usados=new Set();
@@ -6075,7 +6076,7 @@ function pedidoResumenCuerpo(){
   const tipoTxt=t=>t==='stock'?'En stock':t==='importacion'?'En importación':'Bajo pedido';
   const base=parseFloat(r.desc)||0, esp=r.descEspecial?3:0, extra=parseFloat(r.descExtra)||0;
   const eff=100*(1-(1-(base+esp)/100)*(1-extra/100));
-  const equipos=r.items.filter(it=>!it.incluidoEn).map(it=>'<tr><td><strong>'+esc(it.nombre)+'</strong>'+(it.marca||it.modelo?'<div style="font-size:10px;color:#777">'+esc([it.marca,it.modelo].filter(Boolean).join(' · '))+'</div>':'')+'</td><td class="r">'+(it.cantidad||1)+'</td><td>'+tipoTxt(it.tipo)+'</td><td class="r">'+fU(it.tarifaUSD)+'</td></tr>').join('');
+  const equipos=r.items.filter(it=>!it.incluidoEn).map(it=>'<tr><td><strong>'+esc(it.nombre)+'</strong>'+(it.marca||it.modelo?'<div style="font-size:10px;color:#777">'+esc([it.marca,it.modelo].filter(Boolean).join(' · '))+'</div>':'')+'</td><td class="r">'+(it.cantidad||1)+'</td><td>'+(it.nm?'Adicional / servicio':tipoTxt(it.tipo))+'</td><td class="r">'+fU(it.tarifaUSD)+'</td></tr>').join('');
   const cuerpoSer=filas.filter(f=>!f.bp).map(f=>'<tr><td><strong>'+esc(f.nombre)+'</strong></td><td><strong>'+esc(f.idMQ)+'</strong></td><td>'+(f.origen==='importacion'?'Importación':'Stock')+'</td><td>'+(f.reservada?'Estaba reservada':'Disponible')+'</td></tr>').join('');
   const bp={}; filas.filter(f=>f.bp).forEach(f=>{ bp[f.k]=(bp[f.k]||0)+1; });
   const cuerpoBP=Object.keys(bp).map(k=>'<div class="nota"><strong>'+esc(r.items[k].nombre)+' × '+bp[k]+'</strong> — '+esc(P.notas[k]||'')+'</div>').join('');
@@ -6264,7 +6265,7 @@ function pedidoSolicitudFabrica(){
 function pedidoAbrirDocumentos(r){
   const filasFinal=[], notas={}; let hayRegistro=false;
   r.items.forEach((it,k)=>{
-    if(it.incluidoEn) return;
+    if(it.incluidoEn||it.nm) return;
     notas[k]=(it.ped&&it.ped.nota)||('Solicitar a Casa Matriz — oferta '+r.num+' · cliente '+r.cliente+' · asesor '+r.vendedor);
     if(it.ped){
       hayRegistro=true;
@@ -6293,7 +6294,25 @@ async function pedidoRegistrarAhora(){
 // Configuración (evento activo, precio por máquina, combos, topes) en un JSON en SharePoint:
 //   General/AYJ_COTIZADOR/Evento/eventos.json   (sin listas nuevas). La edita un administrador con la clave del MG.
 const EV_PATH='General/AYJ_COTIZADOR/Evento/eventos.json';
-let EV={cargado:false,cargando:false,data:{activoId:null,eventos:[]},cart:[],q:'',marca:'',tip:'',cliente:'',tel:'',extra:0,admin:false,grp:0,edit:null,tab:'evento',comboEd:null,qp:''};
+let EV={cargado:false,cargando:false,data:{activoId:null,eventos:[],ciudades:null},cart:[],q:'',marca:'',tip:'',cliente:'',tel:'',extra:0,admin:false,grp:0,edit:null,tab:'evento',comboEd:null,qp:'',
+  dest:{tipo:'local',ciudadId:'',envioOk:true,trasOk:true,motEnvio:'',motTras:'',manual:null}};
+
+// ── VENTA NACIONAL: envío nacional + traslado para la instalación (máquinas fuera de Bogotá / Medellín) ──
+// Tabla de principales ciudades con su valor (USD), común a todos los eventos, que edita el administrador. Se vende como UN ítem
+// "VENTA NACIONAL — <ciudad>" (tipología VENTA NACIONAL) que suma envío + traslado; cada parte se puede dejar "no incluida"
+// explicando por qué. Valor 0 = pendiente de definir (no se puede usar hasta que el administrador lo llene).
+function evCiudadesDefault(){
+  return ['Cali','Barranquilla','Cartagena','Bucaramanga','Pereira','Manizales','Armenia','Cúcuta','Ibagué','Neiva','Villavicencio','Pasto','Santa Marta','Montería','Popayán','Tunja','Valledupar','Sincelejo']
+    .map(n=>({id:'c_'+_kTitulo(n).replace(/[^a-z0-9]/g,''),ciudad:n,envio:0,traslado:0}));
+}
+function evCiudades(d){ d=d||EV.data; return (d.ciudades&&d.ciudades.length)?d.ciudades:evCiudadesDefault(); }
+function evNacional(){
+  if(EV.dest.tipo!=='nacional') return null;
+  const c=EV.dest.manual||evCiudades().find(x=>x.id===EV.dest.ciudadId);
+  if(!c) return null;
+  const envio=EV.dest.envioOk?(parseFloat(c.envio)||0):0, tras=EV.dest.trasOk?(parseFloat(c.traslado)||0):0;
+  return {ciudad:c.ciudad,envio,traslado:tras,total:envio+tras,envioLista:parseFloat(c.envio)||0,trasLista:parseFloat(c.traslado)||0,motEnvio:EV.dest.envioOk?'':EV.dest.motEnvio,motTras:EV.dest.trasOk?'':EV.dest.motTras};
+}
 
 function evNuevoEvento(nombre){
   return {id:'ev'+Date.now(),nombre:nombre||'Nuevo evento',desde:'',hasta:'',descPct:10,topeExtra:5,margenMin:15,precios:{},combos:[]};
@@ -6372,7 +6391,7 @@ function evBadge(en,extraCant){
   if(libre>0) return ['En stock: '+libre,'ok'];
   if(en.impo>0) return ['Impo: '+en.impo,'info'];
   if(en.bp) return ['Bajo pedido','warn'];
-  return ['Agotado','bad'];
+  return ['Sin disponibilidad','bad'];
 }
 function evTipoItem(en,cant){
   if(!en.g) return 'pedido';
@@ -6425,10 +6444,12 @@ function evTotales(){
   const e=evActivo()||{};
   let tarifa=0,neto=0,costo=0;
   EV.cart.forEach(l=>{ tarifa+=l.tarifaUnit*l.cant; neto+=l.unit*l.cant; costo+=l.costoUnit*l.cant; });
+  const nac=evNacional();
+  if(nac){ tarifa+=nac.total; neto+=nac.total; costo+=nac.total; }   // el envío/traslado se cobra a costo: no afecta el margen
   const ex=Math.min(parseFloat(EV.extra)||0,EV.admin?100:(parseFloat(e.topeExtra)||0));
   const extraUSD=neto*ex/100, total=neto-extraUSD;
   const margen=total>0?(total-costo)/total*100:0;
-  return {tarifa,neto,costo,ex,extraUSD,total,margen,ahorro:tarifa-total,bajoMinimo:margen<(parseFloat(e.margenMin)||0)};
+  return {tarifa,neto,costo,ex,extraUSD,total,margen,nac,ahorro:tarifa-total,bajoMinimo:margen<(parseFloat(e.margenMin)||0)};
 }
 
 // ── vista principal ──
@@ -6485,7 +6506,7 @@ function renderEvento(){
         +'<select onchange="EV.marca=this.value;renderEventoCatalogo()" style="padding:9px;border:1px solid var(--border);border-radius:var(--radius)"><option value="">Todas las marcas</option>'+marcas.map(m=>'<option'+(EV.marca===m?' selected':'')+'>'+evEsc(m)+'</option>').join('')+'</select>'
         +'<select onchange="EV.tip=this.value;renderEventoCatalogo()" style="padding:9px;border:1px solid var(--border);border-radius:var(--radius)"><option value="">Todas las tipologías</option>'+tips.map(m=>'<option'+(EV.tip===m?' selected':'')+'>'+evEsc(m)+'</option>').join('')+'</select>'
       +'</div><div id="evCatalogo"></div>'
-    +'</div><div class="ev-side"><div id="evCarrito" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div></div>';
+    +'</div><div class="ev-side"><div id="evCarrito" style="display:flex;flex-direction:column;min-height:0;flex:1;overflow-y:auto"></div></div></div>';
   renderEventoCatalogo(); renderEventoCarrito();
 }
 async function evRecargar(){
@@ -6550,12 +6571,13 @@ function renderEventoCarrito(){
   }).join('');
   const tope=EV.admin?100:(parseFloat(e.topeExtra)||0);
   box.innerHTML='<div style="padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700">🛒 Carrito del evento <span style="font-weight:400;color:var(--text2);font-size:12px">('+EV.cart.reduce((s,l)=>s+l.cant,0)+' ud.)</span></div>'
-    +'<div style="flex:1;overflow-y:auto;min-height:80px">'+(lineas||'<div style="padding:26px;text-align:center;color:var(--text3);font-size:13px">Toca <b>+ Agregar</b> en una máquina o combo</div>')+'</div>'
+    +'<div style="flex:none;max-height:230px;overflow-y:auto;min-height:70px">'+(lineas||'<div style="padding:26px;text-align:center;color:var(--text3);font-size:13px">Toca <b>+ Agregar</b> en una máquina o combo</div>')+'</div>'
     +'<div style="padding:10px 14px;border-top:1px solid var(--border);background:var(--bg)">'
       +'<div style="display:grid;gap:6px;margin-bottom:8px"><input type="text" placeholder="Cliente (nombre o empresa) *" value="'+evEsc(EV.cliente)+'" oninput="EV.cliente=this.value" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius)">'
       +'<input type="text" placeholder="Teléfono / correo" value="'+evEsc(EV.tel)+'" oninput="EV.tel=this.value" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius)"></div>'
+      +evDestinoHTML(t)
       +'<div style="display:flex;justify-content:space-between;font-size:12px"><span>Tarifa normal</span><span>'+fmtUSD(t.tarifa)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#166534"><span>Precio de evento</span><span>'+fmtUSD(t.neto)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#166534"><span>Precio de evento'+(t.nac?' (incluye venta nacional)':'')+'</span><span>'+fmtUSD(t.neto)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin:4px 0"><span>Descuento adicional %<span style="color:var(--text3)"> (máx. '+tope+'%)</span></span><input type="number" min="0" max="'+tope+'" step="0.5" value="'+(parseFloat(EV.extra)||0)+'" oninput="evSetExtra(this.value)" style="width:70px;padding:5px;border:1px solid var(--border);border-radius:6px;text-align:right"></div>'
       +(t.extraUSD>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:#DC2626"><span>− Descuento adicional</span><span>−'+fmtUSD(t.extraUSD)+'</span></div>':'')
       +'<div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-top:4px"><span>Total</span><span>'+fmtUSD(t.total)+'</span></div>'
@@ -6563,9 +6585,48 @@ function renderEventoCarrito(){
       +(t.ahorro>0?'<div style="text-align:right;font-size:12px;color:#166534;font-weight:700">El cliente ahorra '+fmtUSD(t.ahorro)+'</div>':'')
       +(EV.admin?'<div style="margin-top:4px;font-size:12px;font-weight:700;color:'+(t.margen>=35?'#166534':t.margen>=(parseFloat(e.margenMin)||0)?'#92400E':'#DC2626')+'">Margen: '+t.margen.toFixed(1)+'%</div>':'')
       +(t.bajoMinimo&&EV.cart.length?'<div style="margin-top:4px;font-size:11px;color:#B91C1C;background:#FEE2E2;border-radius:6px;padding:5px 8px">⚠ Precio por debajo del mínimo permitido: requiere autorización del administrador.</div>':'')
-      +'<button class="btn-primary" style="width:100%;margin-top:8px;padding:12px;font-size:14px" onclick="evPasarAOferta()"'+(EV.cart.length?'':' disabled')+'><i class="ti ti-file-invoice"></i> Pasar a oferta</button>'
+      +'<button class="btn-primary" style="width:100%;margin-top:8px;padding:12px;font-size:14px;position:sticky;bottom:4px;box-shadow:0 -8px 10px var(--bg)" onclick="evPasarAOferta()"'+(EV.cart.length?'':' disabled')+'><i class="ti ti-file-invoice"></i> Pasar a oferta</button>'
       +(EV.cart.length?'<button class="btn-sec" style="width:100%;margin-top:6px" onclick="evVaciar()">Vaciar carrito</button>':'')
     +'</div>';
+}
+// Destino de la venta: Bogotá / Medellín (sin cargo) o Nacional (ciudad con envío + traslado de instalación)
+function evDestinoHTML(t){
+  const d=EV.dest, nac=t.nac, ciudades=evCiudades();
+  const seg=(v,txt)=>'<button onclick="evSetDestino(\''+v+'\')" style="flex:1;padding:7px;border:1px solid '+(d.tipo===v?'var(--green)':'var(--border)')+';background:'+(d.tipo===v?'var(--green)':'#fff')+';color:'+(d.tipo===v?'#fff':'var(--text)')+';border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">'+txt+'</button>';
+  let html='<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">DESTINO DE LA VENTA</div><div style="display:flex;gap:6px">'+seg('local','Bogotá / Medellín')+seg('nacional','Nacional')+'</div>';
+  if(d.tipo==='nacional'){
+    const sel=d.manual?'__otra__':d.ciudadId;
+    html+='<select onchange="evSetCiudad(this.value)" style="width:100%;margin-top:6px;padding:7px;border:1px solid var(--border);border-radius:6px;font-size:12px"><option value="">— Elige la ciudad —</option>'
+      +ciudades.map(c=>{ const v=(parseFloat(c.envio)||0)+(parseFloat(c.traslado)||0); return '<option value="'+evEsc(c.id)+'"'+(sel===c.id?' selected':'')+(v>0?'':' disabled')+'>'+evEsc(c.ciudad)+(v>0?' — '+fmtUSD(v):' (sin tarifa definida)')+'</option>'; }).join('')
+      +'<option value="__otra__"'+(sel==='__otra__'?' selected':'')+'>Otra ciudad (valor manual — administrador)…</option></select>';
+    if(nac){
+      html+='<div style="margin-top:6px;padding:8px 10px;border:1px solid #FCD34D;background:#FFFBEB;border-radius:6px;font-size:12px">'
+        +'<label style="display:flex;justify-content:space-between;gap:6px;cursor:pointer"><span><input type="checkbox"'+(d.envioOk?' checked':'')+' onchange="evNacToggle(\'envio\',this.checked)"> Envío nacional</span><b>'+fmtUSD(nac.envioLista)+'</b></label>'
+        +(d.envioOk?'':'<div style="font-size:10px;color:#92400E;margin:2px 0 4px 18px">No incluido: '+evEsc(d.motEnvio)+'</div>')
+        +'<label style="display:flex;justify-content:space-between;gap:6px;cursor:pointer;margin-top:4px"><span><input type="checkbox"'+(d.trasOk?' checked':'')+' onchange="evNacToggle(\'tras\',this.checked)"> Traslado para instalación</span><b>'+fmtUSD(nac.trasLista)+'</b></label>'
+        +(d.trasOk?'':'<div style="font-size:10px;color:#92400E;margin:2px 0 0 18px">No incluido: '+evEsc(d.motTras)+'</div>')
+        +'<div style="display:flex;justify-content:space-between;border-top:1px dashed #FCD34D;margin-top:6px;padding-top:5px;font-weight:800"><span>VENTA NACIONAL — '+evEsc(nac.ciudad)+'</span><span>'+fmtUSD(nac.total)+'</span></div></div>';
+    } else html+='<div style="font-size:11px;color:#B45309;margin-top:4px">Elige la ciudad para sumar el envío y el traslado de instalación.</div>';
+  }
+  return html+'</div>';
+}
+function evSetDestino(tipo){ EV.dest.tipo=tipo; if(tipo==='local'){ EV.dest.ciudadId=''; EV.dest.manual=null; EV.dest.envioOk=true; EV.dest.trasOk=true; } renderEventoCarrito(); }
+function evSetCiudad(id){
+  if(id==='__otra__'){
+    if(!EV.admin){ const c=prompt('Clave de administrador para ingresar una ciudad con valor manual:'); if(c===null){ renderEventoCarrito(); return; } if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); renderEventoCarrito(); return; } EV.admin=true; }
+    const nombre=prompt('Ciudad / destino:'); if(!nombre){ renderEventoCarrito(); return; }
+    const envio=parseFloat(prompt('Envío nacional (USD):','0'))||0, tras=parseFloat(prompt('Traslado para la instalación (USD):','0'))||0;
+    EV.dest.manual={id:'manual',ciudad:nombre.trim(),envio,traslado:tras}; EV.dest.ciudadId='';
+  } else { EV.dest.manual=null; EV.dest.ciudadId=id; }
+  EV.dest.envioOk=true; EV.dest.trasOk=true; renderEventoCarrito();
+}
+function evNacToggle(que,ok){
+  const d=EV.dest;
+  if(ok){ if(que==='envio'){ d.envioOk=true; d.motEnvio=''; } else { d.trasOk=true; d.motTras=''; } renderEventoCarrito(); return; }
+  const motivo=prompt('¿Por qué NO se incluye '+(que==='envio'?'el envío nacional':'el traslado para la instalación')+'? (ej. el cliente recoge la máquina, el cliente instala con su personal, está incluido en otra máquina)');
+  if(!motivo||!motivo.trim()){ showToast('Debes explicar por qué no se incluye','error'); renderEventoCarrito(); return; }
+  if(que==='envio'){ d.envioOk=false; d.motEnvio=motivo.trim(); } else { d.trasOk=false; d.motTras=motivo.trim(); }
+  renderEventoCarrito();
 }
 function evSetExtra(v){
   const e=evActivo(); const tope=EV.admin?100:(parseFloat(e&&e.topeExtra)||0);
@@ -6587,6 +6648,8 @@ function evPasarAOferta(){
   const e=evActivo(); if(!e||!EV.cart.length) return;
   if(!(EV.cliente||'').trim()){ showToast('Escribe el nombre del cliente','error'); const i=document.querySelector('#evCarrito input[type=text]'); if(i) i.focus(); return; }
   const t=evTotales();
+  if(EV.dest.tipo==='nacional'&&!t.nac){ showToast('Elige la ciudad de la venta nacional','error'); return; }
+  if(t.nac&&EV.dest.envioOk&&EV.dest.trasOk&&t.nac.total===0){ showToast('La ciudad elegida no tiene tarifa definida: pídele al administrador que la configure','error'); return; }
   if(evEstadoFechas(e).cls==='bad'&&!confirm('El evento ya finalizó ('+(e.hasta||'')+'). ¿Generar la oferta con precios de evento de todos modos?')) return;
   if(t.bajoMinimo&&!EV.admin){
     const c=prompt('El precio queda por debajo del margen mínimo. Ingresa la clave de administrador para autorizar:');
@@ -6599,7 +6662,7 @@ function evPasarAOferta(){
     n++;
     const total=l.unit*l.cant;
     if(l.libre){
-      nuevo.push({id:'libre_ev_'+Date.now()+'_'+n,grupoKey:null,tipo:'pedido',nombre:l.nombre,marca:'',modelo:'',tipologia:'EVENTO',tarifa:total,costoAYJ:l.costoUnit||0,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:l.cant,stockCount:0,importCount:0,evento:e.id,combo:l.comboNombre||''});
+      nuevo.push({id:'libre_ev_'+Date.now()+'_'+n,grupoKey:null,tipo:'pedido',nombre:l.nombre,marca:'',modelo:'',tipologia:'EVENTO',tarifa:total,costoAYJ:l.costoUnit||0,descripcion:'',fichaTecnica:'',ytVideo:'',cantidad:l.cant,stockCount:0,importCount:0,noMaquina:true,evento:e.id,combo:l.comboNombre||''});
       return;
     }
     const en=evEntrada(l.nombre);
@@ -6607,9 +6670,16 @@ function evPasarAOferta(){
       tarifa:total,costoAYJ:l.costoUnit||0,descripcion:en?en.descripcion:'',fichaTecnica:en?en.ficha:'',ytVideo:en?en.yt:'',cantidad:l.cant,stockCount:en?en.stock:0,importCount:en?en.impo:0,stockIlimitado:en?en.ilimitado:false,evento:e.id,combo:l.comboNombre||''};
     nuevo.push(item);
   });
+  // Venta nacional: un solo ítem VENTA NACIONAL (envío + traslado para la instalación), a costo, que no es una máquina
+  if(t.nac&&t.nac.total>0){
+    const partes=[t.nac.envio>0?'Envío nacional '+fmtUSD(t.nac.envio):'',t.nac.traslado>0?'Traslado para instalación '+fmtUSD(t.nac.traslado):''].filter(Boolean).join(' + ');
+    nuevo.push({id:'ev_nac_'+Date.now(),grupoKey:null,tipo:'pedido',nombre:'VENTA NACIONAL — '+t.nac.ciudad,marca:'',modelo:partes,tipologia:'VENTA NACIONAL',tarifa:t.nac.total,costoAYJ:t.nac.total,
+      descripcion:partes,fichaTecnica:'',ytVideo:'',cantidad:1,stockCount:0,importCount:0,noMaquina:true,evento:e.id,combo:''});
+  }
   carrito=nuevo;
   const combos=[...new Set(EV.cart.filter(l=>l.comboNombre).map(l=>l.comboNombre))];
-  const nota='🎪 '+e.nombre+(combos.length?' · Combo: '+combos.join(' + '):'')+(e.hasta?' · Precios de evento válidos hasta '+e.hasta:'')+((EV.tel||'').trim()?' · Contacto: '+EV.tel.trim():'');
+  const nacNota=t.nac?' · Venta nacional '+t.nac.ciudad+(t.nac.motEnvio?' (envío NO incluido: '+t.nac.motEnvio+')':'')+(t.nac.motTras?' (traslado de instalación NO incluido: '+t.nac.motTras+')':''):'';
+  const nota='🎪 '+e.nombre+(combos.length?' · Combo: '+combos.join(' + '):'')+nacNota+(e.hasta?' · Precios de evento válidos hasta '+e.hasta:'')+((EV.tel||'').trim()?' · Contacto: '+EV.tel.trim():'');
   const set=(id,v)=>{ const x=document.getElementById(id); if(x) x.value=v; };
   set('clienteInput',EV.cliente.trim()); set('obsInput',nota);
   set('descInput',t.ex); try{ actualizarDescBadge(); }catch(err){}
@@ -6617,6 +6687,7 @@ function evPasarAOferta(){
   renderCarrito(); calcTotales(); renderCatalogo();
   showToast('✓ Oferta de evento lista: revisa y pulsa "Guardar y PDF"','success');
   EV.cart=[]; EV.extra=0; EV.cliente=''; EV.tel='';
+  EV.dest={tipo:'local',ciudadId:'',envioOk:true,trasOk:true,motEnvio:'',motTras:'',manual:null};
 }
 
 // ── configuración (administrador) ──
@@ -6630,6 +6701,7 @@ function evConfigurar(){
   EV.edit=JSON.parse(JSON.stringify(EV.data));
   if(!EV.edit.eventos.length){ const n=evNuevoEvento('Open House'); EV.edit.eventos.push(n); EV.edit.activoId=n.id; }
   if(!evActivo(EV.edit)) EV.edit.activoId=EV.edit.eventos[0].id;
+  if(!EV.edit.ciudades||!EV.edit.ciudades.length) EV.edit.ciudades=evCiudadesDefault();
   EV.tab='evento'; EV.comboEd=null; EV.qp='';
   renderEvConfig();
 }
@@ -6661,16 +6733,41 @@ function evCfgPrecio(key,v){
   if(fila){ const en=evEntradas().find(x=>x.key===key); fila.textContent=(n>0&&en&&en.tarifa>0)?Math.round((1-n/en.tarifa)*100)+'%':''; }
 }
 // combos
-function evComboNuevo(){ EV.comboEd={id:'cb'+Date.now(),nombre:'',precio:0,items:[{nombre:'',cant:1,libre:false,precio:0}],nuevo:true}; renderEvConfig(); }
-function evComboEditar(id){ const e=evActivo(EV.edit); const c=e.combos.find(x=>x.id===id); if(!c) return; EV.comboEd=JSON.parse(JSON.stringify(c)); renderEvConfig(); }
+// El editor muestra la TARIFA de cada pieza y la va SUMANDO; el descuento especial del combo se define sobre ese total,
+// en % o en precio final (los dos campos están enlazados: el que se edita manda y el otro se recalcula).
+function evCbTarifaItem(it){
+  const cant=Math.max(1,parseInt(it.cant)||1);
+  if(it.libre) return {valor:(parseFloat(it.precio)||0)*cant,ok:true};
+  if(!(it.nombre||'').trim()) return {valor:0,ok:true};
+  const en=evEntrada(it.nombre);
+  return en?{valor:en.tarifa*cant,ok:true}:{valor:0,ok:false};
+}
+function evCbSuma(){ return EV.comboEd.items.reduce((s,it)=>s+evCbTarifaItem(it).valor,0); }
+function evCbRefrescar(){
+  const c=EV.comboEd; if(!c) return;
+  const suma=evCbSuma(), g=id=>document.getElementById(id);
+  EV.comboEd.items.forEach((it,i)=>{ const t=evCbTarifaItem(it), el=g('evCbT'+i); if(el){ el.textContent=t.ok?fmtUSD(t.valor):'no está en el catálogo'; el.style.color=t.ok?'var(--text2)':'#DC2626'; } });
+  // si la suma cambió, se conserva lo último que definió el usuario (el % o el precio) y se recalcula el otro
+  if(c.modo==='precio'&&c.precio>0) c.pct=suma>0?Math.round((1-c.precio/suma)*1000)/10:0;
+  else c.precio=Math.round(suma*(1-(parseFloat(c.pct)||0)/100));
+  const s=g('evCbSuma'); if(s) s.textContent=fmtUSD(suma);
+  const p=g('evCbPrecio'); if(p&&document.activeElement!==p) p.value=c.precio||'';
+  const d=g('evCbPct'); if(d&&document.activeElement!==d) d.value=c.pct||'';
+  const a=g('evCbAhorro'); if(a){ const ah=suma-(c.precio||0); a.textContent=ah>0?'El cliente ahorra '+fmtUSD(ah)+' ('+(suma>0?Math.round(ah/suma*1000)/10:0)+'%)':(ah<0?'⚠ El precio supera la suma de tarifas':''); }
+}
+function evCbPctSet(v){ EV.comboEd.pct=Math.max(0,Math.min(100,parseFloat(v)||0)); EV.comboEd.modo='pct'; evCbRefrescar(); }
+function evCbPrecioSet(v){ EV.comboEd.precio=parseFloat(v)||0; EV.comboEd.modo='precio'; evCbRefrescar(); }
+function evComboNuevo(){ EV.comboEd={id:'cb'+Date.now(),nombre:'',precio:0,pct:10,modo:'pct',items:[{nombre:'',cant:1,libre:false,precio:0}],nuevo:true}; renderEvConfig(); }
+function evComboEditar(id){ const e=evActivo(EV.edit); const c=e.combos.find(x=>x.id===id); if(!c) return; EV.comboEd=JSON.parse(JSON.stringify(c)); EV.comboEd.modo='precio'; renderEvConfig(); }
 function evComboEliminar(id){ const e=evActivo(EV.edit); if(!confirm('¿Eliminar este combo?')) return; e.combos=e.combos.filter(x=>x.id!==id); renderEvConfig(); }
-function evComboSet(campo,v){ EV.comboEd[campo]=(campo==='precio')?(parseFloat(v)||0):v; }
+function evComboSet(campo,v){ EV.comboEd[campo]=v; }
 function evComboItemSet(i,campo,v){
   const it=EV.comboEd.items[i];
   if(campo==='cant') it.cant=Math.max(1,parseInt(v)||1);
   else if(campo==='precio') it.precio=parseFloat(v)||0;
   else if(campo==='libre'){ it.libre=!!v; renderEvConfig(); return; }
   else it[campo]=v;
+  evCbRefrescar();
 }
 function evComboAddItem(){ EV.comboEd.items.push({nombre:'',cant:1,libre:false,precio:0}); renderEvConfig(); }
 function evComboDelItem(i){ EV.comboEd.items.splice(i,1); if(!EV.comboEd.items.length) EV.comboEd.items.push({nombre:'',cant:1,libre:false,precio:0}); renderEvConfig(); }
@@ -6684,7 +6781,8 @@ function evComboGuardar(){
   if(fallan.length){ showToast('No están en el catálogo: '+fallan.map(i=>i.nombre).join(', ')+' — elige de la lista o marca "Ítem libre" con su precio','error'); return; }
   const libreSinPrecio=items.filter(i=>i.libre&&!(i.precio>0));
   if(libreSinPrecio.length){ showToast('Los ítems libres necesitan precio: '+libreSinPrecio.map(i=>i.nombre).join(', '),'error'); return; }
-  const out={id:c.id,nombre:c.nombre.trim(),precio:c.precio,items:items.map(i=>({nombre:i.nombre.trim(),cant:i.cant||1,libre:!!i.libre,precio:i.libre?i.precio:0}))};
+  const suma=evCbSuma();
+  const out={id:c.id,nombre:c.nombre.trim(),precio:c.precio,descPct:suma>0?Math.round((1-c.precio/suma)*1000)/10:0,items:items.map(i=>({nombre:i.nombre.trim(),cant:i.cant||1,libre:!!i.libre,precio:i.libre?i.precio:0}))};
   const idx=e.combos.findIndex(x=>x.id===c.id);
   if(idx>=0) e.combos[idx]=out; else e.combos.push(out);
   EV.comboEd=null; renderEvConfig();
@@ -6726,22 +6824,32 @@ function renderEvConfig(){
     cuerpo='<input type="text" id="evQp" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qp)+'" oninput="EV.qp=this.value;evCfgPreciosFiltrar()" style="'+inp+'width:100%;margin-bottom:8px">'
       +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Deja el precio vacío para usar el descuento general ('+(e.descPct||0)+'%). Se muestran las primeras 120 coincidencias.</div>'
       +'<div id="evPreciosTabla">'+evPreciosHTML(lista,e)+'</div>';
+  } else if(EV.tab==='ciudades'){
+    cuerpo=evCiudadesHTML();
   } else {
     if(EV.comboEd){
       const c=EV.comboEd;
       cuerpo='<div style="font-weight:700;margin-bottom:8px">'+(c.nuevo?'Nuevo combo':'Editar combo')+'</div>'
-        +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px"><div><label style="font-size:11px;font-weight:700">Nombre del combo</label><input type="text" value="'+evEsc(c.nombre)+'" oninput="evComboSet(\'nombre\',this.value)" placeholder="Ej. Gama 3 + EP7 + Pegante" style="'+inp+'width:100%"></div>'
-        +'<div><label style="font-size:11px;font-weight:700">Precio del combo (USD)</label><input type="number" min="0" value="'+(c.precio||'')+'" oninput="evComboSet(\'precio\',this.value)" style="'+inp+'width:100%"></div></div>'
-        +'<div style="font-size:12px;font-weight:700;margin-bottom:4px">Ítems</div>'
-        +c.items.map((it,i)=>'<div style="display:grid;grid-template-columns:2fr 70px auto 100px 30px;gap:6px;align-items:center;margin-bottom:6px">'
+        +'<div><label style="font-size:11px;font-weight:700">Nombre del combo</label><input type="text" value="'+evEsc(c.nombre)+'" oninput="evComboSet(\'nombre\',this.value)" placeholder="Ej. Gama 3 + EP7 + Pegante" style="'+inp+'width:100%"></div>'
+        +'<div style="font-size:12px;font-weight:700;margin:12px 0 4px">Ítems del combo <span style="font-weight:400;color:var(--text2)">(a precio de TARIFA)</span></div>'
+        +c.items.map((it,i)=>'<div style="display:grid;grid-template-columns:2fr 64px auto 96px 120px 28px;gap:6px;align-items:center;margin-bottom:6px">'
           +'<input type="text" list="evCatDL" value="'+evEsc(it.nombre)+'" oninput="evComboItemSet('+i+',\'nombre\',this.value)" placeholder="'+(it.libre?'Descripción del ítem libre':'Máquina del catálogo…')+'" style="'+inp+'">'
           +'<input type="number" min="1" value="'+(it.cant||1)+'" oninput="evComboItemSet('+i+',\'cant\',this.value)" style="'+inp+'" title="Cantidad">'
           +'<label style="font-size:11px;white-space:nowrap"><input type="checkbox"'+(it.libre?' checked':'')+' onchange="evComboItemSet('+i+',\'libre\',this.checked)"> Ítem libre</label>'
-          +(it.libre?'<input type="number" min="0" value="'+(it.precio||'')+'" oninput="evComboItemSet('+i+',\'precio\',this.value)" placeholder="USD c/u" style="'+inp+'">':'<span style="font-size:10px;color:var(--text3)">precio de catálogo</span>')
+          +(it.libre?'<input type="number" min="0" value="'+(it.precio||'')+'" oninput="evComboItemSet('+i+',\'precio\',this.value)" placeholder="USD c/u" style="'+inp+'">':'<span style="font-size:10px;color:var(--text3)">tarifa de catálogo</span>')
+          +'<span id="evCbT'+i+'" style="font-size:12px;font-weight:700;text-align:right"></span>'
           +'<button onclick="evComboDelItem('+i+')" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:16px">×</button></div>').join('')
         +'<datalist id="evCatDL">'+evEntradas().map(x=>'<option value="'+evEsc(x.title)+'">').join('')+'</datalist>'
-        +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn-sec" onclick="evComboAddItem()">➕ Agregar ítem</button><span style="flex:1"></span><button class="btn-sec" onclick="EV.comboEd=null;renderEvConfig()">Cancelar</button><button class="btn-primary" onclick="evComboGuardar()">Guardar combo</button></div>'
-        +'<div style="font-size:11px;color:var(--text2);margin-top:8px">Los accesorios que no están en el catálogo (ej. bulto de pegante) se agregan como <b>Ítem libre</b> con su precio de lista; el precio del combo se reparte entre sus piezas en proporción a su valor.</div>';
+        +'<button class="btn-sec" onclick="evComboAddItem()">➕ Agregar ítem</button>'
+        +'<div style="margin-top:12px;padding:12px 14px;border:2px solid #F59E0B;border-radius:8px;background:#FFFBEB">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:700">Suma de tarifas</span><b id="evCbSuma" style="font-size:20px;color:var(--gris)">USD 0</b></div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="font-size:11px;font-weight:700">Descuento especial del combo (%)</label><input type="number" id="evCbPct" min="0" max="100" step="0.5" value="'+(c.pct||'')+'" oninput="evCbPctSet(this.value)" style="'+inp+'width:100%"></div>'
+          +'<div><label style="font-size:11px;font-weight:700">Precio final del combo (USD)</label><input type="number" id="evCbPrecio" min="0" value="'+(c.precio||'')+'" oninput="evCbPrecioSet(this.value)" style="'+inp+'width:100%"></div></div>'
+          +'<div id="evCbAhorro" style="margin-top:6px;font-size:12px;font-weight:700;color:#166534"></div>'
+          +'<div style="font-size:10px;color:var(--text2);margin-top:4px">Define el descuento en % o escribe el precio final: el otro campo se calcula solo, siempre sobre la suma de tarifas.</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:10px"><span style="flex:1"></span><button class="btn-sec" onclick="EV.comboEd=null;renderEvConfig()">Cancelar</button><button class="btn-primary" onclick="evComboGuardar()">Guardar combo</button></div>'
+        +'<div style="font-size:11px;color:var(--text2);margin-top:8px">Los accesorios que no están en el catálogo (ej. bulto de pegante) se agregan como <b>Ítem libre</b> con su precio de lista; en la venta el precio del combo se reparte entre sus piezas en proporción a su valor.</div>';
     } else {
       const fm=n=>fmtUSD(n);
       cuerpo='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;color:var(--text2)">'+e.combos.length+' combo(s)</span><button class="btn-primary" onclick="evComboNuevo()">➕ Nuevo combo</button></div>'
@@ -6755,10 +6863,32 @@ function renderEvConfig(){
   }
   modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:860px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
     +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⚙ Configurar evento</strong><button onclick="evCfgCerrar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
-    +'<div style="padding:0 12px;border-bottom:1px solid var(--border)">'+tab('evento','Evento')+tab('precios','Precios por máquina')+tab('combos','Combos')+'</div>'
+    +'<div style="padding:0 12px;border-bottom:1px solid var(--border)">'+tab('evento','Evento')+tab('precios','Precios por máquina')+tab('combos','Combos')+tab('ciudades','Venta nacional')+'</div>'
     +'<div style="padding:14px 18px;overflow-y:auto;flex:1">'+cuerpo+'</div>'
     +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="evCfgCerrar()">Cancelar</button><button class="btn-primary" id="evCfgOk" onclick="evCfgGuardar()">Guardar</button></div></div>';
+  if(EV.tab==='combos'&&EV.comboEd) evCbRefrescar();
 }
+// Venta nacional: ciudades con envío nacional y traslado para la instalación (USD), comunes a todos los eventos
+function evCiudadesHTML(){
+  const cs=EV.edit.ciudades;
+  const inp='padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;';
+  return '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Valor adicional (USD) que se suma a una venta fuera de Bogotá / Medellín como el ítem <b>VENTA NACIONAL — ciudad</b>: <b>envío nacional</b> + <b>traslado para la instalación</b>. Una ciudad con valor 0 aparece como "sin tarifa definida" y no se puede usar en la venta hasta llenarla.</div>'
+    +'<table class="hist-table"><thead><tr><th>Ciudad</th><th style="text-align:right">Envío nacional (USD)</th><th style="text-align:right">Traslado instalación (USD)</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>'
+    +cs.map(c=>'<tr><td><input type="text" value="'+evEsc(c.ciudad)+'" data-c="'+evEsc(c.id)+'" oninput="evCiudadSet(this.dataset.c,\'ciudad\',this.value)" style="'+inp+'width:100%"></td>'
+      +'<td style="text-align:right"><input type="number" min="0" value="'+(c.envio||'')+'" data-c="'+evEsc(c.id)+'" oninput="evCiudadSet(this.dataset.c,\'envio\',this.value)" style="'+inp+'width:110px;text-align:right"></td>'
+      +'<td style="text-align:right"><input type="number" min="0" value="'+(c.traslado||'')+'" data-c="'+evEsc(c.id)+'" oninput="evCiudadSet(this.dataset.c,\'traslado\',this.value)" style="'+inp+'width:110px;text-align:right"></td>'
+      +'<td style="text-align:right;font-weight:700" id="evCt_'+evEsc(c.id)+'">'+(((parseFloat(c.envio)||0)+(parseFloat(c.traslado)||0))>0?fmtUSD((parseFloat(c.envio)||0)+(parseFloat(c.traslado)||0)):'<span style="color:#B45309;font-weight:400">por definir</span>')+'</td>'
+      +'<td><button data-c="'+evEsc(c.id)+'" onclick="evCiudadDel(this.dataset.c)" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:16px">×</button></td></tr>').join('')
+    +'</tbody></table><button class="btn-sec" style="margin-top:8px" onclick="evCiudadAdd()">➕ Agregar ciudad</button>';
+}
+function evCiudadSet(id,campo,v){
+  const c=EV.edit.ciudades.find(x=>x.id===id); if(!c) return;
+  if(campo==='ciudad') c.ciudad=v; else c[campo]=parseFloat(v)||0;
+  const t=document.getElementById('evCt_'+id);
+  if(t){ const s=(parseFloat(c.envio)||0)+(parseFloat(c.traslado)||0); t.innerHTML=s>0?fmtUSD(s):'<span style="color:#B45309;font-weight:400">por definir</span>'; }
+}
+function evCiudadAdd(){ EV.edit.ciudades.push({id:'c_'+Date.now(),ciudad:'Nueva ciudad',envio:0,traslado:0}); renderEvConfig(); }
+function evCiudadDel(id){ EV.edit.ciudades=EV.edit.ciudades.filter(x=>x.id!==id); renderEvConfig(); }
 function evPreciosHTML(lista,e){
   return '<table class="hist-table"><thead><tr><th>Máquina</th><th style="text-align:right">Tarifa</th><th style="text-align:right">Precio de evento (USD)</th><th style="text-align:right">Dto.</th></tr></thead><tbody>'
     +lista.map(x=>{ const ov=e.precios[x.key]; const dto=(ov>0&&x.tarifa>0)?Math.round((1-ov/x.tarifa)*100)+'%':'';
@@ -8814,6 +8944,7 @@ function confirmarItemLibre(){
     cantidad:1,
     stockCount:0,
     importCount:0,
+    noMaquina:tipoDisp==='servicio',
   });
   document.getElementById('modalItemLibre').style.display='none';
   renderCarrito();calcTotales();
