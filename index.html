@@ -314,13 +314,14 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div class="nav-menu">
         <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
         <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+        <button id="navFotos" onclick="evFotosAbrir()" title="Fotos de las máquinas: súbelas una a una o en lote; viajan a la columna Foto de LISTS"><i class="ti ti-camera"></i> Fotos</button>
         </div></div>
       <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
       <button id="navEvento" onclick="switchView('evento')"><i class="ti ti-confetti"></i> Evento</button>
       <div class="nav-group"><button class="nav-gbtn" onclick="navToggleGrupo(this)"><i class="ti ti-dots"></i> Más <i class="ti ti-chevron-down nav-caret"></i><span class="nav-dot"></span></button>
         <div class="nav-menu">
         <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
-        <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos, ciudades y fotos (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
+        <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos y venta nacional (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
         </div></div>
     </div>
     <div class="topbar-right">
@@ -6608,7 +6609,7 @@ async function evFotoSubirBlob(title,blob){
 function evFotosRefrescar(){
   if(document.getElementById('evCatalogo')) renderEventoCatalogo();
   if(EV.vista==='disp'&&document.getElementById('evDisp')) renderEventoDisp();
-  if(document.getElementById('modalEvConfig')&&EV.tab==='fotos') evFotosCfgRender();
+  if(document.getElementById('modalFotos')) evFotosCfgRender();
   evPintarFotos();
 }
 async function evFotoSubir(title,file){
@@ -6811,10 +6812,21 @@ async function evListsAuto(title){
   if(n){ EVF.respN=-1; }
   return n;
 }
+// Ventana general de fotos (menú Inventario ▾ → Fotos): no depende del evento ni pide clave
+function evFotosAbrir(){
+  if(document.getElementById('modalFotos')) return;
+  const m=document.createElement('div'); m.id='modalFotos';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:560;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:860px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">📷 Fotos de las máquinas</strong><button onclick="evFotosCerrar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;flex:1">'+evFotosCfgHTML()+'</div></div>';
+  document.body.appendChild(m); evFotosCfgRender();
+}
+function evFotosCerrar(){ const m=document.getElementById('modalFotos'); if(m) m.remove(); try{ renderCatalogo(); }catch(e){} }
 function evFotosCfgHTML(){
   return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn-primary" onclick="evFotosLoteElegir()">📁 Subir fotos en lote</button><button class="btn-sec" onclick="evListsAbrir()" title="Escribe en la columna Foto de TODAS_2025 las fotos que ya tenemos">📤 Enviar fotos a LISTS</button><span style="font-size:11px;color:var(--text2)">Elige varias fotos a la vez: el <b>nombre del archivo es el modelo</b> (ej. nd512ts.jpg, g4.jpg) y se empareja con el catálogo.</span></div><div id="evFotosLoteInfo" style="font-size:12px;margin-bottom:8px;color:#166534">'+evEsc(EV.loteInfo||'')+'</div><div id="evFotosFiltro" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>'
     +'<input type="text" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qf||'')+'" oninput="EV.qf=this.value;evFotosCfgRender()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">'
-    +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Una foto por modelo (sirve para todo el catálogo: Evento hoy y, más adelante, el resto del cotizador). Se guarda en SharePoint, carpeta <b>General/AYJ_COTIZADOR/Fotos</b>. Se muestran las primeras 80 coincidencias.</div><div id="evFotosTabla"></div>';
+    +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Una foto por modelo: sirve para todo el cotizador (catálogo de Nueva oferta, PDF y Evento). Se guarda en SharePoint, carpeta <b>General/AYJ_COTIZADOR/Fotos</b>, y se envía también a la columna <b>Foto</b> de LISTS. Se muestran las primeras 80 coincidencias.</div><div id="evFotosTabla"></div>';
 }
 function evFotosCfgRender(){
   const t=document.getElementById('evFotosTabla'); if(!t) return;
@@ -7477,8 +7489,6 @@ function renderEvConfig(){
       +'<div id="evPreciosTabla">'+evPreciosHTML(lista,e)+'</div>';
   } else if(EV.tab==='ciudades'){
     cuerpo=evCiudadesHTML();
-  } else if(EV.tab==='fotos'){
-    cuerpo=evFotosCfgHTML();
   } else {
     if(EV.comboEd){
       const c=EV.comboEd;
@@ -7516,11 +7526,10 @@ function renderEvConfig(){
   }
   modal.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:860px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
     +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⚙ Configurar evento</strong><button onclick="evCfgCerrar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
-    +'<div style="padding:0 12px;border-bottom:1px solid var(--border)">'+tab('evento','Evento')+tab('precios','Precios por máquina')+tab('combos','Combos')+tab('ciudades','Venta nacional')+tab('fotos','Fotos')+'</div>'
+    +'<div style="padding:0 12px;border-bottom:1px solid var(--border)">'+tab('evento','Evento')+tab('precios','Precios por máquina')+tab('combos','Combos')+tab('ciudades','Venta nacional')+'</div>'
     +'<div style="padding:14px 18px;overflow-y:auto;flex:1">'+cuerpo+'</div>'
     +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="evCfgCerrar()">Cancelar</button><button class="btn-primary" id="evCfgOk" onclick="evCfgGuardar()">Guardar</button></div></div>';
   if(EV.tab==='combos'&&EV.comboEd) evCbRefrescar();
-  if(EV.tab==='fotos') evFotosCfgRender();
 }
 // Venta nacional: ciudades con envío nacional y traslado para la instalación (USD), comunes a todos los eventos
 function evCiudadesHTML(){
