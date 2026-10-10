@@ -6839,7 +6839,7 @@ function evFotosCfgRender(){
   const chip=(k,txt)=>'<button class="ev-tab'+(ff===k?' on':'')+'" onclick="EV.ff=\''+k+'\';evFotosCfgRender()">'+txt+'</button>';
   const fil=document.getElementById('evFotosFiltro');
   if(fil) fil.innerHTML=chip('todas','Todas ('+todas.length+')')+chip('con','✅ Con foto ('+nCon+')')+chip('sin','⚠ Sin foto ('+nSin+')')
-    +'<button class="btn-sec" style="margin-left:auto" onclick="evFotosCsv()" title="Descarga la lista de máquinas que aún no tienen foto">⬇ Lista sin foto (CSV)</button>';
+    +'<button class="btn-sec" style="margin-left:auto" onclick="evFotosCsv()" title="Descarga la lista de máquinas que aún no tienen foto">⬇ Lista sin foto (CSV)</button><button class="btn-sec" onclick="evCatalogoCsv()" title="Descarga todo el catálogo del cotizador (para compararlo con la página web)">⬇ Catálogo completo (CSV)</button>';
   const q=_kTitulo(EV.qf||'');
   const lista=todas.filter(x=>(ff==='todas'||(ff==='con')===tiene(x))&&(!q||_kTitulo(x.title+' '+x.marca+' '+x.tipologia).includes(q))).sort((a,b)=>a.title.localeCompare(b.title,'es')).slice(0,ff==='todas'?80:400);
   t.innerHTML=lista.map(x=>'<div style="display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding:6px 0"><div class="ev-foto" style="width:84px;height:60px;flex:none;font-size:20px" data-k="'+evEsc(evFotoKey(x.title))+'"><span class="ev-ph">⚙</span></div>'
@@ -6847,6 +6847,16 @@ function evFotosCfgRender(){
     +(tiene(x)?'':'<span class="ev-b warn">Sin foto</span>')
     +'<button class="btn-sec" data-t="'+evEsc(x.title)+'" onclick="evFotoElegir(this.dataset.t)">📷 Subir / cambiar</button></div>').join('')||'<div class="loading-list">Sin resultados</div>';
   evPintarFotos();
+}
+// Catálogo completo tal como lo ve el cotizador (una fila por título): sirve para compararlo con los productos de la página web
+function evCatalogoCsv(){
+  evRespaldoAct();
+  const lim=v=>String(v==null?'':v).replace(/[;\r\n]+/g,' ').trim();
+  const filas=evEntradas().sort((a,b)=>a.title.localeCompare(b.title,'es')).map(x=>[x.title,x.marca,x.tipologia,x.modelo,evEstadoDisp(x).txt,x.ilimitado?'ilimitado':x.stock,x.impo,x.bp?'sí':'no',x.tarifa,x.descripcion.slice(0,160),(EVF.lista&&EVF.lista.has(evFotoKey(x.title)))||EVF.resp[evFotoKey(x.title)]?'sí':'no'].map(lim).join(';'));
+  const csv=['Título;Marca;Tipología;Modelo;Disponibilidad;Stock;Importación;Bajo pedido;Tarifa USD;Descripción;Tiene foto'].concat(filas).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})); a.download='catalogo-cotizador.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  showToast(filas.length+' productos → catalogo-cotizador.csv','success');
 }
 // Lista de máquinas del catálogo que todavía no tienen foto (con el nombre de archivo sugerido para subirla en lote)
 function evFotosCsv(){
