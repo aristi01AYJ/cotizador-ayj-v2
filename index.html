@@ -6634,8 +6634,123 @@ async function evFotosLote(files){
   evFotosRefrescar();
   const i2=document.getElementById('evFotosLoteInfo'); if(i2) i2.textContent=EV.loteInfo;
 }
+// ── FOTO → LISTS (columna "Foto" de TODAS_2025, tipo Imagen) ──────────────────────────────────────────
+// No se copia la imagen: la columna apunta al MISMO archivo de General/AYJ_COTIZADOR/Fotos (una foto por modelo; la reciben todas las
+// unidades con ese título). Se envía solo a unidades que no están VENDIDAS y, por defecto, solo a las que tienen la columna vacía.
+// Por seguridad, "Enviar todas" se habilita después de una prueba exitosa con una sola máquina (se lee de vuelta lo que guardó SharePoint).
+const EVL={campo:'',reemplazar:false,probado:false,plan:null,busy:false,log:'',lectura:''};
+async function evListsCampoFoto(){
+  if(EVL.campo) return EVL.campo;
+  const j=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns?$select=name,displayName&$top=999`);
+  const c=(j.value||[]).find(x=>String(x.displayName||'').trim().toLowerCase()==='foto');
+  if(!c) throw new Error('No encuentro la columna "Foto" en TODAS_2025');
+  EVL.campo=c.name; return c.name;
+}
+// clave de foto → dónde está el archivo en el servidor (ruta relativa del sitio, que es lo que guarda una columna Imagen)
+async function evListsWebUrls(){
+  const token=await getToken(), m={};
+  let url=`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${EV_FOTOS}:/children?$select=name,webUrl&$top=999`;
+  while(url){
+    const r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+    if(r.status===404) return m;
+    if(!r.ok) throw new Error('No se pudo leer la carpeta de fotos (HTTP '+r.status+')');
+    const j=await r.json();
+    (j.value||[]).forEach(x=>{ if(/\.jpe?g$/i.test(x.name)&&x.webUrl){ const u=new URL(x.webUrl); m[x.name.replace(/\.jpe?g$/i,'')]={nombre:x.name,origen:u.origin,ruta:decodeURIComponent(u.pathname)}; } });
+    url=j['@odata.nextLink']||null;
+  }
+  return m;
+}
+function evListsValor(info,campo,variante){
+  const min={fileName:info.nombre,serverUrl:info.origen,serverRelativeUrl:info.ruta};
+  return JSON.stringify(variante===0?Object.assign({type:'thumbnail',nativeFile:{},fieldName:campo},min):min);
+}
+async function evListsPlan(){
+  const campo=await evListsCampoFoto(), urls=await evListsWebUrls();
+  const filas=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields($select=Title,ESTADO_,${campo})&$top=500`);
+  const plan={campo,total:filas.length,enviar:[],yaTienen:0,sinFoto:0,vendidas:0,modelosSin:new Set(),fotos:Object.keys(urls).length};
+  filas.forEach(i=>{
+    const f=i.fields||{}, t=String(f.Title||'').trim(); if(!t) return;
+    if(String(f.ESTADO_||'').trim().toUpperCase()==='VENDIDA'){ plan.vendidas++; return; }
+    const info=urls[evFotoKey(t)];
+    if(!info){ plan.sinFoto++; plan.modelosSin.add(t); return; }
+    if(f[campo]&&!EVL.reemplazar){ plan.yaTienen++; return; }
+    plan.enviar.push({id:i.id,titulo:t,info});
+  });
+  return plan;
+}
+async function evListsEnviarUna(it,campo){
+  const token=await getToken(); let ult='';
+  for(const v of [0,1]){
+    for(let n=0;n<4;n++){
+      const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listIdMaquinas}/items/${it.id}/fields`,{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({[campo]:evListsValor(it.info,campo,v)})});
+      if(r.ok) return v;
+      if(r.status===429||r.status===503){ await new Promise(x=>setTimeout(x,(parseInt(r.headers.get('Retry-After'))||2)*1000)); continue; }
+      ult='HTTP '+r.status+' '+(await r.text()).slice(0,180); break;
+    }
+  }
+  throw new Error(ult||'SharePoint está limitando las peticiones; reintenta en unos minutos');
+}
+function evListsRender(){
+  const m=document.getElementById('modalEvLists'); if(!m) return;
+  const p=EVL.plan, lleno=!!p;
+  const filaN=(n,t,c)=>'<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span>'+t+'</span><strong'+(c?' style="color:'+c+'"':'')+'>'+n+'</strong></div>';
+  m.querySelector('.evl-body').innerHTML=!lleno?'<div class="loading-list">Leyendo TODAS_2025…</div>'
+    :filaN(p.total,'Unidades en TODAS_2025')
+    +filaN(p.fotos,'Fotos disponibles en la biblioteca (por modelo)')
+    +filaN(p.enviar.length,'✅ Por enviar a LISTS','#166534')
+    +filaN(p.yaTienen,'Ya tienen foto en LISTS (no se tocan)')
+    +filaN(p.sinFoto+' ('+p.modelosSin.size+' modelos)','⚠ Sin foto en la biblioteca','#B45309')
+    +filaN(p.vendidas,'Vendidas (se ignoran)')
+    +'<label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:12px"><input type="checkbox" '+(EVL.reemplazar?'checked ':'')+'onchange="EVL.reemplazar=this.checked;EVL.probado=false;evListsAbrir(true)"> Reemplazar también las que ya tienen foto en LISTS</label>'
+    +(EVL.lectura?'<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:8px;font-size:11px;margin-bottom:8px;word-break:break-all"><b>Así quedó guardado en SharePoint:</b><br>'+evEsc(EVL.lectura)+'</div>':'')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button class="btn-sec" '+(EVL.busy||!p.enviar.length?'disabled ':'')+'onclick="evListsProbar()">🧪 Probar con 1 máquina</button>'
+    +'<button class="btn-primary" '+(EVL.busy||!p.enviar.length||!EVL.probado?'disabled title="Primero haz la prueba con 1 máquina y verifica la miniatura en SharePoint" ':'')+'onclick="evListsEnviarTodas()">📤 Enviar todas ('+p.enviar.length+')</button></div>'
+    +'<div style="font-size:11px;color:var(--text2)">Primero prueba con una máquina y ábrela en SharePoint para confirmar que la miniatura se ve; luego se habilita "Enviar todas".</div>'
+    +'<div id="evListsLog" style="font-size:12px;margin-top:8px;max-height:150px;overflow:auto;white-space:pre-wrap">'+evEsc(EVL.log||'')+'</div>'
+    +(p.modelosSin.size?'<details style="margin-top:8px;font-size:12px"><summary>Modelos sin foto ('+p.modelosSin.size+')</summary><div style="margin-top:4px;color:var(--text2)">'+[...p.modelosSin].sort((a,b)=>a.localeCompare(b,'es')).map(evEsc).join(' · ')+'</div></details>':'');
+}
+async function evListsAbrir(recalcular){
+  let m=document.getElementById('modalEvLists');
+  if(!m){ m=document.createElement('div'); m.id='modalEvLists'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+    m.innerHTML='<div style="background:var(--surface,#fff);border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">📤 Enviar fotos a LISTS</h3><button class="btn-sec" onclick="document.getElementById(\'modalEvLists\').remove()">✕</button></div><div class="evl-body"></div></div>';
+    document.body.appendChild(m); }
+  if(recalcular||!EVL.plan){ EVL.plan=null; evListsRender(); try{ EVL.plan=await evListsPlan(); }catch(e){ m.querySelector('.evl-body').innerHTML='<div style="color:#B91C1C">'+evEsc(e.message)+'</div>'; return; } }
+  evListsRender();
+}
+async function evListsProbar(){
+  if(EVL.busy||!EVL.plan||!EVL.plan.enviar.length) return;
+  EVL.busy=true; const it=EVL.plan.enviar[0], campo=EVL.plan.campo; EVL.log='Probando con '+it.titulo+'…'; evListsRender();
+  try{
+    const v=await evListsEnviarUna(it,campo);
+    const j=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/items/${it.id}?expand=fields($select=Title,${campo})`);
+    const val=j.fields&&j.fields[campo];
+    EVL.lectura=typeof val==='string'?val:JSON.stringify(val||null);
+    EVL.probado=!!val; EVL.plan.enviar.shift(); EVL.plan.yaTienen++;
+    EVL.log=(val?'✓ Enviada la foto de '+it.titulo+' (formato '+(v===0?'completo':'simple')+'). Abre el registro en SharePoint y confirma que la miniatura se ve:\n':'⚠ SharePoint aceptó la petición pero la columna quedó vacía.\n')+'https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(it.id);
+  }catch(e){ EVL.log='✗ '+e.message; EVL.probado=false; }
+  EVL.busy=false; evListsRender();
+}
+async function evListsEnviarTodas(){
+  if(EVL.busy||!EVL.probado||!EVL.plan) return;
+  const lista=EVL.plan.enviar.slice(), campo=EVL.plan.campo; if(!lista.length) return;
+  EVL.busy=true; let i=0, ok=0; const fallos=[];
+  const prog=()=>{ EVL.log='Enviando… '+(ok+fallos.length)+' de '+lista.length; const l=document.getElementById('evListsLog'); if(l) l.textContent=EVL.log; };
+  async function trabajar(){
+    while(i<lista.length){
+      const it=lista[i++];
+      try{ await evListsEnviarUna(it,campo); ok++; }catch(e){ fallos.push(it.titulo+' (ID '+it.id+'): '+e.message); }
+      prog();
+    }
+  }
+  evListsRender(); prog();
+  await Promise.all([trabajar(),trabajar(),trabajar(),trabajar()]);
+  EVL.busy=false;
+  EVL.log='✓ '+ok+' unidad(es) con foto en LISTS'+(fallos.length?'\n⚠ '+fallos.length+' con error:\n'+fallos.slice(0,10).join('\n'):'');
+  showToast(ok+' foto(s) enviada(s) a LISTS'+(fallos.length?' · '+fallos.length+' con error':''),fallos.length?'error':'success');
+  const log=EVL.log; EVL.plan=null; await evListsAbrir(true); EVL.log=log; evListsRender();
+}
 function evFotosCfgHTML(){
-  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn-primary" onclick="evFotosLoteElegir()">📁 Subir fotos en lote</button><span style="font-size:11px;color:var(--text2)">Elige varias fotos a la vez: el <b>nombre del archivo es el modelo</b> (ej. nd512ts.jpg, g4.jpg) y se empareja con el catálogo.</span></div><div id="evFotosLoteInfo" style="font-size:12px;margin-bottom:8px;color:#166534">'+evEsc(EV.loteInfo||'')+'</div><div id="evFotosFiltro" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>'
+  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn-primary" onclick="evFotosLoteElegir()">📁 Subir fotos en lote</button><button class="btn-sec" onclick="evListsAbrir()" title="Escribe en la columna Foto de TODAS_2025 las fotos que ya tenemos">📤 Enviar fotos a LISTS</button><span style="font-size:11px;color:var(--text2)">Elige varias fotos a la vez: el <b>nombre del archivo es el modelo</b> (ej. nd512ts.jpg, g4.jpg) y se empareja con el catálogo.</span></div><div id="evFotosLoteInfo" style="font-size:12px;margin-bottom:8px;color:#166534">'+evEsc(EV.loteInfo||'')+'</div><div id="evFotosFiltro" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>'
     +'<input type="text" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qf||'')+'" oninput="EV.qf=this.value;evFotosCfgRender()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">'
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Una foto por modelo (sirve para todo el catálogo: Evento hoy y, más adelante, el resto del cotizador). Se guarda en SharePoint, carpeta <b>General/AYJ_COTIZADOR/Fotos</b>. Se muestran las primeras 80 coincidencias.</div><div id="evFotosTabla"></div>';
 }
