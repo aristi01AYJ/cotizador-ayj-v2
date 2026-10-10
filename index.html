@@ -5738,6 +5738,7 @@ function renderPedidoVenta(){
         +'<button onclick="pedidoAbrirOferta()" style="'+estiloBtn+'border:1px solid var(--red);color:var(--red);background:#fff">1 · 📄 Oferta (PDF)</button>'
         +'<button onclick="pedidoImprimirMG()" style="'+estiloBtn+'border:1px solid var(--border);background:#fff">2 · 🔒 MG (PDF)</button>'
         +'<button onclick="pedidoImprimirPaquete()" class="btn-primary" style="'+estiloBtn+'">3 · 🖨 Pedido resumen (PDF)</button>'
+        +(pedidoHayBP()?'<button onclick="pedidoSolicitudFabrica()" style="'+estiloBtn+'border:1px solid #92400E;color:#92400E;background:#fff" title="Forma de pedido editable para las unidades bajo pedido (Casa Matriz)">4 · 🏭 Solicitud a fábrica</button>':'')
       +'</div>'
       +'<div style="display:flex;gap:8px;justify-content:center;margin-top:10px">'
         +'<button onclick="pedidoCompleto()" class="btn-primary" style="'+estiloBtn+'">📑 Generar PDF COMPLETO</button>'
@@ -5910,7 +5911,7 @@ async function pedidoConfirmar(){
 }
 
 // ── Documentos ──
-const PEDIDO_CSS='*{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#2a2a2a;margin:0;padding:24px 32px;max-width:900px;margin:0 auto}'
+const PEDIDO_CSS='*{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#2a2a2a;background:#fff;margin:0;padding:24px 32px;max-width:900px;margin:0 auto}'
   +'h1{font-size:18px;margin:0 0 2px;color:#575756}h2{font-size:13px;margin:18px 0 6px;color:#575756;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #80A61B;padding-bottom:3px}'
   +'table{width:100%;border-collapse:collapse;margin-bottom:6px}th{background:#575756;color:#fff;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase}td{padding:6px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}'
   +'.r{text-align:right}.conf{background:#FEF2F2;color:#991B1B;font-weight:700;text-align:center;padding:5px;border-radius:4px;margin:8px 0;font-size:11px}.nota{background:#FEF3C7;border-left:3px solid #F59E0B;padding:8px 10px;margin:6px 0;border-radius:0 4px 4px 0}'
@@ -6114,6 +6115,123 @@ async function pedidoCompleto(){
     try{ w.document.body.innerHTML='<p style="font-family:sans-serif;padding:24px;color:#991B1B">No se pudo generar el PDF completo: '+_escRes(e.message)+'</p>'; }catch(e2){}
     console.error('[AYJ] PDF completo:',e);
   }
+}
+
+// ── SOLICITUD A FÁBRICA (Casa Matriz = la marca) ─────────────────────────────────────────────────────
+// Documento 4 del paquete, solo si el pedido tiene unidades BAJO PEDIDO. Es una "forma de pedido" EDITABLE (los campos
+// resaltados se pueden cambiar antes de imprimir) con todas las máquinas bajo pedido agrupadas por marca (por ahora un
+// solo documento para todas las marcas). Los precios no se imponen: se precarga el FOB de la liquidación si existe y
+// quien envía el pedido lo ajusta; la referencia de costos de la liquidación va en un bloque INTERNO que por defecto
+// no se imprime.
+function pedidoHayBP(){
+  const P=_pedido; if(!P) return false;
+  return (P.filasFinal||pedidoFilas()).some(f=>f.bp);
+}
+function pedidoItemsBP(){
+  const P=_pedido, r=P.r;
+  const filas=P.filasFinal||pedidoFilas();
+  const cnt={}; filas.filter(f=>f.bp).forEach(f=>{ cnt[f.k]=(cnt[f.k]||0)+1; });
+  return Object.keys(cnt).map(k=>{
+    const it=r.items[k];
+    const g=grupos.find(x=>_kTitulo(x.title)===_kTitulo(it.nombre))||rawMaquinas.find(x=>_kTitulo(x.title)===_kTitulo(it.nombre))||{};
+    const s=(it.liq&&it.liq.s)||null;
+    return {k:+k,it,cant:cnt[k],marca:String(it.marca||g.marca||'').trim()||'SIN MARCA',modelo:it.modelo||g.modelo||'',
+      descripcion:g.descripcion||'',ficha:g.fichaTecnica||'',liq:s,
+      fob:(s&&parseFloat(s.FOB)>0)?parseFloat(s.FOB):0,costoAYJ:parseFloat(it.costoAYJ)||0,nota:P.notas[k]||''};
+  });
+}
+// Corre DENTRO de la ventana del documento (se serializa con toString): recalcula totales al editar cantidades y precios.
+function _solFabricaScript(){
+  function num(t){
+    var s=String(t).replace(/[^\d.,-]/g,'');
+    if(s.indexOf(',')>=0&&s.indexOf('.')>=0){ s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,''); }
+    else if(s.indexOf(',')>=0){ s=/,\d{1,2}$/.test(s)?s.replace(',','.'):s.replace(/,/g,''); }
+    else if(s.indexOf('.')>=0){ if(/\.\d{3}$/.test(s)||(s.match(/\./g)||[]).length>1) s=s.replace(/\./g,''); }
+    return parseFloat(s)||0;
+  }
+  function fmt(n){ return 'USD '+Math.round(n).toLocaleString('es-CO'); }
+  function recalc(){
+    var total=0;
+    document.querySelectorAll('table.marca').forEach(function(t){
+      var sub=0;
+      t.querySelectorAll('tr[data-row]').forEach(function(tr){
+        var q=num(tr.querySelector('.q').textContent), p=num(tr.querySelector('.p').textContent), v=q*p;
+        tr.querySelector('.t').textContent=v?fmt(v):'—'; sub+=v;
+      });
+      t.querySelector('.sub').textContent=sub?fmt(sub):'—'; total+=sub;
+    });
+    var g=document.getElementById('granTotal'); if(g) g.textContent=total?fmt(total):'—';
+  }
+  document.addEventListener('input',recalc);
+  var chk=document.getElementById('chkInterno');
+  if(chk) chk.addEventListener('change',function(){ document.body.className=chk.checked?'imp-int':''; });
+  recalc();
+}
+function pedidoSolicitudFabrica(){
+  const P=_pedido; if(!P) return;
+  const r=P.r, esc=_escRes;
+  const items=pedidoItemsBP();
+  if(!items.length){showToast('Este pedido no tiene unidades bajo pedido','error');return;}
+  const w=window.open('','_blank');
+  if(!w){showToast('Permite las ventanas emergentes para ver la solicitud','error');return;}
+  const fecha=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'});
+  const syn=P.synergy||r.resultado||'';
+  const refAyj='Pedido Synergy '+(syn||'—')+' · Cotización '+numCotizacionLista(r.num);
+  const fU=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
+  const porMarca={};
+  items.forEach(x=>{ (porMarca[x.marca]=porMarca[x.marca]||[]).push(x); });
+  const ed=(txt,cls)=>'<span class="ed '+(cls||'')+'" contenteditable="true">'+txt+'</span>';
+  let n=0;
+  const tablas=Object.keys(porMarca).sort().map(marca=>{
+    const filas=porMarca[marca].map(x=>{
+      n++;
+      const desc=[x.modelo,x.descripcion].filter(Boolean).join(' — ');
+      return '<tr data-row="1"><td style="width:24px;text-align:center;color:#999">'+n+'</td>'
+        +'<td><strong>'+esc(x.it.nombre)+'</strong>'+(x.ficha?'<div style="font-size:10px"><a href="'+esc(x.ficha)+'" target="_blank">Ficha técnica</a></div>':'')+'</td>'
+        +'<td>'+ed(esc(desc||'—'))+'<div style="margin-top:4px;font-size:10px;color:#777">Voltaje / opciones:</div>'+ed('(definir)')+(x.nota?'<div style="margin-top:4px;font-size:10px;color:#92400E">'+esc(x.nota)+'</div>':'')+'</td>'
+        +'<td class="r" style="width:50px">'+ed(x.cant,'q')+'</td>'
+        +'<td class="r" style="width:96px">'+ed(x.fob?String(Math.round(x.fob)):'',' p')+'</td>'
+        +'<td class="r t" style="width:96px;font-weight:700">—</td></tr>';
+    }).join('');
+    return '<h2>Casa Matriz — '+esc(marca)+'</h2>'
+      +'<table class="marca"><thead><tr><th>#</th><th>Modelo</th><th>Descripción y especificaciones</th><th class="r">Cant.</th><th class="r">Precio unit. USD</th><th class="r">Total</th></tr></thead><tbody>'+filas
+      +'<tr><td colspan="5" class="r" style="font-weight:700">Subtotal '+esc(marca)+'</td><td class="r sub" style="font-weight:700">—</td></tr></tbody></table>';
+  }).join('');
+  const interno=items.map(x=>{
+    const s=x.liq;
+    const L=(l,v)=>'<tr><td>'+l+'</td><td class="r">'+v+'</td></tr>';
+    const lineas=s
+      ?(s.FOB?L('FOB',fU(s.FOB)):'')+(s.fleteInt?L('Flete + seguro internacional',fU(s.fleteInt)):'')+(s.arancel?L('Arancel',Math.round(s.arancel*100)+'%'):'')+(s.agente?L('Agente + gastos',Math.round(s.agente*100)+'%'):'')
+        +(s.fleteNal?L('Flete nacional',fU(s.fleteNal)):'')+(s.descargue?L('Descargue',fU(s.descargue)):'')+(s.instalacion?L('Instalación',fU(s.instalacion)):'')+(s.costoFin?L('Financiación',fU(s.costoFin)):'')
+        +(s.otros?L('Otros'+(s.otrosDesc?' — '+esc(s.otrosDesc):''),fU(s.otros)):'')+(s.CIF?L('Costo puesto en AYJ (CIF)',fU(s.CIF)):'')+(s.costoTotal?L('<strong>Costo total</strong>',fU(s.costoTotal)):'')
+      :L('Sin liquidación guardada · costo AYJ del catálogo (por unidad)',fU(x.costoAYJ));
+    return '<div style="margin-bottom:8px"><strong>'+esc(x.it.nombre)+'</strong> × '+x.cant+' <span style="color:#777">('+esc(x.marca)+')</span><table style="width:70%">'+lineas+'</table></div>';
+  }).join('');
+  const css='*{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#2a2a2a;background:#fff;margin:0;padding:24px 32px;max-width:900px;margin:0 auto}'
+    +'h1{font-size:20px;margin:0;color:#575756}h2{font-size:13px;margin:18px 0 6px;color:#fff;background:#575756;padding:6px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:6px}th{background:#f2f2f0;color:#575756;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;border-bottom:2px solid #80A61B}td{padding:6px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}'
+    +'.r{text-align:right}.ed{display:block;min-height:16px;background:#FFFBEB;outline:1px dashed #F59E0B;padding:1px 4px;border-radius:3px}.ed.p,.ed.q{text-align:right}'
+    +'.head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #80A61B;padding-bottom:12px;margin-bottom:14px}.box{border:2px solid #80A61B;border-radius:10px;padding:10px 18px;text-align:right}'
+    +'.bar{background:#575756;color:#fff;padding:10px 20px;margin:-24px -32px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}.bar button{background:#80A61B;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-weight:600;cursor:pointer}'
+    +'.hint{background:#FEF3C7;border-left:3px solid #F59E0B;padding:7px 10px;margin:8px 0;border-radius:0 4px 4px 0;font-size:11px}.interno{display:block;border:2px dashed #DC2626;border-radius:8px;padding:10px 14px;margin-top:22px;background:#FEF2F2}'
+    +'@media print{.no-print{display:none!important}.ed{background:none;outline:none;padding:0}.interno{display:none}body.imp-int .interno{display:block}body{padding:0}@page{margin:12mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Solicitud de pedido a fábrica '+esc(numCotizacionLista(r.num))+'</title><style>'+css+'</style></head><body>'
+    +'<div class="bar no-print"><span style="flex:1">Solicitud de pedido a fábrica · '+esc(numCotizacionLista(r.num))+'</span>'
+    +'<label style="font-size:12px"><input type="checkbox" id="chkInterno"> Imprimir también la referencia de costos (interno)</label>'
+    +'<button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>'
+    +'<div class="head"><div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ Maquinaria" style="height:46px;display:block;margin-bottom:6px"><div style="font-size:10px;color:#999;line-height:1.6">Aristizábal y Jinete S.A.S. · NIT 860.079.605-6<br>Cra 40 No. 17A-44, Bogotá · Tel 601.805.18.00 · info@ayj.com.co</div></div>'
+    +'<div class="box"><div style="font-size:10px;color:#80A61B;font-weight:700;letter-spacing:1px">FORMA DE PEDIDO</div><h1>Solicitud a fábrica</h1><div style="color:#777">'+fecha+'</div><div style="font-size:11px;margin-top:2px">'+esc(refAyj)+'</div></div></div>'
+    +'<div class="hint no-print">✏️ Los campos resaltados en amarillo se pueden editar antes de imprimir (descripción, voltaje/opciones, cantidades y precios; los totales se recalculan solos). Los precios vienen del FOB de la liquidación cuando existe: ajústalos según el pedido.</div>'
+    +'<table><tr><td style="width:50%"><div style="font-size:10px;color:#80A61B;font-weight:700">DESTINO / CONSIGNATARIO</div>'+ed('Aristizábal y Jinete S.A.S. — Cra 40 No. 17A-44, Bogotá, Colombia')+'</td>'
+    +'<td><div style="font-size:10px;color:#80A61B;font-weight:700">FECHA REQUERIDA · FORMA DE ENVÍO · INCOTERM</div>'+ed('(definir)')+'</td></tr>'
+    +'<tr><td><div style="font-size:10px;color:#80A61B;font-weight:700">REFERENCIA AYJ</div>'+ed(esc(refAyj))+'</td><td><div style="font-size:10px;color:#80A61B;font-weight:700">CONDICIÓN DE PAGO · CONTACTO AYJ</div>'+ed('(definir) · '+esc(r.vendedor))+'</td></tr></table>'
+    +tablas
+    +'<div style="text-align:right;font-size:14px;margin:8px 0"><strong>TOTAL PEDIDO: <span id="granTotal">—</span></strong></div>'
+    +'<h2>Observaciones</h2>'+ed('(notas para la fábrica)')
+    +'<div class="interno"><div style="font-weight:700;color:#991B1B;margin-bottom:6px">🔒 REFERENCIA DE COSTOS — USO INTERNO AYJ (no enviar a la fábrica)</div>'+interno+'<div style="font-size:10px;color:#991B1B">Liquidación guardada con la oferta. Sirve de guía para fijar los precios del pedido; no se imprime a menos que lo marques arriba.</div></div>'
+    +'<script>('+_solFabricaScript.toString()+')();<'+'/script></body></html>';
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── Ofertas YA GANADAS: solo se ven los documentos (no se genera otro pedido) ──
