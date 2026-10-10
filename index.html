@@ -584,6 +584,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
           <button class="btn-sec" onclick="abrirItemLibre()" style="border-color:var(--amber);color:#92400E" title="Agregar ítem personalizado"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
           <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
+          <button class="btn-sec" id="btnPedidoActual" onclick="convertirEnPedidoActual()" title="Convertir esta oferta en pedido: guardar, elegir seriales y cerrar" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i> Pedido</button>
           <button id="btnMargenes" onclick="pedirClaveMargenes()" style="display:none;background:#575756;border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;gap:5px;align-items:center"><i class="ti ti-lock"></i> MG</button>
         </div>
       </div>
@@ -2553,6 +2554,7 @@ function toggleModoCOP(checked){
 
 function nuevaCotizacion(){
   if(carrito.length>0 && !confirm('¿Iniciar una nueva cotización? Se limpiará el carrito actual.')) return;
+  window._ultimaGuardada=null;
   carrito=[];
   // Reset voltaje
   const voltSel=document.getElementById('voltajeSel');
@@ -2640,6 +2642,34 @@ function asesorLabel(nombre){
   if(n.includes('pulido')) return 'Jorge P';
   if(n.includes('salamanca')) return 'Jorge S';
   return (nombre||'').split(' ')[0]||'—';
+}
+
+// ── NUEVA OFERTA → PEDIDO ─────────────────────────────────────────────────────────────────────────
+// Botón "Pedido" de la pantalla Nueva Oferta: convierte en pedido la oferta que se está viendo. Un pedido necesita una
+// oferta GUARDADA (con su PDF y sus datos de liquidación), así que si lo que hay en pantalla no está guardado tal cual,
+// primero se guarda (igual que "Guardar y PDF") y luego se abre el asistente. Si ya se guardó y no ha cambiado nada, NO
+// se vuelve a guardar (evita crear una revisión de más): se abre el pedido de la oferta ya guardada.
+function firmaOfertaActual(){
+  const v=id=>document.getElementById(id)?.value||'';
+  const liq=i=>(i.id&&String(i.id).startsWith('liq_'))?JSON.stringify(i._liqSnapshot||{},(k,x)=>/^html/.test(k)?undefined:x):'';
+  return JSON.stringify([carrito.map(i=>[i.nombre,i.tipo,i.cantidad,Math.round(i.tarifa||0),i.costoAYJ||0,i.incluidoEn||'',liq(i)]),
+    v('clienteInput'),v('descInput'),!!document.getElementById('descEspecialChk')?.checked,v('descEspecialCausal'),v('descExtraInput'),v('fleteVal'),
+    v('condPagoSel'),v('validezSel'),v('garantiaSel'),v('idSynergyInput'),asesorDeOferta(),v('obsInput'),v('voltajeSel')]);
+}
+async function convertirEnPedidoActual(){
+  if(!carrito.length){showToast('El carrito está vacío','error');return;}
+  if(!document.getElementById('clienteInput').value.trim()){showToast('Ingresa el cliente','error');return;}
+  const ug=window._ultimaGuardada;
+  if(ug&&ug.firma===firmaOfertaActual()){
+    let r=historialData.find(h=>h.id===ug.id);
+    if(!r){ try{ await cargarHistorial(); }catch(e){} r=historialData.find(h=>h.id===ug.id); }
+    if(r){ abrirPedidoIdx(ug.id); return; }
+  }
+  const num=document.getElementById('ofertaNum')?.textContent||'';
+  if(!confirm('Para convertir esta oferta en pedido primero se guarda ('+num+') y se genera su PDF; después se abre el pedido.\n\n¿Continuar?')) return;
+  window._pedidoTrasGuardar=true;
+  try{ await guardarCotizacion(); }
+  finally{ window._pedidoTrasGuardar=false; }
 }
 
 async function guardarCotizacion(){
@@ -2817,6 +2847,13 @@ async function guardarCotizacion(){
       }catch(e){console.warn('No se pudo actualizar LinkPDF:',e.message);}
     }
     // NO generar nuevo número — el usuario debe hacer clic en "Nueva Oferta" explícitamente
+    // Para "Nueva Oferta → Pedido": se recuerda qué quedó guardado (y cómo estaba la pantalla) y se abre el asistente.
+    window._ultimaGuardada=itemId?{id:itemId,num:numOferta,firma:firmaOfertaActual()}:null;
+    if(window._pedidoTrasGuardar&&itemId){
+      window._pedidoTrasGuardar=false;
+      try{ await cargarHistorial(); }catch(eH){ console.warn('[AYJ] No se pudo recargar el historial antes del pedido:',eH.message); }
+      abrirPedidoIdx(itemId);
+    }
     btn.innerHTML='<i class="ti ti-check"></i> Guardada ✓';
     setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy"></i> Guardar y PDF';},3000);
   if(esMobil()){const s=document.querySelector('.sidebar');if(s)s.classList.add('mobile-active');}
