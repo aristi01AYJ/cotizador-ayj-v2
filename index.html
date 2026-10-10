@@ -37,6 +37,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .nav button{background:none;border:none;padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:rgba(255,255,255,0.7);font-family:inherit}
 .nav button.active{background:rgba(255,255,255,0.15);color:#fff;font-weight:600}
 .nav button:hover:not(.active){background:rgba(255,255,255,0.1)}
+.nav{align-items:center}
+.nav-group{position:relative}
+.nav-gbtn{background:none;border:none;padding:6px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:rgba(255,255,255,0.7);font-family:inherit;display:inline-flex;align-items:center;gap:5px}
+.nav-gbtn:hover,.nav-group.open>.nav-gbtn{background:rgba(255,255,255,0.1);color:#fff}
+.nav-group:has(button.active)>.nav-gbtn{background:rgba(255,255,255,0.15);color:#fff;font-weight:600}
+.nav-caret{font-size:11px;opacity:.7}
+.nav-menu{display:none;position:absolute;top:100%;left:0;margin-top:6px;background:#2C2C2C;border:1px solid rgba(255,255,255,0.18);border-radius:10px;min-width:200px;padding:5px;z-index:320;box-shadow:0 12px 32px rgba(0,0,0,.35);flex-direction:column;gap:2px}
+.nav-group.open>.nav-menu{display:flex}
+.nav-menu button{text-align:left;width:100%;white-space:nowrap}
+.nav-dot{display:none;width:8px;height:8px;border-radius:50%;background:#EF4444}
+.nav-group.tiene-aviso>.nav-gbtn .nav-dot,.nav-burger.tiene-aviso .nav-dot{display:inline-block}
+.nav-burger{display:none;background:none;border:1px solid rgba(255,255,255,0.25);color:#fff;border-radius:var(--radius);padding:5px 9px;font-size:18px;cursor:pointer;align-items:center;gap:4px;position:relative}
+@media(max-width:600px){
+  .topbar-logo{flex:1 1 100%;min-width:0;white-space:nowrap;overflow:hidden}
+  .topbar-logo img{height:18px!important;margin-right:4px!important}
+  .topbar-logo span:first-of-type{display:none}
+  .topbar-right{margin-left:auto}
+}
+@media(max-width:900px){
+  .topbar{position:relative;flex-wrap:wrap;gap:8px}
+  .nav-burger{display:inline-flex}
+  .nav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;align-items:stretch;gap:2px;background:#2C2C2C;padding:8px 12px 12px;z-index:320;box-shadow:0 14px 30px rgba(0,0,0,.4);max-height:80vh;overflow-y:auto}
+  .nav.open{display:flex}
+  .nav>button{text-align:left;padding:10px 12px}
+  .nav-group>.nav-gbtn{pointer-events:none;font-size:10px;text-transform:uppercase;letter-spacing:.8px;opacity:.55;padding:10px 12px 2px}
+  .nav-group>.nav-gbtn .nav-caret{display:none}
+  .nav-menu,.nav-group.open>.nav-menu{display:flex;position:static;margin:0;border:none;box-shadow:none;background:none;padding:0 0 4px 8px}
+  .nav-menu button{padding:10px 12px}
+}
 .main{display:flex;flex:1;overflow:hidden}
 .sidebar{width:300px;border-right:1px solid var(--border);background:#fff;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
 .sidebar-header{padding:12px 14px;border-bottom:1px solid var(--border)}
@@ -268,17 +297,27 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
   </div>
   <div class="topbar">
     <div class="topbar-logo"><img src="logo.png" alt="AYJ Maquinaria" style="height:28px;width:auto;vertical-align:middle;margin-right:6px;filter:brightness(0) invert(1)"><span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:400;letter-spacing:0.5px">Cotizador</span> <span style="font-size:13px;color:#fff;font-weight:800;letter-spacing:1px">MAQUINARIA</span></div>
-    <div class="nav">
+    <button class="nav-burger" id="navBurger" onclick="navToggleMenu()" aria-label="Menú"><i class="ti ti-menu-2"></i><span class="nav-dot"></span></button>
+    <div class="nav" id="mainNav">
       <button class="active" id="navNueva" onclick="switchView('nueva')">Nueva oferta</button>
-      <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
-      <button id="navHistorial" onclick="switchView('historial')">Ofertas</button>
-      <button id="navSeguimiento" onclick="switchView('seguimiento')" style="position:relative"><i class="ti ti-calendar-event"></i> Seguimiento<span id="badgeSeguimiento" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
-      <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+      <div class="nav-group"><button class="nav-gbtn" onclick="navToggleGrupo(this)"><i class="ti ti-briefcase"></i> Ventas <i class="ti ti-chevron-down nav-caret"></i><span class="nav-dot"></span></button>
+        <div class="nav-menu">
+        <button id="navHistorial" onclick="switchView('historial')">Ofertas</button>
+        <button id="navSeguimiento" onclick="switchView('seguimiento')" style="position:relative"><i class="ti ti-calendar-event"></i> Seguimiento<span id="badgeSeguimiento" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+        <button id="navClientes" onclick="switchView('clientes')">Clientes</button>
+        </div></div>
+      <div class="nav-group"><button class="nav-gbtn" onclick="navToggleGrupo(this)"><i class="ti ti-package"></i> Inventario <i class="ti ti-chevron-down nav-caret"></i><span class="nav-dot"></span></button>
+        <div class="nav-menu">
+        <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
+        <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+        </div></div>
       <button id="navEvento" onclick="switchView('evento')"><i class="ti ti-confetti"></i> Evento</button>
-      <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos, ciudades y fotos (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
-      <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
-      <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
-      <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
+      <div class="nav-group"><button class="nav-gbtn" onclick="navToggleGrupo(this)"><i class="ti ti-dots"></i> Más <i class="ti ti-chevron-down nav-caret"></i><span class="nav-dot"></span></button>
+        <div class="nav-menu">
+        <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
+        <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
+        <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos, ciudades y fotos (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
+        </div></div>
     </div>
     <div class="topbar-right">
       <span class="user-chip" id="userChip">—</span>
@@ -3867,6 +3906,37 @@ function duplicarOferta(cliente, itemsData){
   showToast('Oferta cargada en carrito — '+cliente,'success');
 }
 
+// ── Menú superior con submenús (y hamburguesa en pantallas angostas) ──
+function navCerrar(){
+  document.querySelectorAll('#mainNav .nav-group.open').forEach(g=>g.classList.remove('open'));
+  const n=document.getElementById('mainNav'); if(n) n.classList.remove('open');
+}
+function navToggleGrupo(btn){
+  const g=btn.closest('.nav-group'), abrir=!g.classList.contains('open');
+  document.querySelectorAll('#mainNav .nav-group.open').forEach(x=>x.classList.remove('open'));
+  if(abrir) g.classList.add('open');
+}
+function navToggleMenu(){ const n=document.getElementById('mainNav'); if(n) n.classList.toggle('open'); }
+// punto rojo en el grupo (y en la hamburguesa) cuando algún elemento interno tiene aviso (Seguimiento / Reservadas)
+function navPuntos(){
+  let alguno=false;
+  document.querySelectorAll('#mainNav .nav-group').forEach(g=>{
+    const aviso=[...g.querySelectorAll('.nav-menu [id^="badge"]')].some(b=>b.style.display!=='none'&&(b.textContent||'').trim()!=='');
+    g.classList.toggle('tiene-aviso',aviso); if(aviso) alguno=true;
+  });
+  const bur=document.getElementById('navBurger'); if(bur) bur.classList.toggle('tiene-aviso',alguno);
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#mainNav,#navBurger')){ navCerrar(); return; }
+  if(e.target.closest('#mainNav button:not(.nav-gbtn)')) navCerrar();     // al elegir una opción se cierra
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') navCerrar(); });
+(function(){
+  const n=document.getElementById('mainNav'); if(!n||typeof MutationObserver==='undefined') return;
+  new MutationObserver(navPuntos).observe(n,{subtree:true,attributes:true,attributeFilter:['style'],childList:true,characterData:true});
+  navPuntos();
+})();
+
 function switchView(v){
   document.getElementById('nuevaView').style.display=v==='nueva'?'flex':'none';
   document.getElementById('historialView').style.display=v==='historial'?'flex':'none';
@@ -6308,7 +6378,7 @@ async function pedidoRegistrarAhora(){
 // Configuración (evento activo, precio por máquina, combos, topes) en un JSON en SharePoint:
 //   General/AYJ_COTIZADOR/Evento/eventos.json   (sin listas nuevas). La edita un administrador con la clave del MG.
 const EV_PATH='General/AYJ_COTIZADOR/Evento/eventos.json';
-let EV={cargado:false,cargando:false,data:{activoId:null,eventos:[],ciudades:null},cart:[],q:'',marca:'',tip:'',cliente:'',tel:'',extra:0,admin:false,grp:0,edit:null,tab:'evento',comboEd:null,qp:'',vista:'venta',dq:'',dst:'',qf:'',
+let EV={cargado:false,cargando:false,data:{activoId:null,eventos:[],ciudades:null},cart:[],q:'',marca:'',tip:'',cliente:'',tel:'',extra:0,admin:false,grp:0,edit:null,tab:'evento',comboEd:null,qp:'',vista:'venta',dq:'',dst:'',qf:'',ff:'todas',
   dest:{tipo:'local',ciudadId:'',envioOk:true,trasOk:true,motEnvio:'',motTras:'',manual:null}};
 EV.fotos=(()=>{ try{ return localStorage.getItem('ayj_ev_fotos')!=='0'; }catch(e){ return true; } })();   // MOSTRAR / OCULTAR fotos
 
@@ -6565,18 +6635,37 @@ async function evFotosLote(files){
   const i2=document.getElementById('evFotosLoteInfo'); if(i2) i2.textContent=EV.loteInfo;
 }
 function evFotosCfgHTML(){
-  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn-primary" onclick="evFotosLoteElegir()">📁 Subir fotos en lote</button><span style="font-size:11px;color:var(--text2)">Elige varias fotos a la vez: el <b>nombre del archivo es el modelo</b> (ej. nd512ts.jpg, g4.jpg) y se empareja con el catálogo.</span></div><div id="evFotosLoteInfo" style="font-size:12px;margin-bottom:8px;color:#166534">'+evEsc(EV.loteInfo||'')+'</div>'
+  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn-primary" onclick="evFotosLoteElegir()">📁 Subir fotos en lote</button><span style="font-size:11px;color:var(--text2)">Elige varias fotos a la vez: el <b>nombre del archivo es el modelo</b> (ej. nd512ts.jpg, g4.jpg) y se empareja con el catálogo.</span></div><div id="evFotosLoteInfo" style="font-size:12px;margin-bottom:8px;color:#166534">'+evEsc(EV.loteInfo||'')+'</div><div id="evFotosFiltro" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>'
     +'<input type="text" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qf||'')+'" oninput="EV.qf=this.value;evFotosCfgRender()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">'
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Una foto por modelo (sirve para todo el catálogo: Evento hoy y, más adelante, el resto del cotizador). Se guarda en SharePoint, carpeta <b>General/AYJ_COTIZADOR/Fotos</b>. Se muestran las primeras 80 coincidencias.</div><div id="evFotosTabla"></div>';
 }
 function evFotosCfgRender(){
   const t=document.getElementById('evFotosTabla'); if(!t) return;
+  if(!EVF.lista){ evFotosListar().then(evFotosCfgRender); return; }
+  const tiene=x=>EVF.lista.has(evFotoKey(x.title));
+  const todas=evEntradas();
+  const nCon=todas.filter(tiene).length, nSin=todas.length-nCon;
+  const ff=EV.ff||'todas';
+  const chip=(k,txt)=>'<button class="ev-tab'+(ff===k?' on':'')+'" onclick="EV.ff=\''+k+'\';evFotosCfgRender()">'+txt+'</button>';
+  const fil=document.getElementById('evFotosFiltro');
+  if(fil) fil.innerHTML=chip('todas','Todas ('+todas.length+')')+chip('con','✅ Con foto ('+nCon+')')+chip('sin','⚠ Sin foto ('+nSin+')')
+    +'<button class="btn-sec" style="margin-left:auto" onclick="evFotosCsv()" title="Descarga la lista de máquinas que aún no tienen foto">⬇ Lista sin foto (CSV)</button>';
   const q=_kTitulo(EV.qf||'');
-  const lista=evEntradas().filter(x=>!q||_kTitulo(x.title+' '+x.marca+' '+x.tipologia).includes(q)).sort((a,b)=>a.title.localeCompare(b.title,'es')).slice(0,80);
+  const lista=todas.filter(x=>(ff==='todas'||(ff==='con')===tiene(x))&&(!q||_kTitulo(x.title+' '+x.marca+' '+x.tipologia).includes(q))).sort((a,b)=>a.title.localeCompare(b.title,'es')).slice(0,ff==='todas'?80:400);
   t.innerHTML=lista.map(x=>'<div style="display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding:6px 0"><div class="ev-foto" style="width:84px;height:60px;flex:none;font-size:20px" data-k="'+evEsc(evFotoKey(x.title))+'"><span class="ev-ph">⚙</span></div>'
     +'<div style="flex:1;min-width:0"><strong>'+evEsc(x.title)+'</strong><div style="font-size:11px;color:var(--text2)">'+evEsc([x.marca,x.tipologia].filter(Boolean).join(' · '))+'</div></div>'
-    +'<button class="btn-sec" data-t="'+evEsc(x.title)+'" onclick="evFotoElegir(this.dataset.t)">📷 Subir / cambiar</button></div>').join('');
+    +(tiene(x)?'':'<span class="ev-b warn">Sin foto</span>')
+    +'<button class="btn-sec" data-t="'+evEsc(x.title)+'" onclick="evFotoElegir(this.dataset.t)">📷 Subir / cambiar</button></div>').join('')||'<div class="loading-list">Sin resultados</div>';
   evPintarFotos();
+}
+// Lista de máquinas del catálogo que todavía no tienen foto (con el nombre de archivo sugerido para subirla en lote)
+function evFotosCsv(){
+  const sin=evEntradas().filter(x=>!(EVF.lista&&EVF.lista.has(evFotoKey(x.title)))).sort((a,b)=>a.title.localeCompare(b.title,'es'));
+  const lim=v=>String(v||'').replace(/[;\r\n]+/g,' ');
+  const csv=['Título;Marca;Tipología;Modelo;Disponibilidad;Archivo sugerido'].concat(sin.map(x=>[x.title,x.marca,x.tipologia,x.modelo,evEstadoDisp(x).txt,evFotoKey(x.title)+'.jpg'].map(lim).join(';'))).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download='maquinas-sin-foto.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  showToast(sin.length+' máquina(s) sin foto → maquinas-sin-foto.csv','success');
 }
 
 // ── carrito del evento ──
