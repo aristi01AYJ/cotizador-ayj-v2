@@ -301,6 +301,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <div class="sidebar-header">
         <strong>Catálogo · TODAS_2025</strong>
         <p id="catalogoCount">Cargando...</p>
+        <button class="btn-sec" id="btnFotosCat" onclick="evToggleFotos()" title="Mostrar u ocultar las fotos de las máquinas" style="font-size:11px;padding:3px 10px;margin-top:4px">🖼 Fotos</button>
         <div class="search-wrap">
           <i class="ti ti-search"></i>
           <input type="text" id="searchInput" placeholder="Buscar nombre, marca, tipología..." oninput="renderCatalogo()">
@@ -585,6 +586,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </div>
           <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
           <button class="btn-sec" onclick="abrirItemLibre()" style="border-color:var(--amber);color:#92400E" title="Agregar ítem personalizado"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
+          <label title="Incluir la foto de cada máquina en el PDF de la oferta" style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="chkFotosPdf"> 🖼 Fotos en el PDF</label>
           <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
           <button class="btn-sec" id="btnPedidoActual" onclick="convertirEnPedidoActual()" title="Convertir esta oferta (ya guardada) en pedido: elegir seriales y cerrar" style="border-color:#3B82F6;color:#1D4ED8;display:none"><i class="ti ti-package-export"></i> Pedido</button>
           <button id="btnMargenes" onclick="pedirClaveMargenes()" style="display:none;background:#575756;border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;gap:5px;align-items:center"><i class="ti ti-lock"></i> MG</button>
@@ -1966,6 +1968,7 @@ function verReservadasDe(titulo){
 }
 function buildCatalogCard(e){
   const div=e.g?buildGrupoCard(e.g):buildBpCard(e.bp);
+  div.dataset.fk=evFotoKey((e.g||e.bp).title);   // para la miniatura (si la máquina tiene foto)
   const inBP=e.bp&&carrito.some(i=>i.id===e.bp.id);
   if(inBP) div.classList.add('en-carrito');
   // ── Bajo pedido (ilimitado): etiqueta + botón dentro de la misma tarjeta ──
@@ -2013,6 +2016,7 @@ function renderCatalogo(){
     lista.forEach(e=>el.appendChild(buildCatalogCard(e)));
   }
   if(!el.querySelector('.grupo-card')&&!el.querySelector('.bp-card'))el.innerHTML='<div class="loading-list">Sin resultados</div>';
+  try{ evPintarFotosCatalogo(); }catch(eF){}
 }
 
 function fmtUSD(n){return 'USD '+Math.round(n).toLocaleString('es-CO');}
@@ -2844,6 +2848,9 @@ async function guardarCotizacion(){
       }
     }
     // Generar HTML, subir a SharePoint, luego abrir con link
+    if(document.getElementById('chkFotosPdf')?.checked&&!window._evPdf){   // fotos opcionales (las ofertas de evento usan su propio interruptor)
+      await Promise.all(carrito.filter(i=>!i.noMaquina).map(async i=>{ if(!i.fotoData){ try{ i.fotoData=await evFotoDataURI(i.nombre); }catch(x){} } }));
+    }
     const voltaje=getVoltaje();
     const htmlSinLink=generarPDF({numOferta,idSynergy,cliente,clienteInfo,vendedor,condPago,cuotasPago,garantia,validez,entrega,voltaje,obs,desc,descBase,descEspecial,descExtra:getDescExtra(),evento:window._evPdf||null,causalEspecial:getCausalEspecial(),ivaPct,fleteCOP,subUSD,descUSD,ivaUSD,totalUSD,totalCOP,modoCOP,modoUSD:document.body.classList.contains('modo-usd'),trm,items:[...carrito]},true);
     const linkPDF=await guardarHTMLEnSharePoint(numOferta, htmlSinLink, cliente, idSynergy);
@@ -6483,6 +6490,20 @@ function evToggleFotos(){
   EV.fotos=!EV.fotos;
   try{ localStorage.setItem('ayj_ev_fotos',EV.fotos?'1':'0'); }catch(e){}
   renderEvento();
+  try{ renderCatalogo(); }catch(e){}
+}
+// Miniaturas en las tarjetas del catálogo normal (Nueva Oferta): solo aparecen en las máquinas que tienen foto; mismo interruptor ON/OFF
+function evPintarFotosCatalogo(){
+  const b=document.getElementById('btnFotosCat'); if(b) b.textContent='🖼 Fotos '+(EV.fotos?'ON':'OFF');
+  if(!EV.fotos) return;
+  document.querySelectorAll('#maqList [data-fk]').forEach(async c=>{
+    if(c.dataset.fok) return;
+    const url=await evFotoURL(c.dataset.fk); if(!url||c.dataset.fok) return;
+    c.dataset.fok='1';
+    const im=document.createElement('img'); im.src=url; im.alt='';
+    im.style.cssText='float:left;width:64px;height:48px;object-fit:contain;margin:0 8px 4px 0;border-radius:6px;background:#fff;border:1px solid var(--border)';
+    c.insertBefore(im,c.firstChild);
+  });
 }
 // Reduce a 700 px / JPEG (si ya es un JPEG liviano se sube tal cual)
 async function evFotoPreparar(file){
@@ -6648,7 +6669,11 @@ function evResumenVentas(e){
 function evVista(v){ EV.vista=v; renderEvento(); }
 function evFechaCorta(s){ if(!s) return ''; const d=new Date(s+'T00:00:00'); return isNaN(d)?s:d.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}); }
 function evSalir(){
-  if(!EV.admin){ showToast('Para volver al cotizador usa el candado MG','error'); return; }
+  if(!EV.admin){
+    const c=prompt('Clave de administrador (MG) para ir al cotizador:');
+    if(c===null) return;
+    if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+  }
   EV.admin=false; switchView('nueva');
 }
 function renderEvento(){
@@ -6663,7 +6688,8 @@ function renderEvento(){
     +'<span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
       +'<button class="btn-sec" onclick="evToggleFotos()" title="Mostrar u ocultar las fotos de las máquinas (pantalla y PDF)" style="font-weight:700">🖼 Fotos '+(EV.fotos?'ON':'OFF')+'</button>'
       +'<button class="btn-sec" onclick="evRecargar()" title="Recargar precios, combos y disponibilidad"><i class="ti ti-refresh"></i></button>'
-      +(adm?'<button class="btn-sec" onclick="evConfigurar()"><i class="ti ti-settings"></i> Configurar</button><button class="btn-sec" onclick="evSalir()"><i class="ti ti-arrow-back-up"></i> Volver al cotizador</button>':'')
+      +(adm?'<button class="btn-sec" onclick="evConfigurar()"><i class="ti ti-settings"></i> Configurar</button>':'')
+      +'<button class="btn-sec" onclick="evSalir()" title="Ir al cotizador'+(adm?'':' (pide la clave MG)')+'" style="font-size:16px"><i class="ti ti-home"></i></button>'
       +'<button class="btn-sec" id="evBtnMG" onclick="evDesbloquear()" title="'+(adm?'Ocultar el margen y las opciones de administrador':'MG: ver el margen (requiere clave)')+'" style="font-weight:800;'+(adm?'background:#166534;color:#fff;border-color:#166534':'')+'">'+(adm?'🔓 MG':'🔒 MG')+'</button>'
     +'</span></div>'
     +((adm&&e)?'<div style="padding:5px 18px;background:#ECFDF5;border-bottom:1px solid #A7F3D0;font-size:11px;display:flex;gap:12px;flex-wrap:wrap;align-items:center"><b style="color:#166534">Modo administrador</b>'
@@ -6973,17 +6999,23 @@ function evConstruirOferta(t,e){
   const nota='🎪 '+e.nombre+(combos.length?' · Combo: '+combos.join(' + '):'')+nacNota+(e.hasta?' · Precios de evento válidos hasta '+e.hasta:'')+((EV.tel||'').trim()?' · Contacto: '+EV.tel.trim():'');
   return {nuevo,nota};
 }
-function evAplicarAForm(t,nota){
+function evAplicarAForm(t,nota,e){
   const set=(id,v)=>{ const x=document.getElementById(id); if(x) x.value=v; };
   { const cc=evClienteBuscar(EV.cliente); const nombre=(cc?cc.titulo:EV.cliente).trim(); set('clienteInput',nombre); try{ filtrarClienteInput(nombre); }catch(err){} }
   set('obsInput',nota); set('descInput',t.ex); try{ actualizarDescBadge(); }catch(err){}
+  // Seguimiento AUTOMÁTICO al último día del evento (si esa fecha aún no pasó); el asesor puede cambiarlo en Ofertas
+  if(e&&e.hasta){
+    const h=new Date(e.hasta+'T00:00:00'), hoy=new Date(); hoy.setHours(0,0,0,0);
+    const segSel=document.getElementById('segSel'), segIn=document.getElementById('segCustomInput');
+    if(segSel&&segIn&&!isNaN(h)&&h>=hoy){ segSel.value='__custom_seg__'; segIn.value=e.hasta; segIn.style.display='inline-block'; try{ actualizarCierreLabel(); }catch(x){} }
+  }
 }
 // Opción B: cargar el carrito en Nueva Oferta para editarla con todo el detalle del cotizador
 function evPasarAOferta(){
   const e=evActivo(); const t=evValidarVenta(e); if(!t) return;
   if(carrito.length>0&&!confirm('El carrito actual de Nueva Oferta se reemplazará con el del evento. ¿Continuar?')) return;
   const {nuevo,nota}=evConstruirOferta(t,e);
-  carrito=nuevo; evAplicarAForm(t,nota);
+  carrito=nuevo; evAplicarAForm(t,nota,e);
   evReiniciarVenta(); switchView('nueva');
   renderCarrito(); calcTotales(); renderCatalogo();
   showToast('✓ Oferta de evento lista: revisa y pulsa "Guardar y PDF"','success');
@@ -7005,7 +7037,7 @@ async function evGenerarOferta(){
     const {nuevo,nota}=evConstruirOferta(t,e);
     if(EV.fotos) await Promise.all(nuevo.filter(i=>!i.noMaquina).map(async i=>{ try{ i.fotoData=await evFotoDataURI(i.nombre); }catch(x){} }));   // fotos incrustadas: el PDF queda autónomo
     carrito=[]; nuevaCotizacion(); await generarNumOferta();     // número de oferta nuevo para cada venta
-    carrito=nuevo; evAplicarAForm(t,nota); renderCarrito(); calcTotales();
+    carrito=nuevo; evAplicarAForm(t,nota,e); renderCarrito(); calcTotales();
     window._evPdf=evPdfCtx(t,e,nuevo);
     window.open=()=>w;                                          // guardarCotizacion escribe el PDF en la ventana ya abierta
     await guardarCotizacion();
