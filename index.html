@@ -2965,6 +2965,14 @@ function mostrarResumenMargenes(){
         <div class="fila total-fila" style="margin-top:4px"><span>Total Instalación</span><span style="color:#166534"><b>${fU(si.costoUSD)}</b> <small>${fC(si.costoUSD)}</small></span></div>
       </div>`:'';
 
+    // ── NO INCLUIDO (transporte nacional / instalación) ──
+    const noIncl=[s.fleteNalNoIncl?['🚚 Transporte nacional',s.fleteNalNoIncl]:null,s.instNoIncl?['🔧 Instalación',s.instNoIncl]:null].filter(Boolean);
+    const bloqueNoIncl=noIncl.length?`
+      <div class="bloque" style="border-left:3px solid #F59E0B;background:#FFFBEB">
+        <div class="bloque-tit" style="color:#92400E">⚠ No incluido en el precio</div>
+        ${noIncl.map(([t,m])=>`<div class="fila" style="align-items:flex-start"><span>${t}</span><span style="text-align:right;max-width:62%"><b style="color:#B45309">NO INCLUIDO</b><br><small style="color:#92400E">${_escRes(m)}</small></span></div>`).join('')}
+      </div>`:'';
+
     // ── FINANCIACIÓN compacta ──
     const bloqueFin=(sf.costoUSD>0||sf.valor>0)?`
       <div class="bloque azul">
@@ -3057,6 +3065,7 @@ function mostrarResumenMargenes(){
         <div>
           ${bloqueCostos}
           ${bloqueInst}
+          ${bloqueNoIncl}
           ${bloqueFin}
         </div>
         <div>
@@ -3217,7 +3226,7 @@ function mostrarResumenMargenes(){
           return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);background:${i%2===0?'rgba(255,255,255,0.03)':'transparent'}">
             <td style="padding:3px 6px;color:#888">${i+1}</td>
             <td style="padding:3px 6px;font-weight:600;color:#fff">${cant_>1?`<span style="background:#1E40AF;color:#fff;border-radius:6px;padding:0px 5px;font-size:9px;margin-right:3px">${cant_}×</span>`:''} ${item.nombre||'—'}<span style="font-size:9px;color:#888;margin-left:4px">${item.marca||''}</span></td>
-            <td style="padding:3px 6px;text-align:center"><span style="background:${esL?'#1E3A8A':'#166534'};color:#fff;padding:1px 5px;border-radius:4px;font-size:9px">${esL?'LIQ':'TAR'}</span></td>
+            <td style="padding:3px 6px;text-align:center"><span style="background:${esL?'#1E3A8A':'#166534'};color:#fff;padding:1px 5px;border-radius:4px;font-size:9px">${esL?'LIQ':'TAR'}</span>${(item._liqSnapshot&&item._liqSnapshot.fleteNalNoIncl)?' <span title="Transporte nacional NO incluido: '+_escRes(item._liqSnapshot.fleteNalNoIncl)+'" style="background:#F59E0B;color:#fff;padding:1px 4px;border-radius:4px;font-size:8px">sin transp.</span>':''}${(item._liqSnapshot&&item._liqSnapshot.instNoIncl)?' <span title="Instalación NO incluida: '+_escRes(item._liqSnapshot.instNoIncl)+'" style="background:#F59E0B;color:#fff;padding:1px 4px;border-radius:4px;font-size:8px">sin instal.</span>':''}</td>
             <td style="padding:3px 6px;text-align:right;color:#aaa">${Math.round(item.tarifa).toLocaleString('es-CO')}</td>
             <td style="padding:3px 6px;text-align:right;color:#80A61B;font-weight:700">${Math.round(pv).toLocaleString('es-CO')}</td>
             <td style="padding:3px 6px;text-align:right;color:#aaa">${Math.round(pv*TRM_global).toLocaleString('es-CO')}</td>
@@ -6215,7 +6224,7 @@ function pedidoSolicitudFabrica(){
     const lineas=s
       ?(s.FOB?L('FOB',fU(s.FOB)):'')+(s.fleteInt?L('Flete + seguro internacional',fU(s.fleteInt)):'')+(s.arancel?L('Arancel',Math.round(s.arancel*100)+'%'):'')+(s.agente?L('Agente + gastos',Math.round(s.agente*100)+'%'):'')
         +(s.fleteNal?L('Flete nacional',fU(s.fleteNal)):'')+(s.descargue?L('Descargue',fU(s.descargue)):'')+(s.instalacion?L('Instalación',fU(s.instalacion)):'')+(s.costoFin?L('Financiación',fU(s.costoFin)):'')
-        +(s.otros?L('Otros'+(s.otrosDesc?' — '+esc(s.otrosDesc):''),fU(s.otros)):'')+(s.CIF?L('Costo puesto en AYJ (CIF)',fU(s.CIF)):'')+(s.costoTotal?L('<strong>Costo total</strong>',fU(s.costoTotal)):'')
+        +(s.otros?L('Otros'+(s.otrosDesc?' — '+esc(s.otrosDesc):''),fU(s.otros)):'')+(s.fleteNalNoIncl?L('Transporte nacional','NO INCLUIDO — '+esc(s.fleteNalNoIncl)):'')+(s.instNoIncl?L('Instalación','NO INCLUIDO — '+esc(s.instNoIncl)):'')+(s.CIF?L('Costo puesto en AYJ (CIF)',fU(s.CIF)):'')+(s.costoTotal?L('<strong>Costo total</strong>',fU(s.costoTotal)):'')
       :L('Sin liquidación guardada · costo AYJ del catálogo (por unidad)',fU(x.costoAYJ));
     return '<div style="margin-bottom:8px"><strong>'+esc(x.it.nombre)+'</strong> × '+x.cant+' <span style="color:#777">('+esc(x.marca)+')</span><table style="width:70%">'+lineas+'</table></div>';
   }).join('');
@@ -7031,6 +7040,77 @@ function liqSwitchTab(tab){
 }
 
 // ── LIQUIDACIÓN ──────────────────────────────────────
+// ── TRANSPORTE NACIONAL E INSTALACIÓN: OBLIGATORIOS (o "No incluido" con motivo) ─────────────────────────
+// En el Liquidador, Flete Nacional e Instalación no pueden quedar en 0 "por olvido": o llevan un costo > 0 o el vendedor
+// marca "No incluido" y explica por qué (ej. máquina autoinstalable, el cliente recoge en AYJ, el transporte va en otra
+// máquina). El motivo viaja en el snapshot de la liquidación (fleteNalNoIncl / instNoIncl) y sale en el desglose de
+// costos y en el documento de MG.
+const LIQ_NOINCL={
+  fleteNal:{pre:'liqFleteNal',val:'liqFleteNal',nombre:'Transporte nacional'},
+  inst:{pre:'liqInst',val:'liqInstalacion',nombre:'Instalación'}
+};
+// null = incluido; texto = motivo de "No incluido" (puede venir vacío mientras se escribe)
+function liqNoIncl(k){
+  const c=LIQ_NOINCL[k], g=id=>document.getElementById(id);
+  const chk=g(c.pre+'No');
+  if(!chk||!chk.checked) return null;
+  const sel=g(c.pre+'MotivoSel')?.value||'';
+  const txt=(g(c.pre+'Motivo')?.value||'').trim();
+  return sel==='__otro__'?txt:sel;
+}
+function liqNoInclRestaurar(k,motivo){
+  const c=LIQ_NOINCL[k], g=id=>document.getElementById(id);
+  const chk=g(c.pre+'No'); if(!chk) return;
+  const m=String(motivo||'').trim();
+  chk.checked=!!m;
+  const sel=g(c.pre+'MotivoSel'), txt=g(c.pre+'Motivo');
+  if(sel){ const hay=m&&[...sel.options].some(o=>o.value&&o.value!=='__otro__'&&o.value===m); sel.value=m?(hay?m:'__otro__'):''; }
+  if(txt) txt.value=(m&&sel&&sel.value==='__otro__')?m:'';
+}
+function liqNoInclUI(resaltar){
+  Object.keys(LIQ_NOINCL).forEach(k=>{
+    const c=LIQ_NOINCL[k], g=id=>document.getElementById(id);
+    const chk=g(c.pre+'No'); if(!chk) return;
+    const val=parseFloat(g(c.val)?.value)||0;
+    if(val>0){ chk.checked=false; chk.disabled=true; } else chk.disabled=false;
+    const mw=g(c.pre+'MotivoWrap'); if(mw) mw.style.display=chk.checked?'block':'none';
+    const sel=g(c.pre+'MotivoSel'), txt=g(c.pre+'Motivo');
+    if(txt) txt.style.display=(chk.checked&&sel&&sel.value==='__otro__')?'block':'none';
+    let msg='';
+    if(val===0){
+      const m=liqNoIncl(k);
+      if(m===null) msg='Obligatorio: ingresa un valor mayor a 0 o marca "No incluido" y explica por qué.';
+      else if(!m.trim()) msg='Explica por qué no se incluye.';
+    }
+    const av=g(c.pre+'Aviso'); if(av){ av.textContent=msg; av.style.display=msg?'block':'none'; }
+    const w=g(c.pre+'Wrap'); if(w) w.style.borderColor=msg?(resaltar?'#DC2626':'#F59E0B'):'#D1D5DB';
+  });
+}
+function liqValidarNoIncl(){
+  const prob=[];
+  Object.keys(LIQ_NOINCL).forEach(k=>{
+    const c=LIQ_NOINCL[k];
+    const val=parseFloat(document.getElementById(c.val)?.value)||0;
+    if(val>0) return;
+    const m=liqNoIncl(k);
+    if(m===null) prob.push(c.nombre+': ingresa el costo o márcalo "No incluido"');
+    else if(!m.trim()) prob.push(c.nombre+': explica por qué no se incluye');
+  });
+  if(prob.length){
+    try{ liqSwitchTab('liquidacion'); }catch(e){}
+    liqNoInclUI(true);
+    showToast('⚠ '+prob.join(' · '),'error');
+    const w=document.getElementById(prob[0].startsWith('Transporte')?'liqFleteNalWrap':'liqInstWrap');
+    if(w&&w.scrollIntoView) w.scrollIntoView({block:'center',behavior:'smooth'});
+    return false;
+  }
+  return true;
+}
+// Fila para el desglose de costos cuando el concepto es "No incluido"
+function liqFilaNo(label,motivo){
+  return '<div class="liq-row"><span>'+label+'</span><span style="text-align:right"><span style="color:#B45309;font-weight:700;font-size:11px">NO INCLUIDO</span><br><span style="color:#92400E;font-size:10px">'+_escRes(motivo||'(sin motivo)')+'</span></span></div>';
+}
+
 function liqOtrosChange(){
   const val=parseFloat(document.getElementById('liqOtros')?.value)||0;
   const desc=document.getElementById('liqOtrosDesc');
@@ -7049,6 +7129,7 @@ function liqToggleModo(){
 }
 
 function liqCalc(){
+  try{ liqNoInclUI(); }catch(eNI){}
   const esFOB=document.getElementById('liqModoFOB')?.checked||false;
   const TRM=parseFloat(document.getElementById('liqTRM')?.value)||3650;
   const fleteNal=parseFloat(document.getElementById('liqFleteNal')?.value)||0;
@@ -7104,11 +7185,11 @@ function liqCalc(){
 
   document.getElementById('liqCostosTable').innerHTML=
     filasCosto
-    +fila('Flete Nacional',fU(fleteNal),fC(fleteNal))
+    +((fleteNal===0&&liqNoIncl('fleteNal')!==null)?liqFilaNo('Flete Nacional',liqNoIncl('fleteNal')):fila('Flete Nacional',fU(fleteNal),fC(fleteNal)))
     +fila('Descargue',fU(descargue),fC(descargue))
     +fila('Garantía ('+Math.round(garantiaPct===0.045?3:4.5)+'% del FOB)',fU(garantiaUSD*2/3),fC(garantiaUSD*2/3))
     +fila('Marketing (1.5% del FOB)',fU(garantiaUSD/3),fC(garantiaUSD/3))
-    +fila('🔧 Instalación',fU(instalacion),fC(instalacion))
+    +((instalacion===0&&liqNoIncl('inst')!==null)?liqFilaNo('🔧 Instalación',liqNoIncl('inst')):fila('🔧 Instalación',fU(instalacion),fC(instalacion)))
     +fila('💳 Financiación',fU(costoFin),fC(costoFin))
     +fila('Otros'+(otros>0&&document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''),fU(otros),fC(otros))
     +(()=>{
@@ -7298,6 +7379,7 @@ function liqGetItem(){
 }
 
 function liqAgregarAlCarrito(){
+  if(!liqValidarNoIncl()) return;
   const item=liqGetItem();
   if(!item) return;
   if(liqEditandoId){
@@ -7320,6 +7402,7 @@ function liqAgregarAlCarrito(){
         descargue:parseFloat(document.getElementById('liqDescargue')?.value)||0,
         otros:parseFloat(document.getElementById('liqOtros')?.value)||0,
         otrosDesc:document.getElementById('liqOtrosDesc')?.value||'',
+        fleteNalNoIncl:liqNoIncl('fleteNal')||'',instNoIncl:liqNoIncl('inst')||'',
         garantia:parseFloat(document.getElementById('liqGarantia')?.value)||0.03,
         instalacion:parseFloat(document.getElementById('liqInstalacion')?.value)||0,
         costoFin:parseFloat(document.getElementById('liqCostoFin')?.value)||0,
@@ -7381,6 +7464,7 @@ function liqAgregarAlCarrito(){
       descargue:parseFloat(document.getElementById('liqDescargue')?.value)||0,
       otros:parseFloat(document.getElementById('liqOtros')?.value)||0,
       otrosDesc:document.getElementById('liqOtrosDesc')?.value||'',
+      fleteNalNoIncl:liqNoIncl('fleteNal')||'',instNoIncl:liqNoIncl('inst')||'',
       garantia:parseFloat(document.getElementById('liqGarantia')?.value)||0.03,
       instalacion:parseFloat(document.getElementById('liqInstalacion')?.value)||0,
       costoFin:parseFloat(document.getElementById('liqCostoFin')?.value)||0,
@@ -7436,6 +7520,7 @@ function liqLimpiarCampos(){
     const el=document.getElementById(id); if(el) el.value=0;
   });
   { const od=document.getElementById('liqOtrosDesc'); if(od){ od.value=''; od.style.display='none'; } }
+  liqNoInclRestaurar('fleteNal',''); liqNoInclRestaurar('inst','');
   const sel=document.getElementById('liqMaquinaSel');
   if(sel) sel.value='';
   const inp=document.getElementById('liqMaquinaInput');
@@ -7495,6 +7580,7 @@ function liqEditarItem(id){
     set('liqOtros',s.otros); set('liqInstalacion',s.instalacion);
     set('liqOtrosDesc',s.otrosDesc||'');
     { const od=document.getElementById('liqOtrosDesc'); if(od) od.style.display=(parseFloat(s.otros)||0)>0?'block':'none'; }
+    liqNoInclRestaurar('fleteNal',s.fleteNalNoIncl||''); liqNoInclRestaurar('inst',s.instNoIncl||'');
     set('liqCostoFin',s.costoFin);
     // Restaurar CIF/CostoAYJ
     if(s.CIF) set('liqCostoAYJ', s.CIF);
@@ -7572,6 +7658,7 @@ function liqEnviarAlCarrito(){ liqAgregarAlCarrito(); }
 
 // ── GUARDAR LIQUIDACIÓN ──────────────────────────────
 async function guardarLiquidacion(){
+  if(!liqValidarNoIncl()) return;
   const precio=window._liqPrecioUSD||0;
   if(!precio){showToast('Calcula primero la liquidación','error');return;}
   console.log('[LIQ] siteId:', siteId, 'listIdLiquidaciones:', listIdLiquidaciones, 'precio:', precio);
@@ -7590,6 +7677,7 @@ async function guardarLiquidacion(){
   const snapshot={
     TRM,FOB,
     otrosDesc:document.getElementById('liqOtrosDesc')?.value||'',
+    fleteNalNoIncl:liqNoIncl('fleteNal')||'',instNoIncl:liqNoIncl('inst')||'',
     fleteInt:parseFloat(document.getElementById('liqFleteInt')?.value)||0,
     arancel:document.getElementById('liqArancel')?.value||0,
     agente:document.getElementById('liqAgente')?.value||0,
@@ -8101,11 +8189,11 @@ function liqImprimir(soloRetornar=false){
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-size:10px" colspan="2">Incluye FOB + flete internacional + arancel + agente</td></tr>
         `}
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">IVA Importación 19%</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(ivaImportUSD)}<br><span style="font-size:10px;color:#aaa">${fC(ivaImportUSD)}</span></td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete Nacional</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(fleteNal)}<br><span style="font-size:10px;color:#aaa">${fC(fleteNal)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Flete Nacional</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${(fleteNal===0&&liqNoIncl('fleteNal')!==null)?'<b style="color:#B45309">NO INCLUIDO</b><br><span style="font-size:10px;color:#92400E">'+_escRes(liqNoIncl('fleteNal'))+'</span>':fU(fleteNal)+'<br><span style="font-size:10px;color:#aaa">'+fC(fleteNal)+'</span>'}</td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Descargue</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(descargue)}<br><span style="font-size:10px;color:#aaa">${fC(descargue)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Garantía (${garantiaPct===0.045?3:4.5}% del FOB)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(garantiaUSD*2/3)}<br><span style="font-size:10px;color:#aaa">${fC(garantiaUSD*2/3)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Marketing (1.5% del FOB)</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(garantiaUSD/3)}<br><span style="font-size:10px;color:#aaa">${fC(garantiaUSD/3)}</span></td></tr>
-        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Instalación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(instalacion)}<br><span style="font-size:10px;color:#aaa">${fC(instalacion)}</span></td></tr>
+        <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Instalación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${(instalacion===0&&liqNoIncl('inst')!==null)?'<b style="color:#B45309">NO INCLUIDO</b><br><span style="font-size:10px;color:#92400E">'+_escRes(liqNoIncl('inst'))+'</span>':fU(instalacion)+'<br><span style="font-size:10px;color:#aaa">'+fC(instalacion)+'</span>'}</td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Costo Financiación</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(costoFin)}<br><span style="font-size:10px;color:#aaa">${fC(costoFin)}</span></td></tr>
         <tr><td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666">Otros${otros>0&&document.getElementById('liqOtrosDesc')?.value?' — '+document.getElementById('liqOtrosDesc').value:''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fU(otros)}<br><span style="font-size:10px;color:#aaa">${fC(otros)}</span></td></tr>
         <tr style="background:#fafafa"><td style="padding:6px 8px;font-weight:700">TOTAL COSTOS (sin IVA)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#EF4444">${fU(totalCostosUSD)}<br><span style="font-size:10px;color:#aaa">${fC(totalCostosUSD)}</span></td></tr>
@@ -8483,7 +8571,16 @@ initMsal();
             </div>
           </div>
           <!-- Costos locales (siempre visibles) -->
-          <div class="liq-field"><label>Flete Nacional (USD)</label><input type="number" id="liqFleteNal" value="0" oninput="liqCalc()"></div>
+          <div class="liq-field"><label>Flete Nacional (USD) <span style="color:#DC2626" title="Obligatorio">*</span></label><input type="number" id="liqFleteNal" value="0" oninput="liqCalc()">
+            <div id="liqFleteNalWrap" style="margin-top:6px;padding:6px 8px;border:1px dashed #D1D5DB;border-radius:6px;background:#fff">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="liqFleteNalNo" onchange="liqCalc()"> <b>No incluido</b> <span style="color:#888;font-weight:400">(valor 0 — hay que explicar por qué)</span></label>
+              <div id="liqFleteNalMotivoWrap" style="display:none;margin-top:5px">
+                <select id="liqFleteNalMotivoSel" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #F59E0B;border-radius:4px;font-size:12px;font-family:inherit;background:#fffbf0"><option value="">— Motivo —</option><option value="El cliente recoge la máquina en AYJ">El cliente recoge la máquina en AYJ</option><option value="Transporte incluido en otra máquina de la oferta">Transporte incluido en otra máquina de la oferta</option><option value="El cliente contrata su propio transporte">El cliente contrata su propio transporte</option><option value="__otro__">Otro (escribir)…</option></select>
+                <input type="text" id="liqFleteNalMotivo" placeholder="Explica por qué no se incluye..." oninput="liqCalc()" style="display:none;margin-top:4px;width:100%;padding:5px 8px;border:1px solid #F59E0B;border-radius:4px;font-size:12px;font-family:inherit;background:#fffbf0">
+              </div>
+              <div id="liqFleteNalAviso" style="display:none;font-size:11px;color:#B45309;margin-top:4px"></div>
+            </div>
+          </div>
           <div class="liq-field"><label>Descargue en cliente (USD)</label><input type="number" id="liqDescargue" value="0" oninput="liqCalc()"></div>
           <div class="liq-field"><label>Otros costos (USD)</label>
             <input type="number" id="liqOtros" value="0" oninput="liqOtrosChange()">
@@ -8498,7 +8595,15 @@ initMsal();
           <div class="liq-field" style="background:#f5f7f0;border-radius:6px;padding:8px;border:1px solid #c5d9a0;margin-top:8px">
             <label style="color:#3d6b0a;font-weight:700">🔧 Instalación (USD) — cálculo automático</label>
             <input type="number" id="liqInstalacion" value="0" readonly style="background:#eef3e6;color:#3d6b0a;font-weight:700;cursor:not-allowed;border-color:#c5d9a0">
-            <div style="font-size:10px;color:#888;margin-top:3px">Calcular en pestaña Instalación y enviar aquí</div>
+            <div style="font-size:10px;color:#888;margin-top:3px">Calcular en pestaña Instalación y enviar aquí <span style="color:#DC2626" title="Obligatorio">*</span></div>
+            <div id="liqInstWrap" style="margin-top:6px;padding:6px 8px;border:1px dashed #D1D5DB;border-radius:6px;background:#fff">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="liqInstNo" onchange="liqCalc()"> <b>No incluido</b> <span style="color:#888;font-weight:400">(valor 0 — hay que explicar por qué)</span></label>
+              <div id="liqInstMotivoWrap" style="display:none;margin-top:5px">
+                <select id="liqInstMotivoSel" onchange="liqCalc()" style="width:100%;padding:5px 8px;border:1px solid #F59E0B;border-radius:4px;font-size:12px;font-family:inherit;background:#fffbf0"><option value="">— Motivo —</option><option value="Máquina autoinstalable">Máquina autoinstalable</option><option value="Instalación incluida en otra máquina de la oferta">Instalación incluida en otra máquina de la oferta</option><option value="El cliente la instala con su personal">El cliente la instala con su personal</option><option value="__otro__">Otro (escribir)…</option></select>
+                <input type="text" id="liqInstMotivo" placeholder="Explica por qué no se incluye..." oninput="liqCalc()" style="display:none;margin-top:4px;width:100%;padding:5px 8px;border:1px solid #F59E0B;border-radius:4px;font-size:12px;font-family:inherit;background:#fffbf0">
+              </div>
+              <div id="liqInstAviso" style="display:none;font-size:11px;color:#B45309;margin-top:4px"></div>
+            </div>
           </div>
           <div class="liq-field" style="background:#eff4ff;border-radius:6px;padding:8px;border:1px solid #bfcfff;margin-top:4px">
             <label style="color:#1e40af;font-weight:700">💳 Financiación (USD) — cálculo automático</label>
