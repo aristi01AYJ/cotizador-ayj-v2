@@ -6303,6 +6303,7 @@ async function pedidoRegistrarAhora(){
 const EV_PATH='General/AYJ_COTIZADOR/Evento/eventos.json';
 let EV={cargado:false,cargando:false,data:{activoId:null,eventos:[],ciudades:null},cart:[],q:'',marca:'',tip:'',cliente:'',tel:'',extra:0,admin:false,grp:0,edit:null,tab:'evento',comboEd:null,qp:'',vista:'venta',dq:'',dst:'',qf:'',
   dest:{tipo:'local',ciudadId:'',envioOk:true,trasOk:true,motEnvio:'',motTras:'',manual:null}};
+EV.fotos=(()=>{ try{ return localStorage.getItem('ayj_ev_fotos')!=='0'; }catch(e){ return true; } })();   // MOSTRAR / OCULTAR fotos
 
 // ── VENTA NACIONAL: envío nacional + traslado para la instalación (máquinas fuera de Bogotá / Medellín) ──
 // Tabla de principales ciudades con su valor (USD), común a todos los eventos, que edita el administrador. Se vende como UN ítem
@@ -6478,30 +6479,73 @@ function evFotoElegir(title){
   inp.onchange=()=>{ if(inp.files[0]) evFotoSubir(title,inp.files[0]); };
   inp.click();
 }
+function evToggleFotos(){
+  EV.fotos=!EV.fotos;
+  try{ localStorage.setItem('ayj_ev_fotos',EV.fotos?'1':'0'); }catch(e){}
+  renderEvento();
+}
+// Reduce a 700 px / JPEG (si ya es un JPEG liviano se sube tal cual)
+async function evFotoPreparar(file){
+  if(/jpe?g/i.test(file.type)&&file.size<260000) return file;
+  const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>rej(new Error('No se pudo leer la imagen '+(file.name||''))); i.src=URL.createObjectURL(file); });
+  const esc=Math.min(1,700/Math.max(img.width,img.height));
+  const c=document.createElement('canvas'); c.width=Math.round(img.width*esc); c.height=Math.round(img.height*esc);
+  const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.82));
+}
+async function evFotoSubirBlob(title,blob){
+  const key=evFotoKey(title), token=await getToken();
+  await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/General/AYJ_COTIZADOR:/children`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({name:'Fotos',folder:{},'@microsoft.graph.conflictBehavior':'fail'})}).catch(()=>{});
+  const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${EV_FOTOS}/${key}.jpg:/content`,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'image/jpeg'},body:blob});
+  if(!r.ok){ const t=await r.text(); throw new Error('HTTP '+r.status+' '+t.slice(0,120)); }
+  (await evFotosListar()).add(key);
+  if(EVF.urls[key]) URL.revokeObjectURL(EVF.urls[key]);
+  EVF.urls[key]=URL.createObjectURL(blob);   // se muestra al instante, sin volver a leerla de SharePoint
+}
+function evFotosRefrescar(){
+  if(document.getElementById('evCatalogo')) renderEventoCatalogo();
+  if(EV.vista==='disp'&&document.getElementById('evDisp')) renderEventoDisp();
+  if(document.getElementById('modalEvConfig')&&EV.tab==='fotos') evFotosCfgRender();
+  evPintarFotos();
+}
 async function evFotoSubir(title,file){
   try{
-    const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>rej(new Error('No se pudo leer la imagen')); i.src=URL.createObjectURL(file); });
-    const esc=Math.min(1,700/Math.max(img.width,img.height));
-    const c=document.createElement('canvas'); c.width=Math.round(img.width*esc); c.height=Math.round(img.height*esc);
-    const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height);
-    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.82));
-    const key=evFotoKey(title), token=await getToken();
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/General/AYJ_COTIZADOR:/children`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({name:'Fotos',folder:{},'@microsoft.graph.conflictBehavior':'fail'})}).catch(()=>{});
-    const r=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${EV_FOTOS}/${key}.jpg:/content`,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'image/jpeg'},body:blob});
-    if(!r.ok){ const t=await r.text(); throw new Error('HTTP '+r.status+' '+t.slice(0,120)); }
-    (await evFotosListar()).add(key);
-    if(EVF.urls[key]) URL.revokeObjectURL(EVF.urls[key]);
-    EVF.urls[key]=URL.createObjectURL(blob);   // se muestra al instante, sin volver a leerla de SharePoint
+    await evFotoSubirBlob(title,await evFotoPreparar(file));
     showToast('✓ Foto guardada: '+title,'success');
-    if(document.getElementById('evCatalogo')) renderEventoCatalogo();
-    if(EV.vista==='disp') renderEventoDisp();
-    if(document.getElementById('modalEvConfig')&&EV.tab==='fotos') evFotosCfgRender();
-    evPintarFotos();
+    evFotosRefrescar();
   }catch(e){ console.error('[AYJ] Foto:',e); showToast('No se pudo subir la foto: '+e.message,'error'); }
 }
+// SUBIDA EN LOTE: el nombre del archivo es el modelo (ej. nd512ts.jpg, g4.jpg). Se empareja con el catálogo por el título o por el
+// modelo de la máquina; lo que no coincide se lista para subirlo a mano con el 📷.
+function evFotosLoteElegir(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.multiple=true;
+  inp.onchange=()=>{ if(inp.files.length) evFotosLote([...inp.files]); };
+  inp.click();
+}
+async function evFotosLote(files){
+  const entradas=evEntradas();
+  const porClave={}; entradas.forEach(x=>{ [evFotoKey(x.title),evFotoKey(x.modelo)].filter(Boolean).forEach(k=>{ if(!porClave[k]) porClave[k]=x; }); });
+  const ok=[], sinModelo=[], fallos=[]; let i=0;
+  const info=document.getElementById('evFotosLoteInfo');
+  async function trabajar(){
+    while(i<files.length){
+      const f=files[i++], base=f.name.replace(/\.[^.]+$/,''), en=porClave[evFotoKey(base)];
+      if(!en){ sinModelo.push(f.name); continue; }
+      try{ await evFotoSubirBlob(en.title,await evFotoPreparar(f)); ok.push(en.title); }
+      catch(e){ fallos.push(f.name+': '+e.message); }
+      if(info) info.textContent='Subiendo… '+(ok.length+sinModelo.length+fallos.length)+' de '+files.length;
+    }
+  }
+  await Promise.all([trabajar(),trabajar(),trabajar()]);
+  EV.loteInfo='✓ '+ok.length+' foto(s) subida(s) y emparejada(s)'+(sinModelo.length?' · '+sinModelo.length+' sin modelo en el catálogo (súbelas con el 📷): '+sinModelo.join(', '):'')+(fallos.length?' · ⚠ con error: '+fallos.join('; '):'');
+  showToast(ok.length+' foto(s) subida(s)'+(sinModelo.length?' · '+sinModelo.length+' sin modelo':''),sinModelo.length||fallos.length?'error':'success');
+  evFotosRefrescar();
+  const i2=document.getElementById('evFotosLoteInfo'); if(i2) i2.textContent=EV.loteInfo;
+}
 function evFotosCfgHTML(){
-  return '<input type="text" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qf||'')+'" oninput="EV.qf=this.value;evFotosCfgRender()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">'
+  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn-primary" onclick="evFotosLoteElegir()">📁 Subir fotos en lote</button><span style="font-size:11px;color:var(--text2)">Elige varias fotos a la vez: el <b>nombre del archivo es el modelo</b> (ej. nd512ts.jpg, g4.jpg) y se empareja con el catálogo.</span></div><div id="evFotosLoteInfo" style="font-size:12px;margin-bottom:8px;color:#166534">'+evEsc(EV.loteInfo||'')+'</div>'
+    +'<input type="text" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.qf||'')+'" oninput="EV.qf=this.value;evFotosCfgRender()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">'
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Una foto por modelo (sirve para todo el catálogo: Evento hoy y, más adelante, el resto del cotizador). Se guarda en SharePoint, carpeta <b>General/AYJ_COTIZADOR/Fotos</b>. Se muestran las primeras 80 coincidencias.</div><div id="evFotosTabla"></div>';
 }
 function evFotosCfgRender(){
@@ -6617,6 +6661,7 @@ function renderEvento(){
     +'<div><strong style="font-size:17px">🎪 '+(e?evEsc(e.nombre):'Evento')+'</strong>'+(e&&e.hasta?'<div style="font-size:11px;color:var(--text2)">Precios especiales de evento válidos hasta el '+evEsc(evFechaCorta(e.hasta))+'</div>':'')+'</div>'
     +(e?'<span style="display:flex;margin-left:6px">'+tab('venta','🛒 Venta')+tab('disp','📦 Disponibilidad')+'</span>':'')
     +'<span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      +'<button class="btn-sec" onclick="evToggleFotos()" title="Mostrar u ocultar las fotos de las máquinas (pantalla y PDF)" style="font-weight:700">🖼 Fotos '+(EV.fotos?'ON':'OFF')+'</button>'
       +'<button class="btn-sec" onclick="evRecargar()" title="Recargar precios, combos y disponibilidad"><i class="ti ti-refresh"></i></button>'
       +(adm?'<button class="btn-sec" onclick="evConfigurar()"><i class="ti ti-settings"></i> Configurar</button><button class="btn-sec" onclick="evSalir()"><i class="ti ti-arrow-back-up"></i> Volver al cotizador</button>':'')
       +'<button class="btn-sec" id="evBtnMG" onclick="evDesbloquear()" title="'+(adm?'Ocultar el margen y las opciones de administrador':'MG: ver el margen (requiere clave)')+'" style="font-weight:800;'+(adm?'background:#166534;color:#fff;border-color:#166534':'')+'">'+(adm?'🔓 MG':'🔒 MG')+'</button>'
@@ -6658,8 +6703,8 @@ function renderEventoDisp(){
   box.innerHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
       +'<input type="text" placeholder="🔍 Buscar máquina…" value="'+evEsc(EV.dq||'')+'" oninput="EV.dq=this.value;renderEventoDisp()" style="flex:1;min-width:200px;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:var(--radius)">'
       +'<span style="display:flex;flex-wrap:wrap">'+chip('','Todas')+chip('stock','✅ En stock',cuenta('stock'))+chip('impo','🚢 En importación',cuenta('impo'))+chip('bp','📦 Bajo pedido',cuenta('bp'))+'</span></div>'
-    +'<table class="hist-table"><thead><tr><th style="width:92px"></th><th>Máquina</th><th>Disponibilidad</th><th>Entrega</th><th style="text-align:right">Precio de evento</th></tr></thead><tbody>'
-    +lista.map(({x,d})=>'<tr><td><div class="ev-foto" style="width:84px;height:58px;font-size:20px" data-k="'+evEsc(evFotoKey(x.title))+'"><span class="ev-ph">⚙</span></div></td>'
+    +'<table class="hist-table"><thead><tr>'+(EV.fotos?'<th style="width:92px"></th>':'')+'<th>Máquina</th><th>Disponibilidad</th><th>Entrega</th><th style="text-align:right">Precio de evento</th></tr></thead><tbody>'
+    +lista.map(({x,d})=>'<tr>'+(EV.fotos?'<td><div class="ev-foto" style="width:84px;height:58px;font-size:20px" data-k="'+evEsc(evFotoKey(x.title))+'"><span class="ev-ph">⚙</span></div></td>':'')
       +'<td><strong>'+evEsc(x.title)+'</strong><div style="font-size:11px;color:var(--text2)">'+evEsc([x.marca,x.tipologia].filter(Boolean).join(' · '))+'</div></td>'
       +'<td><span class="ev-b '+d.cls+'" style="font-size:12px;padding:3px 10px">'+d.txt+(EV.admin&&d.clave==='stock'&&!x.ilimitado?' · '+x.stock+' ud.':'')+(EV.admin&&d.clave==='impo'?' · '+x.impo+' ud.':'')+'</span></td>'
       +'<td style="font-size:12px;color:var(--text2)">'+evEsc(evTextoEntrega(e,d.clave))+'</td>'
@@ -6703,7 +6748,7 @@ function renderEventoCatalogo(){
   html+='<h3 class="ev-h">⚙ Máquinas ('+lista.length+')</h3><div class="ev-grid">'+lista.map(x=>{
     const pe=evPrecioUnit(x), dto=x.tarifa>0?Math.round((1-pe/x.tarifa)*100):0;
     const b=evBadge(x), enC=evEnCarrito(x.key);
-    return '<div class="ev-card"><div class="ev-foto" data-k="'+evEsc(evFotoKey(x.title))+'"><span class="ev-ph">⚙</span>'+(EV.admin?'<button class="ev-cam" title="Subir / cambiar foto" data-t="'+evEsc(x.title)+'" onclick="evFotoElegir(this.dataset.t)">📷</button>':'')+'</div><div class="nm">'+evEsc(x.title)+'</div><div class="sub">'+evEsc([x.marca,x.tipologia].filter(Boolean).join(' · '))+'</div>'
+    return '<div class="ev-card">'+(EV.fotos?'<div class="ev-foto" data-k="'+evEsc(evFotoKey(x.title))+'"><span class="ev-ph">⚙</span>'+(EV.admin?'<button class="ev-cam" title="Subir / cambiar foto" data-t="'+evEsc(x.title)+'" onclick="evFotoElegir(this.dataset.t)">📷</button>':'')+'</div>':'')+'<div class="nm">'+evEsc(x.title)+'</div><div class="sub">'+evEsc([x.marca,x.tipologia].filter(Boolean).join(' · '))+'</div>'
       +'<div class="ev-precio"><span class="nuevo">'+fmt(pe)+'</span>'+(dto>0?'<span class="viejo">'+fmt(x.tarifa)+'</span><span class="ev-dto">-'+dto+'%</span>':'')+'</div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center"><span class="ev-b '+b[1]+'">'+b[0]+'</span>'+(enC?'<span style="font-size:11px;color:#166534;font-weight:700">En carrito: '+enC+'</span>':'')+'</div>'
       +'<button class="ev-add" data-k="'+evEsc(x.key)+'" onclick="evAgregarMaq(this.dataset.k)">+ Agregar</button></div>';
@@ -6958,7 +7003,7 @@ async function evGenerarOferta(){
   const abrirAntes=window.open; let ok=false;
   try{
     const {nuevo,nota}=evConstruirOferta(t,e);
-    await Promise.all(nuevo.filter(i=>!i.noMaquina).map(async i=>{ try{ i.fotoData=await evFotoDataURI(i.nombre); }catch(x){} }));   // fotos incrustadas: el PDF queda autónomo
+    if(EV.fotos) await Promise.all(nuevo.filter(i=>!i.noMaquina).map(async i=>{ try{ i.fotoData=await evFotoDataURI(i.nombre); }catch(x){} }));   // fotos incrustadas: el PDF queda autónomo
     carrito=[]; nuevaCotizacion(); await generarNumOferta();     // número de oferta nuevo para cada venta
     carrito=nuevo; evAplicarAForm(t,nota); renderCarrito(); calcTotales();
     window._evPdf=evPdfCtx(t,e,nuevo);
