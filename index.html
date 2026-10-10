@@ -584,7 +584,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
           <button class="btn-sec" onclick="abrirItemLibre()" style="border-color:var(--amber);color:#92400E" title="Agregar ítem personalizado"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
           <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
-          <button class="btn-sec" id="btnPedidoActual" onclick="convertirEnPedidoActual()" title="Convertir esta oferta en pedido: guardar, elegir seriales y cerrar" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i> Pedido</button>
+          <button class="btn-sec" id="btnPedidoActual" onclick="convertirEnPedidoActual()" title="Convertir esta oferta (ya guardada) en pedido: elegir seriales y cerrar" style="border-color:#3B82F6;color:#1D4ED8;display:none"><i class="ti ti-package-export"></i> Pedido</button>
           <button id="btnMargenes" onclick="pedirClaveMargenes()" style="display:none;background:#575756;border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;gap:5px;align-items:center"><i class="ti ti-lock"></i> MG</button>
         </div>
       </div>
@@ -2225,6 +2225,7 @@ function calcTotales(){
   if(fleteLabel) fleteLabel.textContent=fleteCOP>0?'≈ '+fmtUSD(fleteUSD):'';
   document.getElementById('tTotalUSD').textContent=fmtUSD(totalUSD);
   document.getElementById('tTotalCOP').textContent='COP '+totalCOP.toLocaleString('es-CO');
+  try{ actualizarBotonPedido(); }catch(eB){}
   calcMG();
 }
 
@@ -2656,6 +2657,16 @@ function firmaOfertaActual(){
     v('clienteInput'),v('descInput'),!!document.getElementById('descEspecialChk')?.checked,v('descEspecialCausal'),v('descExtraInput'),v('fleteVal'),
     v('condPagoSel'),v('validezSel'),v('garantiaSel'),v('idSynergyInput'),asesorDeOferta(),v('obsInput'),v('voltajeSel')]);
 }
+// El botón "Pedido" solo se muestra cuando lo que hay en pantalla ya está guardado tal cual (misma firma que la última
+// oferta guardada). Si se cambia algo (ítems, descuento, flete, cliente…) se oculta hasta volver a guardar.
+function actualizarBotonPedido(){
+  const b=document.getElementById('btnPedidoActual'); if(!b) return;
+  const ug=window._ultimaGuardada;
+  const visible=!!(ug&&carrito.length&&ug.firma===firmaOfertaActual());
+  b.style.display=visible?'':'none';
+}
+['input','change','click'].forEach(ev=>document.addEventListener(ev,()=>setTimeout(()=>{ try{ actualizarBotonPedido(); }catch(e){} },0),true));
+
 async function convertirEnPedidoActual(){
   if(!carrito.length){showToast('El carrito está vacío','error');return;}
   if(!document.getElementById('clienteInput').value.trim()){showToast('Ingresa el cliente','error');return;}
@@ -2849,6 +2860,7 @@ async function guardarCotizacion(){
     // NO generar nuevo número — el usuario debe hacer clic en "Nueva Oferta" explícitamente
     // Para "Nueva Oferta → Pedido": se recuerda qué quedó guardado (y cómo estaba la pantalla) y se abre el asistente.
     window._ultimaGuardada=itemId?{id:itemId,num:numOferta,firma:firmaOfertaActual()}:null;
+    try{ actualizarBotonPedido(); }catch(eB){}
     if(window._pedidoTrasGuardar&&itemId){
       window._pedidoTrasGuardar=false;
       try{ await cargarHistorial(); }catch(eH){ console.warn('[AYJ] No se pudo recargar el historial antes del pedido:',eH.message); }
