@@ -660,6 +660,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             <option value="Enviada" selected>Abiertas (Enviada)</option>
             <option value="Cerrada-Ganada">✓ Ganadas</option>
             <option value="Cerrada-Perdida">✗ Perdidas</option>
+            <option value="Actualizada">↻ Actualizadas</option>
             <option value="">Todas</option>
           </select>
         </div>
@@ -681,6 +682,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         </label>
         <button class="btn-sec" onclick="cargarHistorial()"><i class="ti ti-refresh"></i></button>
         <button class="btn-sec" onclick="abrirLimpiezaDuplicados()" title="Buscar y borrar ofertas duplicadas (mismo N° de oferta)"><i class="ti ti-copy-off"></i> Duplicados</button>
+        <button class="btn-sec" onclick="marcarActualizadasAnteriores()" title="Marca como Actualizada las versiones anteriores (-Rn) que siguen Enviada"><i class="ti ti-refresh"></i> Marcar anteriores</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
         <div id="historialBody"></div>
@@ -2787,9 +2789,11 @@ async function guardarCotizacion(){
     // R2, R3, R4... en vez de duplicar el mismo número. Aplica TAMBIÉN en modo edición:
     // editarOferta calcula el -Rn solo al abrir, así que guardar dos veces seguidas la misma
     // revisión creaba filas repetidas (ej. COT-2026-603-R5 x3).
+    let _existentesGuard=null;
     {
       try{
         const existentes=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
+        _existentesGuard=existentes;
         const yaExiste=existentes.some(it=>(it.fields?.Title||'')===numOferta);
         if(yaExiste){
           const baseNum=numOferta.replace(/-R\d+$/,'');
@@ -2873,6 +2877,18 @@ async function guardarCotizacion(){
       return r;
     };
     itemCreado=await guardarEnSP(fields);
+    // Revisión nueva → las versiones anteriores de esta oferta que sigan "Enviada" pasan solas a "Actualizada" (salen del seguimiento y de las cifras; no son pérdidas)
+    try{
+      if(itemCreado?.id&&_existentesGuard){
+        const baseN=numOferta.replace(/-R\d+$/,'');
+        const previas=_existentesGuard.filter(it=>_enFamiliaOferta(it.fields?.Title,baseN)&&normalizarEstado(it.fields?.Estado)==='Enviada');
+        if(previas.length){
+          let n=0;
+          for(const p of previas){ try{ await patchCotizacionResiliente(p.id,{Estado:'Actualizada'}); n++; }catch(eP){ console.warn('No se pudo marcar Actualizada:',p.fields?.Title,eP.message); } }
+          if(n) setTimeout(()=>showToast('↻ '+n+' versión(es) anterior(es) quedaron como Actualizada','success'),1800);
+        }
+      }
+    }catch(eAct){ console.warn('Marcar versiones anteriores como Actualizada:',eAct.message); }
     // Guardar campos de descuento especial en PATCH separado
     if(itemCreado?.id){
       try{
@@ -3852,10 +3868,11 @@ function filtrarHistorial(){
         +'<td style="font-size:12px">'+r.vendedor+'</td>'
         +'<td>'
           +'<select onchange="cambiarEstadoHistorial(\''+r.id+'\',this)" title="Cambiar estado" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:none;cursor:pointer;background:'+estadoBg+';color:'+estadoColor+';font-family:inherit">'
-            +(['Enviada','Cerrada-Ganada','Cerrada-Perdida'].includes(r.estado)?'':'<option value="'+r.estado+'" selected>'+r.estado+'</option>')
+            +(['Enviada','Cerrada-Ganada','Cerrada-Perdida','Actualizada'].includes(r.estado)?'':'<option value="'+r.estado+'" selected>'+r.estado+'</option>')
             +'<option value="Enviada"'+(r.estado==='Enviada'?' selected':'')+'>Enviada</option>'
             +'<option value="Cerrada-Ganada"'+(r.estado==='Cerrada-Ganada'?' selected':'')+'>✓ Ganada</option>'
             +'<option value="Cerrada-Perdida"'+(r.estado==='Cerrada-Perdida'?' selected':'')+'>✗ Perdida</option>'
+            +'<option value="Actualizada"'+(r.estado==='Actualizada'?' selected':'')+'>↻ Actualizada</option>'
           +'</select>'
           +(()=>{
             if(r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida') return '';
@@ -3868,7 +3885,7 @@ function filtrarHistorial(){
         +'<td style="white-space:nowrap">'
           +(()=>{
             const hoyMedianoche=new Date(); hoyMedianoche.setHours(0,0,0,0);
-            const segVencido=r.fechaSeguimiento&&r.fechaSeguimiento<hoyMedianoche&&r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida';
+            const segVencido=r.fechaSeguimiento&&r.fechaSeguimiento<hoyMedianoche&&r.estado==='Enviada';
             const segTexto=r.fechaSeguimiento?r.fechaSeguimiento.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'— Definir';
             const estilo=r.fechaSeguimiento
               ?(segVencido?'background:#FEE2E2;color:#991B1B;font-weight:600':'background:var(--bg);color:var(--text2)')
@@ -3886,7 +3903,7 @@ function filtrarHistorial(){
           +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
           :'')
         +' <button class="btn-cli-usar" onclick="reasignarOfertaIdx(\''+r.id+'\')" title="Reasignar esta oferta a otro asesor"><i class="ti ti-switch-horizontal"></i></button>'
-        +(r.estado==='Cerrada-Ganada'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Documentos del pedido (oferta ganada)" style="border-color:#16A34A;color:#166534"><i class="ti ti-files"></i></button>':(r.estado!=='Cerrada-Perdida'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Venta → Pedido: paquete, seriales y cierre" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i></button>':''))
+        +(r.estado==='Cerrada-Ganada'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Documentos del pedido (oferta ganada)" style="border-color:#16A34A;color:#166534"><i class="ti ti-files"></i></button>':(r.estado!=='Cerrada-Perdida'&&r.estado!=='Actualizada'?' <button class="btn-cli-usar" onclick="abrirPedidoIdx(\''+r.id+'\')" title="Venta → Pedido: paquete, seriales y cierre" style="border-color:#3B82F6;color:#1D4ED8"><i class="ti ti-package-export"></i></button>':''))
         +' <span style="display:inline-flex;gap:1px;vertical-align:middle;margin-left:2px" title="Probabilidad de cierre">'+estrellasHistorial(r.id,r.prob,r.vendedor)+'</span>'
         +'</td>'
         +'</tr>';
@@ -4005,7 +4022,7 @@ function mostrarResumenSeguimientoInicio(){
     const mias=soloVigentes(historialData).filter(r=>
       r.fechaSeguimiento&&
       asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
-      r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'
+      r.estado==='Enviada'
     );
     const vencidos=mias.filter(r=>r.fechaSeguimiento<hoy).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
     const semana=mias.filter(r=>r.fechaSeguimiento>=hoy&&r.fechaSeguimiento<=finVentana).sort((a,b)=>a.fechaSeguimiento-b.fechaSeguimiento);
@@ -4118,7 +4135,7 @@ function renderSeguimiento(){
   const misOfertas=soloVigentes(historialData).filter(r=>
     r.fechaSeguimiento&&
     asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
-    r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'
+    r.estado==='Enviada'
   );
 
   // Vencidos: siempre visibles arriba, sin importar qué rango se esté navegando.
@@ -4211,7 +4228,7 @@ function actualizarBadgeSeguimiento(){
   const count=soloVigentes(historialData).filter(r=>
     r.fechaSeguimiento&&
     asesorLabel(r.vendedor)===asesorLabel(currentUserName)&&
-    r.estado!=='Cerrada-Ganada'&&r.estado!=='Cerrada-Perdida'&&
+    r.estado==='Enviada'&&
     r.fechaSeguimiento<=en3dias
   ).length;
   if(count>0){badge.textContent=count;badge.style.display='inline-block';}
@@ -4427,7 +4444,7 @@ async function seleccionarClienteDetalle(idx){
     </div>`;
 
   if(totalOfertas){
-    const estadosKeys=Object.keys(ESTADOS_CONFIG);
+    const estadosKeys=Object.keys(ESTADOS_CONFIG).filter(k=>k!=='Actualizada');
     const estadosCounts=estadosKeys.map(e=>ofertasCliente.filter(r=>r.estado===e).length);
     renderChart('chartClienteEstado','doughnut',
       estadosKeys,estadosCounts,
@@ -4890,10 +4907,11 @@ const ESTADOS_CONFIG = {
   'Enviada':       {color:'#F59E0B',bg:'#FEF3C7',text:'#92400E'},
   'Cerrada-Ganada':{color:'#22C55E',bg:'#DCFCE7',text:'#14532D'},
   'Cerrada-Perdida':{color:'#EF4444',bg:'#FEE2E2',text:'#7F1D1D'},
+  'Actualizada':   {color:'#94A3B8',bg:'#F1F5F9',text:'#475569'},   // versión anterior reemplazada por una revisión posterior (no es una pérdida)
 };
-// Solo existen 3 estados: Enviada (abierta), Cerrada-Ganada y Cerrada-Perdida. Un valor vacío o
+// Estados: Enviada (abierta), Cerrada-Ganada, Cerrada-Perdida y Actualizada (versión anterior reemplazada por una revisión; sale del embudo sin ser pérdida). Un valor vacío o
 // viejo en SharePoint (ej. "En negociación", que ya no se usa) se trata como Enviada.
-function normalizarEstado(e){ return (e==='Cerrada-Ganada'||e==='Cerrada-Perdida')?e:'Enviada'; }
+function normalizarEstado(e){ return (e==='Cerrada-Ganada'||e==='Cerrada-Perdida'||e==='Actualizada')?e:'Enviada'; }
 
 let dashCharts={};
 let dashData=[];
@@ -5064,7 +5082,7 @@ function renderDashboard(){
   );
 
   // ── Chart 1: Pipeline por Estado ──
-  const estadosKeys=Object.keys(ESTADOS_CONFIG);
+  const estadosKeys=Object.keys(ESTADOS_CONFIG).filter(k=>k!=='Actualizada');
   const estadosCounts=estadosKeys.map(e=>datos.filter(d=>d.estado===e).reduce((s,d)=>s+d.total,0));
   renderChart('chartEstados','doughnut',
     estadosKeys,estadosCounts,
@@ -5151,7 +5169,7 @@ function renderDashboard(){
   // ── Chart 5: Probabilidad promedio x Vendedor (solo ofertas abiertas: Enviada —
   // en cerradas la probabilidad ya no aplica, quedó ganada o perdida) ──
   const probMap={};
-  datos.filter(d=>!['Cerrada-Ganada','Cerrada-Perdida'].includes(d.estado)).forEach(d=>{
+  datos.filter(d=>d.estado==='Enviada').forEach(d=>{
     const a=asesorLabel(d.vendedor);
     if(!probMap[a])probMap[a]={suma:0,n:0};
     probMap[a].suma+=d.prob;
@@ -5168,7 +5186,7 @@ function renderDashboard(){
 
   // ── Chart 6: Probabilidad x Valor (dispersión — cada punto es una oferta abierta;
   // ayuda a ver ofertas grandes con probabilidad baja, o chicas con probabilidad alta) ──
-  const abiertas=datos.filter(d=>!['Cerrada-Ganada','Cerrada-Perdida'].includes(d.estado));
+  const abiertas=datos.filter(d=>d.estado==='Enviada');
   renderScatterProbValor(abiertas);
 
   // ── Chart 7: Top 15 Clientes por N° de ofertas presentadas ──
@@ -5760,6 +5778,7 @@ async function abrirPedidoIdx(id,opts){
   const r=historialData.find(h=>h.id===id);
   if(!r){showToast('Error: oferta no encontrada','error');return;}
   if(r.estado==='Cerrada-Perdida'){showToast('Esta oferta está marcada como perdida','error');return;}
+  if(r.estado==='Actualizada'){showToast('Esta versión fue reemplazada por una revisión posterior: abre la vigente para hacer el pedido','error');return;}
   if(!r.items||!r.items.length){showToast('La oferta no tiene ítems guardados','error');return;}
   if(asesorLabel(currentUserName)!==asesorLabel(r.vendedor)&&!(opts&&opts.forzar)){
     const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para ver o generar su pedido ingresa la clave de administrador:');
@@ -7816,6 +7835,37 @@ async function _buscarDuplicados(){
   window._posiblesDuplicados=posiblesDuplicados;
 }
 
+// ── ESTADO "ACTUALIZADA": marcar de una vez las revisiones anteriores que ya existen ──
+// Recorre la lista Cotizaciones, agrupa por N° base y, en cada oferta con varias versiones, marca como Actualizada las anteriores a la vigente
+// (la de mayor revisión; empate → mayor id) que sigan "Enviada". Las Ganadas/Perdidas no se tocan. Pide la clave y muestra el conteo antes.
+async function marcarActualizadasAnteriores(){
+  const c=prompt('🔒 Clave de administrador para marcar como "Actualizada" las revisiones anteriores:'); if(c===null) return;
+  if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+  try{
+    showToast('Revisando las ofertas…','success');
+    const items=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields($select=Title,Estado)&$top=500`);
+    const fam={};
+    items.forEach(it=>{
+      const t=String(it.fields?.Title||'').trim(); if(!t) return;
+      const b=t.replace(/-R\d+$/,''), m=t.match(/-R(\d+)$/);
+      (fam[b]=fam[b]||[]).push({id:it.id,num:t,rev:m?parseInt(m[1]):1,estado:normalizarEstado(it.fields?.Estado)});
+    });
+    const marcar=[];
+    Object.keys(fam).forEach(b=>{
+      const l=fam[b]; if(l.length<2) return;
+      const vig=l.reduce((a,x)=>(x.rev>a.rev||(x.rev===a.rev&&parseInt(x.id)>parseInt(a.id)))?x:a,l[0]);
+      l.forEach(x=>{ if(x!==vig&&x.estado==='Enviada') marcar.push(x); });
+    });
+    if(!marcar.length){ showToast('No hay revisiones anteriores pendientes de marcar','success'); return; }
+    const ej=marcar.slice(0,8).map(x=>x.num).join(', ')+(marcar.length>8?'…':'');
+    if(!confirm('Se marcarán como "Actualizada" '+marcar.length+' versión(es) anterior(es) que siguen en "Enviada":\n\n'+ej+'\n\nLas Ganadas, las Perdidas y la versión vigente de cada oferta no se tocan. ¿Continuar?')) return;
+    let i=0, ok=0, mal=0;
+    async function trabajar(){ while(i<marcar.length){ const x=marcar[i++]; try{ await patchCotizacionResiliente(x.id,{Estado:'Actualizada'}); ok++; }catch(e){ mal++; } } }
+    await Promise.all([trabajar(),trabajar(),trabajar(),trabajar()]);
+    showToast('✓ '+ok+' versión(es) marcada(s) como Actualizada'+(mal?' · '+mal+' con error':''),mal?'error':'success');
+    cargarHistorial();
+  }catch(e){ showToast('Error: '+e.message,'error'); }
+}
 async function abrirLimpiezaDuplicados(){
   const clave=prompt('🔒 Clave para administrar duplicados:');
   if(clave===null) return;
