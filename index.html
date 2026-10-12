@@ -2665,15 +2665,20 @@ function nuevaCotizacion(){
 }
 
 
+// ¿el N° pertenece a la familia de la oferta base? (la propia base o sus revisiones -Rn). Comparación EXACTA: "COT-2026-60" no incluye a "COT-2026-603-R7".
+function _enFamiliaOferta(num,baseNum){ const t=String(num||'').trim(); return t===baseNum||t.startsWith(baseNum+'-R'); }
 async function generarNumOferta(){
   if(!siteId||!listIdCotizaciones){document.getElementById('ofertaNum').textContent='COT-2026-001';return;}
   try{
     const items=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
     let maxNum=0;
     items.forEach(i=>{
-      const n=i.fields?.ID_SYNERGY||'';
-      const match=String(n).match(/(\d+)$/);
-      if(match) maxNum=Math.max(maxNum,parseInt(match[1]));
+      // Se lee el N° BASE (COT-2026-603-R7 → 603), no los dígitos finales (7): si el original se borró y solo quedan revisiones, el consecutivo no se devuelve.
+      [i.fields?.ID_SYNERGY,i.fields?.Title].forEach(n=>{
+        const t=String(n||'').trim();
+        const match=t.match(/^COT-\d{4}-(\d+)/)||t.match(/(\d+)$/);
+        if(match) maxNum=Math.max(maxNum,parseInt(match[1]));
+      });
     });
     cotNum=maxNum+1;
   }catch(e){cotNum=1;}
@@ -2779,9 +2784,10 @@ async function guardarCotizacion(){
     // Nunca guardar dos registros con el mismo N° de oferta: si ya se guardó antes
     // (segundo clic en "Guardar y PDF" sin pasar por "Nueva Oferta", p.ej. después
     // de ajustar algo en el Liquidador) se convierte automáticamente en revisión
-    // R1, R2, R3... en vez de duplicar el mismo número. No aplica si ya se entró
-    // explícitamente en modo edición/revisión (editarOferta ya calculó su -Rn).
-    if(!modoEdicion){
+    // R2, R3, R4... en vez de duplicar el mismo número. Aplica TAMBIÉN en modo edición:
+    // editarOferta calcula el -Rn solo al abrir, así que guardar dos veces seguidas la misma
+    // revisión creaba filas repetidas (ej. COT-2026-603-R5 x3).
+    {
       try{
         const existentes=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`);
         const yaExiste=existentes.some(it=>(it.fields?.Title||'')===numOferta);
@@ -2790,7 +2796,7 @@ async function guardarCotizacion(){
           let maxRev=1;
           existentes.forEach(it=>{
             const t=it.fields?.Title||'';
-            if(t.startsWith(baseNum)){
+            if(_enFamiliaOferta(t,baseNum)){
               const m=t.match(/-R(\d+)$/);
               if(m) maxRev=Math.max(maxRev,parseInt(m[1]));
             }
@@ -2798,7 +2804,8 @@ async function guardarCotizacion(){
           numOferta=baseNum+'-R'+(maxRev+1);
           const badge=document.getElementById('ofertaNum');
           if(badge) badge.textContent=numOferta;
-          showToast('Esta oferta ya estaba guardada — se guardó como revisión '+numOferta,'success');
+          if(modoEdicion) modoEdicion.numOferta=numOferta;
+          showToast('Ese número ya estaba guardado — se guardó como revisión '+numOferta,'success');
         }
       }catch(eDup){console.warn('No se pudo verificar duplicados antes de guardar:',eDup.message);}
     }
@@ -5523,7 +5530,7 @@ async function editarOferta(itemId, r){
 
   // Generar número con sufijo de revisión
   const baseNum=r.num.replace(/-R\d+$/, ''); // quitar revisión anterior si existe
-  const revisiones=historialData.filter(h=>h.num.startsWith(baseNum));
+  const revisiones=historialData.filter(h=>_enFamiliaOferta(h.num,baseNum));
   const maxRev=revisiones.reduce((max, h)=>{
     const m=h.num.match(/-R(\d+)$/);
     return m?Math.max(max,parseInt(m[1])):Math.max(max,1);
