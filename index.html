@@ -367,6 +367,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <label><i class="ti ti-currency-dollar" style="font-size:13px;vertical-align:-1px"></i> TRM</label>
         <input type="number" id="trmInput" value="3650" step="10" oninput="onTrmChange()">
         <span id="trmLabel">$ 4.200 COP/USD</span>
+        <span id="trmSpark" style="display:inline-flex;align-items:center;gap:6px"></span>
         <button onclick="resetTRM()" title="Restaurar TRM del Banco de la República" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:3px 8px;font-size:11px;cursor:pointer;color:var(--text2);font-family:inherit;white-space:nowrap"><i class="ti ti-refresh" style="font-size:11px;vertical-align:-1px"></i> BanRep</button>
         <button onclick="abrirItemLibre()" style="background:#FEF3C7;border:1.5px solid #F59E0B;color:#92400E;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
         <button onclick="solicitarClavePrecio()" id="precioLockBtn" title="Modificar precios" style="margin-left:auto;background:#f0f4e8;border:1.5px solid var(--green);color:var(--green-dark);border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">💲 Precio</button>
@@ -826,6 +827,10 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       </div>
       <div id="dashFiltroDetalle" style="display:none;font-size:11px;color:var(--text2);background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-top:-10px;margin-bottom:16px"></div>
       <div id="dashKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px"></div>
+      <div id="vrCard" style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:16px">
+        <div onclick="vrToggle()" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer"><strong style="font-size:13px">📦 Ventas reales — máquinas vendidas y entregadas</strong><span style="display:flex;gap:10px;align-items:center;font-size:12px;color:var(--text2)"><span>se lee de LISTS solo al abrir</span><span id="vrCaret">▾</span></span></div>
+        <div id="vrBody" style="display:none;padding:0 16px 16px"><div id="vrContenido"></div></div>
+      </div>
       <div style="margin-bottom:16px">
         <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px">
           <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Ofertas x Mes</div>
@@ -1576,11 +1581,11 @@ async function graphPost(url,body){
   if(!r.ok){const t=await r.text();throw new Error('POST '+r.status+': '+t);}
   return r.json();
 }
-async function graphGetAll(url){
+async function graphGetAll(url,extra){
   let results=[],nextUrl='https://graph.microsoft.com/v1.0'+url;
   while(nextUrl){
     const token=await getToken();
-    const r=await fetch(nextUrl,{headers:{Authorization:'Bearer '+token}});
+    const r=await fetch(nextUrl,{headers:{Authorization:'Bearer '+token,...(extra||{})}});
     if(!r.ok)throw new Error('Graph '+r.status);
     const data=await r.json();
     results=results.concat(data.value||[]);
@@ -1853,7 +1858,9 @@ async function cargarMaquinas(){
       });
     }catch(e){console.warn('[AYJ] No se pudo leer /columns para detectar el nombre interno de Tipología — usando fallbacks fijos:',e.message);}
 
-    const todos=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$top=200`);
+    window._catCampos={marcaField,tipologiaField};   // nombres internos detectados (los reutiliza Inteligencia → Ventas reales)
+    // Solo lo operativo: SharePoint filtra por ESTADO_ (indexada); las VENDIDA/ENTREGADA (~3 de cada 4 filas) ya no se descargan.
+    const todos=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO','RESERVADA'],200);
     // Diagnóstico Tipología: si vuelve a fallar el fallback de abajo, este log en la consola del
     // navegador (F12) muestra el nombre interno real del campo para corregirlo sin adivinar.
     if(todos[0]){
@@ -1937,6 +1944,7 @@ function procesarCatalogo(){
 }
 
 async function cargarTRM(){
+  setTimeout(()=>{ try{ trmSparkCargar(); }catch(e){} },0);   // mini gráfica de 30 días (no bloquea el valor de hoy)
   try{
     // API pública del Banco de la República de Colombia
     const hoy=new Date();
@@ -6404,6 +6412,141 @@ async function pedidoRegistrarAhora(){
   await abrirPedidoIdx(id,{forzar:true});
 }
 
+// ── CATÁLOGO: FILTRO POR ESTADO EN SHAREPOINT + VENTAS REALES + TRM 30 DÍAS ─────────────────────────────
+// (1) El catálogo (TODAS_2025) tiene una fila por unidad y ~3 de cada 4 son VENDIDA/ENTREGADA (historia). ESTADO_ está indexada en LISTS, así que se le
+// pide a SharePoint solo lo operativo (DISPONIBLE / BAJO PEDIDO / RESERVADA) en vez de bajar todo y descartar en el navegador. Si el filtro falla, se
+// carga la lista completa y se filtra aquí (igual que antes). El header Prefer evita el error de "lista grande" si algún día no hay índice.
+const CAT_PREFER={Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly'};
+function catFiltroEstados(estados){ return estados.map(e=>"fields/ESTADO_ eq '"+e+"'").join(' or '); }
+function catUrlItems(filtro,top){ return '/sites/'+siteId+'/lists/'+listIdMaquinas+'/items?expand=fields&$top='+top+(filtro?'&$filter='+encodeURIComponent(filtro):''); }
+async function cargarItemsCatalogo(estados,top){
+  try{ return await graphGetAll(catUrlItems(catFiltroEstados(estados),top||200),CAT_PREFER); }
+  catch(e){
+    console.warn('[AYJ] El filtro por estado en SharePoint falló; se carga la lista completa y se filtra aquí:',e.message);
+    const todos=await graphGetAll(catUrlItems('',top||200));
+    return todos.filter(i=>estados.includes(String((i.fields&&i.fields.ESTADO_)||'').trim().toUpperCase()));
+  }
+}
+
+// ── VENTAS REALES (Inteligencia): máquinas VENDIDA y ENTREGADA del catálogo ──
+// Se leen de LISTS solo cuando se abre la sección. La fecha es la de ÚLTIMA MODIFICACIÓN del registro (aproximada): para ENTREGADA suele ser la entrega;
+// para VENDIDA, la venta (así lo definió la gerencia: columna Modificado = fecha de venta/entrega). Una edición posterior o masiva la cambia, por eso se avisa cuando muchas filas comparten el mismo día.
+const VR={rows:null,cargando:false,abierto:false,anio:'',asesor:'',estado:'',error:''};
+function vrToggle(){
+  VR.abierto=!VR.abierto;
+  const b=document.getElementById('vrBody'), ic=document.getElementById('vrCaret');
+  if(b) b.style.display=VR.abierto?'block':'none'; if(ic) ic.textContent=VR.abierto?'▴':'▾';
+  if(VR.abierto&&!VR.rows&&!VR.cargando) vrCargar();
+}
+function vrRefrescar(){ VR.rows=null; vrCargar(); }
+async function vrCargar(){
+  VR.cargando=true; VR.error=''; vrRender();
+  try{
+    const items=await cargarItemsCatalogo(['VENDIDA','ENTREGADA'],200);
+    const campos=window._catCampos||{marcaField:'Marca',tipologiaField:'Tipologia'};
+    const tarifaDe=f=>{ const raw=f.TARIFA||f.TARIFA_SUGERIDO||0; if(!raw) return 0; return parseFloat(String(raw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0; };
+    const filas=items.map(i=>{
+      const f=i.fields||{};
+      let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
+      if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
+      const obs=String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      const m=obs.match(/COT-\d{4}-\d+(?:-R\d+)?/i);
+      const fr=i.lastModifiedDateTime||f.Modified||null;
+      return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
+        tip:String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),estado:String(f.ESTADO_||'').trim().toUpperCase(),cliente:String(cliente||'').trim(),vendedor:'',
+        pedido:String(f.PEDIDOSYNERGY||'').trim(),cot:m?m[0].toUpperCase():'',tarifa:tarifaDe(f),fecha:fr?new Date(fr):null};
+    });
+    await resolverVendedoresReservas(items,filas);   // llena .vendedor (columna Vendedor; si está vacía, quien modificó el registro)
+    VR.rows=filas;
+  }catch(e){ VR.error=e.message; }
+  VR.cargando=false; vrRender();
+}
+function vrBarras(titulo,mapa,color,max){
+  const pares=Object.entries(mapa).sort((a,b)=>b[1]-a[1]).slice(0,max||8);
+  const tope=Math.max(1,...pares.map(p=>p[1]));
+  return '<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+titulo+'</div>'
+    +(pares.map(([k,v])=>'<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0"><div style="width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escRes(k)+'">'+_escRes(k)+'</div><div style="flex:1;background:#F3F4F6;border-radius:4px;height:12px"><div style="width:'+Math.round(v/tope*100)+'%;background:'+color+';height:12px;border-radius:4px"></div></div><div style="width:34px;text-align:right;font-weight:700">'+v+'</div></div>').join('')||'<div style="color:var(--text3);font-size:12px">Sin datos</div>')+'</div>';
+}
+function vrRender(){
+  const c=document.getElementById('vrContenido'); if(!c) return;
+  if(VR.cargando){ c.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Leyendo las máquinas vendidas y entregadas de LISTS…</div>'; return; }
+  if(VR.error){ c.innerHTML='<div style="color:var(--red)">Error: '+_escRes(VR.error)+' <button class="btn-sec" onclick="vrRefrescar()">Reintentar</button></div>'; return; }
+  if(!VR.rows){ c.innerHTML=''; return; }
+  const todas=VR.rows, hoy=new Date();
+  const anioDe=r=>r.fecha?String(r.fecha.getFullYear()):'Sin fecha';
+  const anios=[...new Set(todas.map(anioDe))].sort().reverse();
+  const base=todas.filter(r=>(!VR.anio||anioDe(r)===VR.anio)&&(!VR.asesor||asesorLabel(r.vendedor)===VR.asesor));
+  const d=base.filter(r=>!VR.estado||r.estado===VR.estado);
+  const vend=d.filter(r=>r.estado==='VENDIDA'), entr=d.filter(r=>r.estado==='ENTREGADA');
+  const kpi=(t,n,col,sub)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:22px;font-weight:800;color:'+col+'">'+n+'</div>'+(sub?'<div style="font-size:11px;color:var(--text3)">'+sub+'</div>':'')+'</div>';
+  const asesores=[...new Set(todas.map(r=>asesorLabel(r.vendedor)).filter(x=>x&&x!=='—'))].sort();
+  const sel=(id,val,ops,fn)=>'<select onchange="'+fn+'" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit">'+ops.map(([v,t])=>'<option value="'+_escRes(v)+'"'+(v===val?' selected':'')+'>'+_escRes(t)+'</option>').join('')+'</select>';
+  // calidad de la fecha: ¿muchas filas con el mismo día? (señal de edición masiva)
+  const porDia={}; todas.forEach(r=>{ if(r.fecha){ const k=r.fecha.toISOString().slice(0,10); porDia[k]=(porDia[k]||0)+1; } });
+  const top=Object.entries(porDia).sort((a,b)=>b[1]-a[1])[0];
+  const aviso=(top&&top[1]>=Math.max(10,todas.length*0.15))?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ <b>'+top[1]+' de '+todas.length+' máquinas</b> comparten la fecha de modificación <b>'+top[0]+'</b> (probable edición masiva en LISTS): para esas, Modificado no refleja la venta o entrega real.</div>':'';
+  const pc=fn=>{ const n=todas.filter(fn).length; return Math.round(n/Math.max(1,todas.length)*100)+'%'; };
+  // por mes
+  const meses={}; const MES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  if(VR.anio&&VR.anio!=='Sin fecha'){ MES.forEach(m=>{ meses[m]=0; }); d.forEach(r=>{ if(r.fecha) meses[MES[r.fecha.getMonth()]]++; }); }
+  else { for(let k=11;k>=0;k--){ const x=new Date(hoy.getFullYear(),hoy.getMonth()-k,1); meses[MES[x.getMonth()]+' '+String(x.getFullYear()).slice(2)]=0; } d.forEach(r=>{ if(r.fecha){ const key=MES[r.fecha.getMonth()]+' '+String(r.fecha.getFullYear()).slice(2); if(key in meses) meses[key]++; } }); }
+  const cuenta=fn=>{ const o={}; d.forEach(r=>{ const k=fn(r)||'Sin dato'; o[k]=(o[k]||0)+1; }); return o; };
+  const barrasMes=(()=>{ const tope=Math.max(1,...Object.values(meses)); return '<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Unidades por mes ('+(VR.anio&&VR.anio!=='Sin fecha'?VR.anio:'últimos 12 meses')+')</div><div style="display:flex;align-items:flex-end;gap:4px;height:90px">'+Object.entries(meses).map(([k,v])=>'<div style="flex:1;text-align:center;font-size:10px" title="'+k+': '+v+'"><div style="font-weight:700">'+(v||'')+'</div><div style="height:'+Math.round(v/tope*60)+'px;background:#3B82F6;border-radius:3px 3px 0 0;min-height:'+(v?2:0)+'px"></div><div style="color:var(--text3)">'+k.split(' ')[0]+'</div></div>').join('')+'</div></div>'; })();
+  const pend=todas.filter(r=>r.estado==='VENDIDA'&&(!VR.asesor||asesorLabel(r.vendedor)===VR.asesor)).map(r=>({...r,dias:r.fecha?Math.floor((hoy-r.fecha)/86400000):null})).sort((a,b)=>(b.dias??-1)-(a.dias??-1));
+  c.innerHTML=aviso
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+      +sel('a',VR.anio,[['','Todos los años']].concat(anios.map(a=>[a,a])),"VR.anio=this.value;vrRender()")
+      +sel('b',VR.asesor,[['','Todos los asesores']].concat(asesores.map(a=>[a,a])),"VR.asesor=this.value;vrRender()")
+      +sel('c',VR.estado,[['','Vendidas y entregadas'],['VENDIDA','Solo vendidas (en curso)'],['ENTREGADA','Solo entregadas']],"VR.estado=this.value;vrRender()")
+      +'<button class="btn-sec" onclick="vrRefrescar()" title="Volver a leer de LISTS"><i class="ti ti-refresh"></i></button>'
+      +'<span style="font-size:11px;color:var(--text3)">Fecha de venta/entrega = columna <b>Modificado</b> de LISTS.</span></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">'
+      +kpi('Unidades',d.length,'#575756','vendidas + entregadas')+kpi('Vendidas · en curso',vend.length,'#B45309','pendientes de entrega')
+      +kpi('Entregadas',entr.length,'#166534','')+kpi('Valor a tarifa','USD '+Math.round(d.reduce((s,r)=>s+r.tarifa,0)).toLocaleString('es-CO'),'#1D4ED8','precio de lista, no el negociado')+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+barrasMes
+      +vrBarras('Unidades por asesor',cuenta(r=>asesorLabel(r.vendedor)),'#22C55E')+vrBarras('Unidades por marca',cuenta(r=>r.marca),'#8B5CF6')+vrBarras('Unidades por tipología',cuenta(r=>r.tip),'#F59E0B')+'</div>'
+    +'<div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:6px 0">Vendidas pendientes de entrega ('+pend.length+') — días desde la venta (Modificado)</div>'
+    +'<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius)"><table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Cliente</th><th>Asesor</th><th>Pedido</th><th style="text-align:right">Días</th></tr></thead><tbody>'
+      +(pend.slice(0,60).map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ)+'</td><td style="font-size:12px">'+_escRes(r.cliente||'—')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td><td style="text-align:right;font-weight:700;color:'+(r.dias==null?'var(--text3)':r.dias>60?'#DC2626':r.dias>30?'#B45309':'inherit')+'">'+(r.dias==null?'—':r.dias)+'</td></tr>').join('')||'<tr><td colspan="6" style="padding:10px;color:var(--text3)">No hay vendidas pendientes de entrega.</td></tr>')
+    +'</tbody></table></div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:8px">Calidad de los datos en LISTS ('+todas.length+' máquinas): con cliente '+pc(r=>r.cliente)+' · con asesor '+pc(r=>r.vendedor)+' · con N° de pedido '+pc(r=>r.pedido)+' · con N° de cotización '+pc(r=>r.cot)+' · con fecha '+pc(r=>r.fecha)+'.</div>';
+}
+
+// ── TRM: mini gráfica de los últimos 30 días (datos.gov.co, Banco de la República) ──
+async function trmHistorial(){
+  const hoy=new Date().toISOString().slice(0,10);
+  try{ const g=JSON.parse(localStorage.getItem('ayj_trm_hist')||'null'); if(g&&g.dia===hoy&&Array.isArray(g.datos)&&g.datos.length) return g.datos; }catch(e){}
+  const d=new Date(); d.setDate(d.getDate()-40);
+  const url='https://www.datos.gov.co/resource/32sa-8pi3.json?$where='+encodeURIComponent("vigenciadesde >= '"+d.toISOString().slice(0,10)+"T00:00:00.000'")+'&$order=vigenciadesde%20asc&$limit=80';
+  const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
+  const datos=(await r.json()).filter(x=>x.valor&&x.vigenciadesde).map(x=>({f:String(x.vigenciadesde).slice(0,10),v:Math.round(parseFloat(x.valor)*100)/100}));
+  try{ localStorage.setItem('ayj_trm_hist',JSON.stringify({dia:hoy,datos})); }catch(e){}
+  return datos;
+}
+function trmDibujar(datos){
+  const el=document.getElementById('trmSpark'); if(!el) return;
+  const lim=new Date(); lim.setDate(lim.getDate()-30);
+  const pts=datos.filter(p=>new Date(p.f+'T12:00:00')>=lim);
+  if(pts.length<3){ el.innerHTML=''; return; }
+  const W=96,H=30,P=3, vals=pts.map(p=>p.v), mn=Math.min(...vals), mx=Math.max(...vals), rg=(mx-mn)||1;
+  const t0=new Date(pts[0].f).getTime(), t1=new Date(pts[pts.length-1].f).getTime()||t0+1, dt=(t1-t0)||1;
+  const xy=p=>[P+(new Date(p.f).getTime()-t0)/dt*(W-2*P), H-P-(p.v-mn)/rg*(H-2*P)];
+  const pos=pts.map(xy), ult=pos[pos.length-1];
+  const cambio=(pts[pts.length-1].v-pts[0].v)/pts[0].v*100, sube=cambio>=0, col=sube?'#DC2626':'#16A34A';
+  const fm=n=>'$ '+Math.round(n).toLocaleString('es-CO'), fd=s=>new Date(s+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'});
+  const iMn=vals.indexOf(mn), iMx=vals.indexOf(mx);
+  const resumen='TRM oficial, últimos 30 días: de '+fm(pts[0].v)+' ('+fd(pts[0].f)+') a '+fm(pts[pts.length-1].v)+' ('+fd(pts[pts.length-1].f)+') · mín '+fm(mn)+' ('+fd(pts[iMn].f)+') · máx '+fm(mx)+' ('+fd(pts[iMx].f)+')';
+  el.innerHTML='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;overflow:visible"><title>'+resumen+'</title>'
+    +'<polyline fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" points="'+pos.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'"/>'
+    +'<circle cx="'+ult[0].toFixed(1)+'" cy="'+ult[1].toFixed(1)+'" r="2.6" fill="'+col+'"/>'
+    +pos.map((p,i)=>'<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.5" fill="transparent"><title>'+fd(pts[i].f)+': '+fm(pts[i].v)+'</title></circle>').join('')+'</svg>'
+    +'<span style="font-size:11px;font-weight:700;color:'+col+';white-space:nowrap" title="'+resumen+'">'+(sube?'▲':'▼')+' '+Math.abs(cambio).toFixed(1).replace('.',',')+' % · 30 d</span>';
+}
+async function trmSparkCargar(){
+  try{ trmDibujar(await trmHistorial()); }
+  catch(e){ console.warn('[AYJ] TRM: no se pudo cargar el historial de 30 días:',e.message); const el=document.getElementById('trmSpark'); if(el) el.innerHTML=''; }
+}
+
 // ── DIAGNÓSTICO DE VELOCIDAD ──────────────────────────────────────────────────────────────────────────
 // Mide con datos reales dónde se va el tiempo: (1) cada petición a Microsoft Graph/SharePoint (cuánto tarda, cuánto pesa, cuántas filas trae), (2) las acciones
 // principales de la app (arranque, cargar catálogo/historial/clientes, guardar oferta, subir PDF, pintar pantallas) y (3) una prueba automática "Medir ahora"
@@ -6517,11 +6660,12 @@ async function perfMedir(){
     catch(e){ res.push({ts,nombre,ms:Math.round(performance.now()-t0),filas:0,pags:0,nota:'ERROR: '+e.message}); perfFin(run,false); }
     mostrar();
   };
-  const listaTodo=async(url)=>{ const n0=PERF.reqs.length; const filas=await graphGetAll(url); return {filas:filas.length,pags:PERF.reqs.length-n0}; };
+  const listaTodo=async(url,extra)=>{ const n0=PERF.reqs.length; const filas=await graphGetAll(url,extra); return {filas:filas.length,pags:PERF.reqs.length-n0}; };
   try{
     if(!siteId||!listIdCotizaciones||!listIdMaquinas) throw new Error('Inicia sesión y espera a que cargue el catálogo');
     await paso('Latencia a Microsoft (5 llamadas mínimas /me)',async()=>{ const v=[]; for(let i=0;i<5;i++){ const s=performance.now(); await graphGet('/me?$select=id'); v.push(Math.round(performance.now()-s)); } return {nota:'cada una: '+v.join(', ')+' ms · mediana '+perfMed(v)+' ms'}; });
     await paso('Catálogo completo, igual que la app (todas las columnas)',()=>listaTodo(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$top=200`));
+    if(typeof catUrlItems==='function') await paso('Catálogo solo operativo (sin VENDIDA/ENTREGADA), como lo pide la app ahora',()=>listaTodo(catUrlItems(catFiltroEstados(['DISPONIBLE','BAJO PEDIDO','RESERVADA']),200),CAT_PREFER));
     await paso('Catálogo solo con las columnas necesarias',()=>listaTodo(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields($select=Title,ESTADO_,ESTADO,ID_MQ,TARIFA,Modelo)&$top=200`));
     await paso('Cotizaciones completas, igual que la app (todas las columnas)',()=>listaTodo(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`));
     await paso('Cotizaciones solo con las columnas del listado (sin el JSON de ítems)',()=>listaTodo(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields($select=Title,Estado,Cliente,Vendedor,GranTotal,${SP_COLS_COT.FechaSeguimiento})&$top=500`));
@@ -6892,7 +7036,7 @@ async function evListsPlan(){
   const plan={campo,total:filas.length,enviar:[],yaTienen:0,sinFoto:0,vendidas:0,modelosSin:new Set(),fotos:Object.keys(urls).length};
   filas.forEach(i=>{
     const f=i.fields||{}, t=String(f.Title||'').trim(); if(!t) return;
-    if(String(f.ESTADO_||'').trim().toUpperCase()==='VENDIDA'){ plan.vendidas++; return; }
+    if(['VENDIDA','ENTREGADA'].includes(String(f.ESTADO_||'').trim().toUpperCase())){ plan.vendidas++; return; }
     const info=urls[evFotoKey(t)];
     if(!info){ plan.sinFoto++; plan.modelosSin.add(t); return; }
     if(f[campo]&&!EVL.reemplazar){ plan.yaTienen++; return; }
@@ -8225,7 +8369,7 @@ async function cargarStock(){
   document.getElementById('stockBody').innerHTML='<div class="loading-list"><span class="spinner dark"></span> Cargando inventario...</div>';
   document.getElementById('stockKpis').innerHTML='';
   try{
-    const data=await graphGetAll(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$top=500`);
+    const data=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO'],500);
     // Agrupar por Title (referencia)
     const mapa={};
     data.forEach(i=>{
