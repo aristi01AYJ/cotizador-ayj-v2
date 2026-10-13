@@ -322,6 +322,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div class="nav-menu">
         <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
         <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos y venta nacional (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
+        <button id="navPerf" onclick="perfAbrir()" title="Mide cuánto tarda cada acción y cada llamada a SharePoint (solo lee; los datos quedan en este navegador)"><i class="ti ti-gauge"></i> Velocidad</button>
         </div></div>
     </div>
     <div class="topbar-right">
@@ -6401,6 +6402,189 @@ async function pedidoRegistrarAhora(){
   const id=P.r.id;
   cerrarPedido();
   await abrirPedidoIdx(id,{forzar:true});
+}
+
+// ── DIAGNÓSTICO DE VELOCIDAD ──────────────────────────────────────────────────────────────────────────
+// Mide con datos reales dónde se va el tiempo: (1) cada petición a Microsoft Graph/SharePoint (cuánto tarda, cuánto pesa, cuántas filas trae), (2) las acciones
+// principales de la app (arranque, cargar catálogo/historial/clientes, guardar oferta, subir PDF, pintar pantallas) y (3) una prueba automática "Medir ahora"
+// que SOLO LEE (no escribe nada) y compara traer las listas completas contra traer solo las columnas necesarias.
+// Todo queda en este navegador (localStorage); no se envía a ningún lado. Menú: Más ▾ → Velocidad → "Copiar informe" para compartirlo.
+const PERF={reqs:[],runs:[],bench:[],activos:[],boot:performance.now(),arranqueMs:null};
+try{ const g=JSON.parse(localStorage.getItem('ayj_perf')||'null'); if(g){ PERF.reqs=g.reqs||[]; PERF.runs=g.runs||[]; PERF.bench=g.bench||[]; } }catch(e){}
+let _perfT=null;
+function perfGuardar(){
+  clearTimeout(_perfT);
+  _perfT=setTimeout(()=>{ try{ localStorage.setItem('ayj_perf',JSON.stringify({reqs:PERF.reqs.slice(-400),runs:PERF.runs.slice(-150),bench:PERF.bench.slice(-40)})); }catch(e){} },2500);
+}
+function perfEtiqueta(url,m){
+  let u; try{ u=new URL(url); }catch(e){ return {lista:'Otro',op:m}; }
+  const p=decodeURIComponent(u.pathname).replace(/^\/v1\.0/,'');
+  const nombres={}; [['Catálogo (TODAS_2025)',typeof listIdMaquinas!=='undefined'&&listIdMaquinas],['Cotizaciones',typeof listIdCotizaciones!=='undefined'&&listIdCotizaciones],['Clientes',typeof listIdClientes!=='undefined'&&listIdClientes],['Contactos',typeof listIdContactos!=='undefined'&&listIdContactos],['Liquidaciones',typeof listIdLiquidaciones!=='undefined'&&listIdLiquidaciones]].forEach(([n,id])=>{ if(id) nombres[id]=n; });
+  let mm;
+  if((mm=p.match(/\/lists\/([^/]+)\/(items|columns)(?:\/([^/]+))?(?:\/(fields))?/))){
+    const lista=nombres[mm[1]]||(/User Information/i.test(mm[1])?'Usuarios del sitio':'Otra lista');
+    const rec=mm[2]==='columns'?'columnas':mm[3]?(mm[4]?'una fila (campos)':'una fila'):'filas';
+    return {lista,op:m+' '+rec+(u.search.includes('skiptoken')||u.search.includes('%24skiptoken')?' (página siguiente)':'')};
+  }
+  if(/\/drive\/root:.*:\/content/.test(p)) return {lista:'Archivos SharePoint',op:m+' archivo'};
+  if(/\/drive\/root:/.test(p)) return {lista:'Archivos SharePoint',op:m+' carpeta'};
+  if(/\/shares\//.test(p)) return {lista:'Archivos SharePoint',op:m+' por enlace'};
+  if(/\/lists$/.test(p)) return {lista:'Sitio',op:m+' listas del sitio'};
+  if(/^\/sites\//.test(p)&&/:\/sites\//.test(p)) return {lista:'Sitio',op:m+' resolver sitio'};
+  if(/^\/me/.test(p)) return {lista:'Perfil',op:m+' /me'};
+  return {lista:'Otro Graph',op:m+' '+p.split('/').slice(0,4).join('/')};
+}
+(function(){
+  if(window.__perfFetch) return; window.__perfFetch=true;
+  const orig=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input&&input.url)||'';
+    if(!/graph\.microsoft\.com|sharepoint\.com/i.test(url)) return orig(input,init);
+    const m=String((init&&init.method)||(input&&input.method)||'GET').toUpperCase();
+    const act=PERF.activos.length?PERF.activos[PERF.activos.length-1].nombre:'(sin acción)';
+    const t0=performance.now();
+    let r;
+    try{ r=await orig(input,init); }
+    catch(e){ PERF.reqs.push({t:Date.now(),esc:act,...perfEtiqueta(url,m),ms:Math.round(performance.now()-t0),body:0,total:Math.round(performance.now()-t0),status:0,bytes:0,n:null}); perfGuardar(); throw e; }
+    const rec={t:Date.now(),esc:act,...perfEtiqueta(url,m),ms:Math.round(performance.now()-t0),body:0,total:0,status:r.status,bytes:+(r.headers.get('content-length')||0),n:null};
+    rec.total=rec.ms; PERF.reqs.push(rec); perfGuardar();
+    // el tiempo de descarga del cuerpo se mide cuando la app lo lee (json/text/blob/arrayBuffer)
+    const cierre=()=>{ rec.total=rec.ms+rec.body; perfGuardar(); };
+    const textOrig=typeof r.text==='function'?r.text:null;
+    ['json','text','blob','arrayBuffer'].forEach(k=>{
+      const f=r[k]; if(typeof f!=='function') return;
+      r[k]=async function(){
+        const s=performance.now();
+        try{
+          let v;
+          if(k==='json'&&textOrig){ const tx=await textOrig.call(r); if(!rec.bytes) rec.bytes=tx.length; v=JSON.parse(tx); }   // se lee como texto para conocer el peso
+          else v=await f.apply(r,arguments);
+          rec.body=Math.round(performance.now()-s);
+          if(k==='json'&&v&&Array.isArray(v.value)) rec.n=v.value.length;
+          if(!rec.bytes){ rec.bytes=k==='text'?(v||'').length:(v&&v.size)||0; }
+          cierre(); return v;
+        }catch(e){ rec.body=Math.round(performance.now()-s); cierre(); throw e; }
+      };
+    });
+    return r;
+  };
+})();
+function perfIni(nombre){ const r={nombre,t0:performance.now(),ini:Date.now()}; PERF.activos.push(r); return r; }
+function perfFin(r,ok){
+  const i=PERF.activos.indexOf(r); if(i>=0) PERF.activos.splice(i,1);
+  PERF.runs.push({nombre:r.nombre,ini:r.ini,ms:Math.round(performance.now()-r.t0),ok:ok!==false}); perfGuardar();
+}
+function perfEnvolver(fn,etiqueta){
+  const orig=window[fn]; if(typeof orig!=='function'||orig.__perf) return;
+  const w=function(){
+    const run=perfIni(etiqueta); let res;
+    try{ res=orig.apply(this,arguments); }catch(e){ perfFin(run,false); throw e; }
+    if(res&&typeof res.then==='function') return res.then(v=>{ perfFin(run,true); return v; },e=>{ perfFin(run,false); throw e; });
+    perfFin(run,true); return res;
+  };
+  w.__perf=true; window[fn]=w;
+}
+[['showApp','Arranque: inicio de sesión → app lista'],['resolverSite','Arranque: resolver sitio y listas'],['cargarMaquinas','Cargar catálogo (LISTS)'],['cargarClientes','Cargar clientes'],['cargarTRM','Cargar TRM'],
+ ['cargarHistorial','Cargar historial de ofertas'],['generarNumOferta','Generar consecutivo'],['guardarCotizacion','Guardar oferta (todo el proceso)'],['guardarHTMLEnSharePoint','Subir PDF a SharePoint'],
+ ['cargarDashboard','Cargar Inteligencia'],['cargarStock','Cargar Stock'],['pedidoConfirmar','Pedido: confirmar y escribir en LISTS'],['aplicarEstado','Cambiar estado de una oferta'],
+ ['editarOferta','Abrir oferta para editar'],['abrirPedidoIdx','Abrir pedido'],['cargarReservadasDe','Preparar máquinas reservadas'],
+ ['procesarCatalogo','Pantalla: procesar catálogo'],['renderCatalogo','Pantalla: pintar catálogo'],['filtrarHistorial','Pantalla: pintar historial'],['renderDashboard','Pantalla: pintar Inteligencia'],['generarPDF','Generar el PDF (HTML)']
+].forEach(([f,e])=>{ try{ perfEnvolver(f,e); }catch(x){} });
+// el arranque total (desde que se abrió la página hasta que la app quedó lista)
+(function(){ const f=window.showApp; if(typeof f!=='function') return; const w=window.showApp; window.showApp=function(){ const r=w.apply(this,arguments); if(r&&r.then) r.then(()=>{ if(PERF.arranqueMs==null){ PERF.arranqueMs=Math.round(performance.now()-PERF.boot); } },()=>{}); return r; }; window.showApp.__perf=true; })();
+
+// ── estadísticas ──
+function perfMed(a){ if(!a.length) return 0; const s=[...a].sort((x,y)=>x-y); const m=Math.floor(s.length/2); return s.length%2?s[m]:Math.round((s[m-1]+s[m])/2); }
+function perfP90(a){ if(!a.length) return 0; const s=[...a].sort((x,y)=>x-y); return s[Math.min(s.length-1,Math.floor(s.length*0.9))]; }
+function perfSeg(ms){ return ms>=1000?(ms/1000).toFixed(1)+' s':Math.round(ms)+' ms'; }
+function perfKB(b){ return b>=1048576?(b/1048576).toFixed(1)+' MB':b>0?Math.round(b/1024)+' KB':'—'; }
+function perfAgrupar(){
+  const ac={}; PERF.runs.forEach(r=>{ if(/^Prueba:/.test(r.nombre)) return; (ac[r.nombre]=ac[r.nombre]||[]).push(r.ms); });   // los pasos de "Medir ahora" tienen su propia tabla
+  const acciones=Object.keys(ac).map(n=>({nombre:n,n:ac[n].length,med:perfMed(ac[n]),p90:perfP90(ac[n]),max:Math.max(...ac[n]),ult:ac[n][ac[n].length-1]})).sort((a,b)=>b.med*b.n-a.med*a.n);
+  const lo={}; PERF.reqs.forEach(r=>{ const k=r.lista+' · '+r.op; (lo[k]=lo[k]||{k,ms:[],bytes:0,filas:0,err:0}); lo[k].ms.push(r.total); lo[k].bytes+=r.bytes||0; lo[k].filas+=r.n||0; if(!r.status||r.status>=400) lo[k].err++; });
+  const listas=Object.values(lo).map(x=>({k:x.k,n:x.ms.length,tot:x.ms.reduce((s,v)=>s+v,0),med:perfMed(x.ms),max:Math.max(...x.ms),bytes:x.bytes,filas:x.filas,err:x.err})).sort((a,b)=>b.tot-a.tot);
+  const lentas=[...PERF.reqs].sort((a,b)=>b.total-a.total).slice(0,10);
+  return {acciones,listas,lentas};
+}
+// ── prueba automática: solo lee ──
+async function perfMedir(){
+  if(PERF.midiendo) return; PERF.midiendo=true;
+  const res=[]; const mostrar=()=>{ PERF.bench=res.concat(PERF.bench.filter(b=>b.ts!==res[0]?.ts)); perfRender(); };
+  const ts=Date.now();
+  const paso=async(nombre,fn)=>{
+    const run=perfIni('Prueba: '+nombre), t0=performance.now();
+    try{ const o=await fn(); const ms=Math.round(performance.now()-t0); res.push({ts,nombre,ms,filas:o.filas||0,pags:o.pags||0,nota:o.nota||''}); perfFin(run,true); }
+    catch(e){ res.push({ts,nombre,ms:Math.round(performance.now()-t0),filas:0,pags:0,nota:'ERROR: '+e.message}); perfFin(run,false); }
+    mostrar();
+  };
+  const listaTodo=async(url)=>{ const n0=PERF.reqs.length; const filas=await graphGetAll(url); return {filas:filas.length,pags:PERF.reqs.length-n0}; };
+  try{
+    if(!siteId||!listIdCotizaciones||!listIdMaquinas) throw new Error('Inicia sesión y espera a que cargue el catálogo');
+    await paso('Latencia a Microsoft (5 llamadas mínimas /me)',async()=>{ const v=[]; for(let i=0;i<5;i++){ const s=performance.now(); await graphGet('/me?$select=id'); v.push(Math.round(performance.now()-s)); } return {nota:'cada una: '+v.join(', ')+' ms · mediana '+perfMed(v)+' ms'}; });
+    await paso('Catálogo completo, igual que la app (todas las columnas)',()=>listaTodo(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields&$top=200`));
+    await paso('Catálogo solo con las columnas necesarias',()=>listaTodo(`/sites/${siteId}/lists/${listIdMaquinas}/items?expand=fields($select=Title,ESTADO_,ESTADO,ID_MQ,TARIFA,Modelo)&$top=200`));
+    await paso('Cotizaciones completas, igual que la app (todas las columnas)',()=>listaTodo(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields&$top=500`));
+    await paso('Cotizaciones solo con las columnas del listado (sin el JSON de ítems)',()=>listaTodo(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields($select=Title,Estado,Cliente,Vendedor,GranTotal,${SP_COLS_COT.FechaSeguimiento})&$top=500`));
+    await paso('Cotizaciones: solo el N° (lo que necesita el consecutivo)',()=>listaTodo(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields($select=Title)&$top=500`));
+    await paso('Cotizaciones: 1 sola fila (la última), como si hubiera un contador',async()=>{ const j=await graphGet(`/sites/${siteId}/lists/${listIdCotizaciones}/items?$orderby=id desc&$top=1&expand=fields($select=Title)`); return {filas:(j.value||[]).length,pags:1,nota:'requiere ordenar por id (sin filtro de columna)'}; });
+    if(listIdClientes) await paso('Clientes completos, igual que la app',()=>listaTodo(`/sites/${siteId}/lists/${listIdClientes}/items?expand=fields&$top=500`));
+    await paso('Cotizaciones: páginas de 999 filas (menos viajes)',async()=>{ const n0=PERF.reqs.length; const f=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields($select=Title,Estado)&$top=999`); return {filas:f.length,pags:PERF.reqs.length-n0}; });
+  }catch(e){ showToast('Prueba de velocidad: '+e.message,'error'); }
+  PERF.midiendo=false; perfGuardar(); perfRender();
+}
+// ── pantalla ──
+function perfInfoEquipo(){
+  const c=navigator.connection||{};
+  return {usuario:(typeof currentUserName!=='undefined'?currentUserName:''),navegador:navigator.userAgent.replace(/\s+/g,' ').slice(0,110),red:[c.effectiveType,c.downlink?c.downlink+' Mbps':'',c.rtt?c.rtt+' ms (rtt)':''].filter(Boolean).join(' · ')||'sin dato',pantalla:innerWidth+'x'+innerHeight,fecha:new Date().toLocaleString('es-CO'),arranque:PERF.arranqueMs};
+}
+function perfRender(){
+  const m=document.getElementById('modalPerf'); if(!m) return;
+  const g=perfAgrupar(), inf=perfInfoEquipo();
+  const th=t=>'<th style="text-align:left;font-size:11px;padding:4px 6px;color:var(--text2)">'+t+'</th>', td=(t,r)=>'<td style="padding:4px 6px;font-size:12px;'+(r?'text-align:right;':'')+'border-top:1px solid var(--border)">'+t+'</td>';
+  const tabla=(cab,filas)=>'<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr>'+cab.map(th).join('')+'</tr></thead><tbody>'+(filas.join('')||'<tr><td colspan="'+cab.length+'" style="padding:8px;color:var(--text3);font-size:12px">Sin datos todavía: usa la app y vuelve aquí, o pulsa "Medir ahora".</td></tr>')+'</tbody></table>';
+  const bench=PERF.bench.length?(()=>{ const ult=Math.max(...PERF.bench.map(b=>b.ts)); return PERF.bench.filter(b=>b.ts===ult); })():[];
+  m.querySelector('.perf-body').innerHTML=
+    '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">'+evEsc(inf.usuario)+' · red: '+evEsc(inf.red)+' · arranque total: <b>'+(inf.arranque!=null?perfSeg(inf.arranque):'—')+'</b> · '+PERF.reqs.length+' peticiones y '+PERF.runs.length+' acciones registradas</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn-primary" '+(PERF.midiendo?'disabled ':'')+'onclick="perfMedir()">'+(PERF.midiendo?'Midiendo…':'▶ Medir ahora (solo lee, tarda ~30 s)')+'</button><button class="btn-sec" onclick="perfCopiar()">📋 Copiar informe</button><button class="btn-sec" onclick="perfCsv()">⬇ CSV de peticiones</button><button class="btn-sec" style="color:#DC2626" onclick="perfBorrar()">🗑 Borrar datos</button></div>'
+    +(bench.length?'<h4 style="margin:6px 0">Prueba "Medir ahora" (última)</h4>'+tabla(['Qué se midió','Tiempo','Filas','Peticiones','Nota'],bench.map(b=>'<tr>'+td(evEsc(b.nombre))+td('<b>'+perfSeg(b.ms)+'</b>',1)+td(b.filas||'—',1)+td(b.pags||'—',1)+td(evEsc(b.nota||''))+'</tr>')):'')
+    +'<h4 style="margin:6px 0">Acciones de la app (ordenadas por tiempo total acumulado)</h4>'+tabla(['Acción','Veces','Mediana','P90','Máx.','Última'],g.acciones.map(a=>'<tr>'+td(evEsc(a.nombre))+td(a.n,1)+td('<b>'+perfSeg(a.med)+'</b>',1)+td(perfSeg(a.p90),1)+td(perfSeg(a.max),1)+td(perfSeg(a.ult),1)+'</tr>'))
+    +'<h4 style="margin:6px 0">Peticiones por lista y operación</h4>'+tabla(['Lista · operación','Veces','Tiempo total','Mediana','Máx.','Peso','Filas','Errores'],g.listas.map(l=>'<tr>'+td(evEsc(l.k))+td(l.n,1)+td('<b>'+perfSeg(l.tot)+'</b>',1)+td(perfSeg(l.med),1)+td(perfSeg(l.max),1)+td(perfKB(l.bytes),1)+td(l.filas||'—',1)+td(l.err||'',1)+'</tr>'))
+    +'<h4 style="margin:6px 0">Las 10 peticiones más lentas</h4>'+tabla(['Hora','Acción','Lista · operación','Tiempo','Peso','Filas'],g.lentas.map(r=>'<tr>'+td(new Date(r.t).toLocaleTimeString('es-CO'))+td(evEsc(r.esc))+td(evEsc(r.lista+' · '+r.op))+td('<b>'+perfSeg(r.total)+'</b>',1)+td(perfKB(r.bytes),1)+td(r.n!=null?r.n:'—',1)+'</tr>'));
+}
+function perfAbrir(){
+  if(document.getElementById('modalPerf')) return;
+  const m=document.createElement('div'); m.id='modalPerf'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:570;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:980px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⏱ Diagnóstico de velocidad</strong><button onclick="document.getElementById(\'modalPerf\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div><div class="perf-body" style="padding:14px 18px;overflow-y:auto;flex:1"></div></div>';
+  document.body.appendChild(m); perfRender();
+}
+function perfInforme(){
+  const g=perfAgrupar(), inf=perfInfoEquipo(), L=[];
+  L.push('INFORME DE VELOCIDAD — Cotizador AYJ · '+inf.fecha);
+  L.push('Usuario: '+inf.usuario+' | Red: '+inf.red+' | Pantalla: '+inf.pantalla+' | Arranque total: '+(inf.arranque!=null?perfSeg(inf.arranque):'sin dato'));
+  L.push('Navegador: '+inf.navegador); L.push('');
+  const ult=PERF.bench.length?Math.max(...PERF.bench.map(b=>b.ts)):0;
+  if(ult){ L.push('== PRUEBA "MEDIR AHORA" =='); PERF.bench.filter(b=>b.ts===ult).forEach(b=>L.push('- '+b.nombre+': '+perfSeg(b.ms)+(b.filas?' · '+b.filas+' filas':'')+(b.pags?' · '+b.pags+' peticiones':'')+(b.nota?' · '+b.nota:''))); L.push(''); }
+  L.push('== ACCIONES (veces · mediana · p90 · máx) ==');
+  g.acciones.forEach(a=>L.push('- '+a.nombre+': '+a.n+' · '+perfSeg(a.med)+' · '+perfSeg(a.p90)+' · '+perfSeg(a.max)));
+  L.push(''); L.push('== PETICIONES POR LISTA Y OPERACIÓN (veces · tiempo total · mediana · máx · peso · filas · errores) ==');
+  g.listas.forEach(l=>L.push('- '+l.k+': '+l.n+' · '+perfSeg(l.tot)+' · '+perfSeg(l.med)+' · '+perfSeg(l.max)+' · '+perfKB(l.bytes)+' · '+(l.filas||0)+' · '+l.err));
+  L.push(''); L.push('== 10 PETICIONES MÁS LENTAS ==');
+  g.lentas.forEach(r=>L.push('- '+new Date(r.t).toLocaleTimeString('es-CO')+' · '+r.esc+' · '+r.lista+' · '+r.op+' · '+perfSeg(r.total)+' ('+perfKB(r.bytes)+(r.n!=null?', '+r.n+' filas':'')+')'));
+  return L.join('\n');
+}
+async function perfCopiar(){
+  const t=perfInforme();
+  try{ await navigator.clipboard.writeText(t); showToast('Informe copiado: pégalo en el chat','success'); }
+  catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand('copy'); showToast('Informe copiado: pégalo en el chat','success'); }catch(x){ showToast('No se pudo copiar; usa el CSV','error'); } a.remove(); }
+}
+function perfCsv(){
+  const cab='Hora;Acción;Lista;Operación;Estado HTTP;Espera ms;Descarga ms;Total ms;Bytes;Filas';
+  const csv=[cab].concat(PERF.reqs.map(r=>[new Date(r.t).toLocaleString('es-CO'),r.esc,r.lista,r.op,r.status,r.ms,r.body,r.total,r.bytes||'',r.n!=null?r.n:''].map(x=>String(x).replace(/[;\r\n]+/g,' ')).join(';'))).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download='velocidad-cotizador.csv'; document.body.appendChild(a); a.click(); a.remove();
+}
+function perfBorrar(){
+  if(!confirm('¿Borrar todos los datos de velocidad guardados en este navegador?')) return;
+  PERF.reqs.length=0; PERF.runs.length=0; PERF.bench.length=0; try{ localStorage.removeItem('ayj_perf'); }catch(e){} perfRender();
 }
 
 // ── EVENTO (Open House / ferias) ──────────────────────────────────────────────────────────────────────
