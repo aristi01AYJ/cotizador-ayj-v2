@@ -314,6 +314,8 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div class="nav-menu">
         <button id="navStock" onclick="switchView('stock')"><i class="ti ti-package"></i> Stock</button>
         <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
+        <button id="navPorEntregar" onclick="vvAbrir('pend')" title="Máquinas vendidas que todavía no se han entregado"><i class="ti ti-truck-delivery"></i> Por entregar</button>
+        <button id="navVendidas" onclick="vvAbrir('todas')" title="Histórico de máquinas vendidas y entregadas"><i class="ti ti-history"></i> Vendidas y entregadas</button>
         <button id="navFotos" onclick="evFotosAbrir()" title="Fotos de las máquinas: súbelas una a una o en lote; viajan a la columna Foto de LISTS"><i class="ti ti-camera"></i> Fotos</button>
         </div></div>
       <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
@@ -709,6 +711,25 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
         <div id="segVencidosWrap"></div>
         <div id="segRangoWrap"></div>
+      </div>
+    </div>
+
+    <!-- VENDIDAS: por entregar / vendidas y entregadas (Inventario) -->
+    <div id="ventasView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
+        <strong id="vvTitulo" style="font-size:15px;align-self:center">🚚 Vendidas — pendientes de entregar</strong>
+        <div class="field-group"><label>Buscar</label><input type="text" id="vvBuscar" placeholder="Máquina, serial, cliente, pedido…" oninput="VV.q=this.value;vvRender()" style="min-width:210px"></div>
+        <div class="field-group"><label>Marca</label><select id="vvMarca" onchange="VV.marca=this.value;vvRender()" style="min-width:140px"><option value="">Todas las marcas</option></select></div>
+        <div class="field-group"><label>Año</label><select id="vvAnio" onchange="VV.anio=this.value;vvRender()" style="min-width:110px;display:none"><option value="">Todos los años</option></select></div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);margin-left:auto;white-space:nowrap" title="Muestra solo las ventas a tu nombre. Desmárcalo para ver las de todos los asesores.">
+          <input type="checkbox" id="vvMias" checked onchange="VV.mias=this.checked;vvRender()" style="cursor:pointer"> Mis ventas
+        </label>
+        <button class="btn-sec" onclick="vvCsv()" title="Descargar lo que se ve en pantalla"><i class="ti ti-download"></i> CSV</button>
+        <button class="btn-sec" onclick="vvRefrescar()" title="Volver a leer de LISTS"><i class="ti ti-refresh"></i></button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
+        <div id="vvKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px"></div>
+        <div id="vvBody"></div>
       </div>
     </div>
 
@@ -3983,6 +4004,7 @@ function switchView(v){
   document.getElementById('clientesView').style.display=v==='clientes'?'flex':'none';
   document.getElementById('seguimientoView').style.display=v==='seguimiento'?'flex':'none';
   document.getElementById('reservadasView').style.display=v==='reservadas'?'flex':'none';
+  document.getElementById('ventasView').style.display=v==='ventas'?'flex':'none';
   document.getElementById('eventoView').style.display=v==='evento'?'flex':'none';
   document.body.classList.toggle('modo-evento',v==='evento');
   if(v!=='evento'&&typeof EV!=='undefined'&&EV.admin&&!document.getElementById('modalEvConfig')) EV.admin=false;
@@ -3992,14 +4014,16 @@ function switchView(v){
   if(v==='stock')cargarStock();
   // Ocultar sidebar en vistas de pantalla completa
   const sidebar=document.querySelector('.sidebar');
-  if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock'||v==='evento')?'none':'';
-  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navEvento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
+  if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock'||v==='evento'||v==='ventas')?'none':'';
+  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navPorEntregar','navVendidas','navEvento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
   const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',reservadas:'navReservadas',evento:'navEvento',dashboard:'navDashboard',stock:'navStock'};
   if(navMap[v])document.getElementById(navMap[v]).className='active';
+  if(v==='ventas'){ const el=document.getElementById(VV.modo==='pend'?'navPorEntregar':'navVendidas'); if(el) el.className='active'; }
   if(v==='historial')cargarHistorial();
   if(v==='clientes')renderTablaClientes();
   if(v==='seguimiento') abrirSeguimiento();
   if(v==='reservadas') renderReservadas();
+  if(v==='ventas') vvPrepara();
   if(v==='evento') abrirEvento();
   // Sincronizar tabs móvil
   if(esMobil()){
@@ -6451,13 +6475,16 @@ async function vrCargar(){
       if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
       const obs=String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
       const m=obs.match(/COT-\d{4}-\d+(?:-R\d+)?/i);
-      const fr=i.lastModifiedDateTime||f.Modified||null;
-      return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
+      let fr=i.lastModifiedDateTime||f.Modified||null;
+      const estadoFila=String(f.ESTADO_||'').trim().toUpperCase();
+      const me=obs.match(/Entregada:\s*(\d{4}-\d{2}-\d{2})/i);   // si se marcó con el botón "Entregada", se respeta la fecha elegida
+      if(estadoFila==='ENTREGADA'&&me) fr=me[1]+'T12:00:00';
+      return {obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
         tip:String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),estado:String(f.ESTADO_||'').trim().toUpperCase(),cliente:String(cliente||'').trim(),vendedor:'',
         pedido:String(f.PEDIDOSYNERGY||'').trim(),cot:m?m[0].toUpperCase():'',tarifa:tarifaDe(f),fecha:fr?new Date(fr):null};
     });
     await resolverVendedoresReservas(items,filas);   // llena .vendedor (columna Vendedor; si está vacía, quien modificó el registro)
-    VR.rows=filas;
+    VR.rows=filas; VR.ts=Date.now();
   }catch(e){ VR.error=e.message; }
   VR.cargando=false; vrRender();
 }
@@ -6510,6 +6537,100 @@ function vrRender(){
       +(pend.slice(0,60).map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ)+'</td><td style="font-size:12px">'+_escRes(r.cliente||'—')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td><td style="text-align:right;font-weight:700;color:'+(r.dias==null?'var(--text3)':r.dias>60?'#DC2626':r.dias>30?'#B45309':'inherit')+'">'+(r.dias==null?'—':r.dias)+'</td></tr>').join('')||'<tr><td colspan="6" style="padding:10px;color:var(--text3)">No hay vendidas pendientes de entrega.</td></tr>')
     +'</tbody></table></div>'
     +'<div style="font-size:11px;color:var(--text3);margin-top:8px">Calidad de los datos en LISTS ('+todas.length+' máquinas): con cliente '+pc(r=>r.cliente)+' · con asesor '+pc(r=>r.vendedor)+' · con N° de pedido '+pc(r=>r.pedido)+' · con N° de cotización '+pc(r=>r.cot)+' · con fecha '+pc(r=>r.fecha)+'.</div>';
+}
+
+// ── INVENTARIO: "Por entregar" (VENDIDA) y "Vendidas y entregadas" (VENDIDA + ENTREGADA) ──
+// Una sola vista (#ventasView) con dos modos; comparte con Inteligencia → Ventas reales los datos de VR (se releen si pasaron >5 min). Fecha = columna Modificado.
+const VV={modo:'pend',q:'',mias:true,anio:'',marca:'',listo:false};
+function vvAbrir(modo){ VV.modo=modo; VV.q=''; VV.anio=''; VV.marca=''; VV.listo=false; const b=document.getElementById('vvBuscar'); if(b) b.value=''; switchView('ventas'); }
+async function vvPrepara(){
+  vvRender();
+  const viejo=!VR.rows||!VR.ts||(Date.now()-VR.ts>300000);
+  if(viejo&&!VR.cargando) await vrCargar();
+  VV.listo=true; vvOpciones(); vvRender();
+}
+function vvRefrescar(){ VR.rows=null; VV.listo=false; vvPrepara(); }
+function vvOpciones(){
+  const rows=(VR.rows||[]).filter(r=>VV.modo==='pend'?r.estado==='VENDIDA':true);
+  const m=document.getElementById('vvMarca'), a=document.getElementById('vvAnio');
+  if(m){ const v=VV.marca; m.innerHTML='<option value="">Todas las marcas</option>'+[...new Set(rows.map(r=>r.marca).filter(Boolean))].sort().map(x=>'<option'+(x===v?' selected':'')+'>'+_escRes(x)+'</option>').join(''); }
+  if(a){ const v=VV.anio; a.innerHTML='<option value="">Todos los años</option>'+[...new Set(rows.map(r=>r.fecha?String(r.fecha.getFullYear()):'Sin fecha'))].sort().reverse().map(x=>'<option'+(x===v?' selected':'')+'>'+x+'</option>').join(''); a.style.display=''; a.parentElement.style.display=VV.modo==='pend'?'none':''; }
+}
+function vvFiltradas(){
+  const q=(VV.q||'').toLowerCase().trim(), rows=VR.rows||[];
+  return rows.filter(r=>{
+    if(VV.modo==='pend'&&r.estado!=='VENDIDA') return false;
+    if(VV.mias&&!_esMiaReserva(r)) return false;
+    if(VV.marca&&r.marca!==VV.marca) return false;
+    if(VV.anio&&(r.fecha?String(r.fecha.getFullYear()):'Sin fecha')!==VV.anio) return false;
+    if(q&&![r.titulo,r.idMQ,r.cliente,r.vendedor,r.pedido,r.cot,r.marca,r.tip].join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  }).map(r=>({...r,dias:r.fecha?Math.floor((Date.now()-r.fecha)/86400000):null}))
+    .sort((a,b)=>VV.modo==='pend'?((b.dias??-1)-(a.dias??-1)):((b.fecha||0)-(a.fecha||0)));
+}
+function vvRender(){
+  const body=document.getElementById('vvBody'), kp=document.getElementById('vvKpis'), ti=document.getElementById('vvTitulo'); if(!body) return;
+  if(ti) ti.textContent=VV.modo==='pend'?'🚚 Vendidas — pendientes de entregar':'📦 Vendidas y entregadas';
+  const cb=document.getElementById('vvMias'); if(cb) cb.checked=VV.mias;
+  if(VR.cargando||(!VR.rows&&!VR.error)){ kp.innerHTML=''; body.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Leyendo las máquinas vendidas de LISTS…</div>'; return; }
+  if(VR.error){ kp.innerHTML=''; body.innerHTML='<div style="color:var(--red)">Error: '+_escRes(VR.error)+' <button class="btn-sec" onclick="vvRefrescar()">Reintentar</button></div>'; return; }
+  const d=vvFiltradas(), pend=d.filter(r=>r.estado==='VENDIDA'), ent=d.filter(r=>r.estado==='ENTREGADA');
+  const kpi=(t,n,c,s)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:24px;font-weight:800;color:'+c+'">'+n+'</div>'+(s?'<div style="font-size:11px;color:var(--text3)">'+s+'</div>':'')+'</div>';
+  const valor='USD '+Math.round(d.reduce((s,r)=>s+r.tarifa,0)).toLocaleString('es-CO');
+  kp.innerHTML=VV.modo==='pend'
+    ?kpi('Por entregar',pend.length,'#B45309','máquinas vendidas')+kpi('Más de 30 días',pend.filter(r=>r.dias>30).length,'#B45309','desde la venta')+kpi('Más de 60 días',pend.filter(r=>r.dias>60).length,'#DC2626','requieren atención')+kpi('Valor a tarifa',valor,'#1D4ED8','precio de lista')
+    :kpi('Unidades',d.length,'#575756','vendidas + entregadas')+kpi('Por entregar',pend.length,'#B45309','todavía en curso')+kpi('Entregadas',ent.length,'#166534','')+kpi('Valor a tarifa',valor,'#1D4ED8','precio de lista');
+  const chip=e=>e==='ENTREGADA'?'<span style="background:#DCFCE7;color:#166534;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">Entregada</span>':'<span style="background:#FEF3C7;color:#92400E;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">Por entregar</span>';
+  const MAX=300, ver=d.slice(0,MAX);
+  body.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Fecha de venta/entrega = columna <b>Modificado</b> de LISTS · '+d.length+' máquina(s)'+(d.length>MAX?' (se muestran las primeras '+MAX+'; usa los filtros o el CSV)':'')+'</div>'
+    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Cliente</th><th>Asesor</th><th>Pedido / Cotización</th>'+(VV.modo==='pend'?'':'<th>Estado</th>')+'<th>Fecha</th><th style="text-align:right">Días</th><th></th></tr></thead><tbody>'
+    +(ver.map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(r.cliente||'—')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td>'
+      +(VV.modo==='pend'?'':'<td>'+chip(r.estado)+'</td>')
+      +'<td style="font-size:12px;white-space:nowrap">'+(r.fecha?r.fecha.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—')+'</td><td style="text-align:right;font-weight:700;color:'+(r.estado!=='VENDIDA'||r.dias==null?'var(--text3)':r.dias>60?'#DC2626':r.dias>30?'#B45309':'inherit')+'">'+(r.dias==null?'—':r.dias)+'</td>'
+      +'<td style="white-space:nowrap">'+(r.estado==='VENDIDA'?'<button class="btn-sec" onclick="vvEntregar(\''+r.id+'\')" title="Marcar esta máquina como ENTREGADA y registrar la fecha" style="border-color:#16A34A;color:#166534;font-size:12px;padding:3px 9px">✓ Entregada</button> ':'')+'<a href="https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(r.id)+'" target="_blank" title="Abrir este registro en SharePoint" style="color:var(--text2);font-size:15px"><i class="ti ti-external-link"></i></a></td></tr>').join('')||'<tr><td colspan="9" style="padding:14px;color:var(--text3)">'+(VV.modo==='pend'?'No hay máquinas vendidas pendientes de entrega con estos filtros.':'No hay máquinas con estos filtros.')+'</td></tr>')
+    +'</tbody></table>';
+}
+// Botón "✓ Entregada": VENDIDA → ENTREGADA en LISTS con la fecha de entrega (hoy por defecto). Además de que SharePoint actualiza "Modificado",
+// la fecha queda anotada en Observaciones ("Entregada: AAAA-MM-DD") para que no se pierda si alguien edita el registro después.
+function vvEntregar(id){
+  const r=(VR.rows||[]).find(x=>x.id===id); if(!r) return;
+  const hoy=new Date(); const iso=new Date(hoy.getTime()-hoy.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const m=document.createElement('div'); m.id='vvModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:420px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="font-size:15px;font-weight:700;margin-bottom:10px">✓ Marcar como entregada</div>'
+    +'<div style="font-size:13px;margin-bottom:12px"><strong>'+_escRes(r.titulo)+'</strong><div style="color:var(--text2);font-size:12px">Serial '+_escRes(r.idMQ||'—')+' · '+_escRes(r.cliente||'sin cliente')+(r.pedido?' · Pedido '+_escRes(r.pedido):'')+'</div></div>'
+    +'<label style="font-size:12px;font-weight:700">Fecha de entrega</label><input type="date" id="vvFecha" value="'+iso+'" max="'+iso+'" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 12px;font-family:inherit">'
+    +'<div style="font-size:11px;color:var(--text2);margin-bottom:12px">Cambia el estado en LISTS de VENDIDA a ENTREGADA. La máquina deja de aparecer en "Por entregar".</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'vvModal\').remove()">Cancelar</button><button class="btn-primary" id="vvOk" onclick="vvEntregarOk(\''+id+'\')">Marcar entregada</button></div></div>';
+  document.body.appendChild(m);
+}
+async function vvEntregarOk(id){
+  const r=(VR.rows||[]).find(x=>x.id===id); const f=document.getElementById('vvFecha')?.value; const btn=document.getElementById('vvOk');
+  if(!r||!f){ showToast('Elige la fecha de entrega','error'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    const cols=await columnasCatalogo();
+    const colE=cols.find(c=>c.name==='ESTADO_'); let valor='ENTREGADA';
+    if(colE&&colE.choice&&Array.isArray(colE.choice.choices)){
+      const op=colE.choice.choices.find(x=>/^entregada$/i.test(String(x).trim()));
+      if(op) valor=op; else throw new Error('La columna ESTADO_ no tiene la opción ENTREGADA en LISTS');
+    }
+    const previa=String(r.obsRaw||'').trim();
+    const nota='Entregada: '+f;
+    const obs=/Entregada:\s*\d{4}-\d{2}-\d{2}/i.test(previa)?previa.replace(/Entregada:\s*\d{4}-\d{2}-\d{2}/i,nota):(previa?previa+' | ':'')+nota;
+    const descartadas=await patchUnidadResiliente(id,{ESTADO_:valor,Observaciones:obs});
+    r.estado='ENTREGADA'; r.fecha=new Date(f+'T12:00:00'); r.obsRaw=obs;
+    document.getElementById('vvModal')?.remove();
+    showToast(descartadas.length?'⚠ Quedó ENTREGADA, pero no se pudo anotar la fecha en: '+descartadas.join(', '):'✓ '+r.titulo+' marcada como entregada ('+f+')',descartadas.length?'error':'success');
+    VV.listo=true; vvOpciones(); vvRender();
+    if(document.getElementById('vrContenido')) vrRender();
+  }catch(e){ showToast('No se pudo marcar como entregada: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Marcar entregada'; } }
+}
+function vvCsv(){
+  const d=vvFiltradas(); const lim=v=>String(v==null?'':v).replace(/[;\r\n]+/g,' ').trim();
+  const csv=['Máquina;Marca;Tipología;Serial;Cliente;Asesor;Pedido;Cotización;Estado;Fecha (Modificado);Días'].concat(d.map(r=>[r.titulo,r.marca,r.tip,r.idMQ,r.cliente,asesorLabel(r.vendedor),r.pedido,r.cot,r.estado,r.fecha?r.fecha.toLocaleDateString('es-CO'):'',r.dias==null?'':r.dias].map(lim).join(';'))).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download=(VV.modo==='pend'?'vendidas-por-entregar':'vendidas-y-entregadas')+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); showToast(d.length+' máquinas → '+a.download,'success');
 }
 
 // ── TRM: mini gráfica de los últimos 30 días (datos.gov.co, Banco de la República) ──
