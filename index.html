@@ -721,9 +721,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div class="field-group"><label>Buscar</label><input type="text" id="vvBuscar" placeholder="Máquina, serial, cliente, pedido…" oninput="VV.q=this.value;vvRender()" style="min-width:210px"></div>
         <div class="field-group"><label>Marca</label><select id="vvMarca" onchange="VV.marca=this.value;vvRender()" style="min-width:140px"><option value="">Todas las marcas</option></select></div>
         <div class="field-group"><label>Año</label><select id="vvAnio" onchange="VV.anio=this.value;vvRender()" style="min-width:110px;display:none"><option value="">Todos los años</option></select></div>
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);margin-left:auto;white-space:nowrap" title="Muestra solo las ventas a tu nombre. Desmárcalo para ver las de todos los asesores.">
-          <input type="checkbox" id="vvMias" checked onchange="VV.mias=this.checked;vvRender()" style="cursor:pointer"> Mis ventas
-        </label>
+        <div class="field-group" style="margin-left:auto"><label>Asesor</label><select id="vvAsesor" onchange="VV.asesor=this.value;vvRender()" style="min-width:160px"><option value="">Todos los asesores</option></select></div>
         <button class="btn-sec" onclick="vvCsv()" title="Descargar lo que se ve en pantalla"><i class="ti ti-download"></i> CSV</button>
         <button class="btn-sec" onclick="vvRefrescar()" title="Volver a leer de LISTS"><i class="ti ti-refresh"></i></button>
       </div>
@@ -6542,7 +6540,7 @@ function vrRender(){
 
 // ── INVENTARIO: "Por entregar" (VENDIDA) y "Vendidas y entregadas" (VENDIDA + ENTREGADA) ──
 // Una sola vista (#ventasView) con dos modos; comparte con Inteligencia → Ventas reales los datos de VR (se releen si pasaron >5 min). Fecha = columna Modificado.
-const VV={modo:'pend',q:'',mias:true,anio:'',marca:'',listo:false};
+const VV={modo:'pend',q:'',asesor:null,anio:'',marca:'',listo:false};   // asesor: null = aún sin elegir (por defecto, el del usuario); '' = todos
 function vvAbrir(modo){ VV.modo=modo; VV.q=''; VV.anio=''; VV.marca=''; VV.listo=false; const b=document.getElementById('vvBuscar'); if(b) b.value=''; switchView('ventas'); }
 async function vvPrepara(){
   vvRender();
@@ -6553,6 +6551,13 @@ async function vvPrepara(){
 function vvRefrescar(){ VR.rows=null; VV.listo=false; vvPrepara(); }
 function vvOpciones(){
   const rows=(VR.rows||[]).filter(r=>VV.modo==='pend'?r.estado==='VENDIDA':true);
+  const s=document.getElementById('vvAsesor');
+  if(s){
+    const nombres=[...new Set(rows.map(r=>asesorLabel(r.vendedor)))].sort((x,y)=>x.localeCompare(y,'es'));
+    const mio=(typeof asesorLabel==='function'&&typeof currentUserName!=='undefined')?asesorLabel(currentUserName):'';
+    if(VV.asesor===null) VV.asesor=nombres.includes(mio)?mio:'';   // por defecto: mis ventas (si tengo); desde el selector se elige "Todos" u otro asesor
+    s.innerHTML='<option value="">Todos los asesores</option>'+nombres.map(n=>'<option value="'+_escRes(n)+'"'+(n===VV.asesor?' selected':'')+'>'+_escRes(n==='—'?'Sin asesor':n)+'</option>').join('');
+  }
   const m=document.getElementById('vvMarca'), a=document.getElementById('vvAnio');
   if(m){ const v=VV.marca; m.innerHTML='<option value="">Todas las marcas</option>'+[...new Set(rows.map(r=>r.marca).filter(Boolean))].sort().map(x=>'<option'+(x===v?' selected':'')+'>'+_escRes(x)+'</option>').join(''); }
   if(a){ const v=VV.anio; a.innerHTML='<option value="">Todos los años</option>'+[...new Set(rows.map(r=>r.fecha?String(r.fecha.getFullYear()):'Sin fecha'))].sort().reverse().map(x=>'<option'+(x===v?' selected':'')+'>'+x+'</option>').join(''); a.style.display=''; a.parentElement.style.display=VV.modo==='pend'?'none':''; }
@@ -6561,7 +6566,7 @@ function vvFiltradas(){
   const q=(VV.q||'').toLowerCase().trim(), rows=VR.rows||[];
   return rows.filter(r=>{
     if(VV.modo==='pend'&&r.estado!=='VENDIDA') return false;
-    if(VV.mias&&!_esMiaReserva(r)) return false;
+    if(VV.asesor&&asesorLabel(r.vendedor)!==VV.asesor) return false;
     if(VV.marca&&r.marca!==VV.marca) return false;
     if(VV.anio&&(r.fecha?String(r.fecha.getFullYear()):'Sin fecha')!==VV.anio) return false;
     if(q&&![r.titulo,r.idMQ,r.cliente,r.vendedor,r.pedido,r.cot,r.marca,r.tip,r.obs].join(' ').toLowerCase().includes(q)) return false;
@@ -6572,7 +6577,6 @@ function vvFiltradas(){
 function vvRender(){
   const body=document.getElementById('vvBody'), kp=document.getElementById('vvKpis'), ti=document.getElementById('vvTitulo'); if(!body) return;
   if(ti) ti.textContent=VV.modo==='pend'?'🚚 Vendidas — pendientes de entregar':'📦 Vendidas y entregadas';
-  const cb=document.getElementById('vvMias'); if(cb) cb.checked=VV.mias;
   if(VR.cargando||(!VR.rows&&!VR.error)){ kp.innerHTML=''; body.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Leyendo las máquinas vendidas de LISTS…</div>'; return; }
   if(VR.error){ kp.innerHTML=''; body.innerHTML='<div style="color:var(--red)">Error: '+_escRes(VR.error)+' <button class="btn-sec" onclick="vvRefrescar()">Reintentar</button></div>'; return; }
   const d=vvFiltradas(), pend=d.filter(r=>r.estado==='VENDIDA'), ent=d.filter(r=>r.estado==='ENTREGADA');
