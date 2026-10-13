@@ -6472,14 +6472,15 @@ async function vrCargar(){
     const filas=items.map(i=>{
       const f=i.fields||{};
       let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
-      if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
       const obs=String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
+      if(!cliente){ const mc=obs.match(/Cliente:\s*([^·|]+)/i); if(mc) cliente=mc[1].trim(); }   // en registros viejos el cliente quedaba anotado en Observaciones
       const m=obs.match(/COT-\d{4}-\d+(?:-R\d+)?/i);
       let fr=i.lastModifiedDateTime||f.Modified||null;
       const estadoFila=String(f.ESTADO_||'').trim().toUpperCase();
       const me=obs.match(/Entregada:\s*(\d{4}-\d{2}-\d{2})/i);   // si se marcó con el botón "Entregada", se respeta la fecha elegida
       if(estadoFila==='ENTREGADA'&&me) fr=me[1]+'T12:00:00';
-      return {obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
+      return {obs,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
         tip:String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),estado:String(f.ESTADO_||'').trim().toUpperCase(),cliente:String(cliente||'').trim(),vendedor:'',
         pedido:String(f.PEDIDOSYNERGY||'').trim(),cot:m?m[0].toUpperCase():'',tarifa:tarifaDe(f),fecha:fr?new Date(fr):null};
     });
@@ -6563,7 +6564,7 @@ function vvFiltradas(){
     if(VV.mias&&!_esMiaReserva(r)) return false;
     if(VV.marca&&r.marca!==VV.marca) return false;
     if(VV.anio&&(r.fecha?String(r.fecha.getFullYear()):'Sin fecha')!==VV.anio) return false;
-    if(q&&![r.titulo,r.idMQ,r.cliente,r.vendedor,r.pedido,r.cot,r.marca,r.tip].join(' ').toLowerCase().includes(q)) return false;
+    if(q&&![r.titulo,r.idMQ,r.cliente,r.vendedor,r.pedido,r.cot,r.marca,r.tip,r.obs].join(' ').toLowerCase().includes(q)) return false;
     return true;
   }).map(r=>({...r,dias:r.fecha?Math.floor((Date.now()-r.fecha)/86400000):null}))
     .sort((a,b)=>VV.modo==='pend'?((b.dias??-1)-(a.dias??-1)):((b.fecha||0)-(a.fecha||0)));
@@ -6583,11 +6584,12 @@ function vvRender(){
   const chip=e=>e==='ENTREGADA'?'<span style="background:#DCFCE7;color:#166534;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">Entregada</span>':'<span style="background:#FEF3C7;color:#92400E;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">Por entregar</span>';
   const MAX=300, ver=d.slice(0,MAX);
   body.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Fecha de venta/entrega = columna <b>Modificado</b> de LISTS · '+d.length+' máquina(s)'+(d.length>MAX?' (se muestran las primeras '+MAX+'; usa los filtros o el CSV)':'')+'</div>'
-    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Cliente</th><th>Asesor</th><th>Pedido / Cotización</th>'+(VV.modo==='pend'?'':'<th>Estado</th>')+'<th>Fecha</th><th style="text-align:right">Días</th><th></th></tr></thead><tbody>'
+    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Cliente</th><th>Asesor</th><th>Pedido / Cotización</th>'+(VV.modo==='pend'?'':'<th>Estado</th>')+'<th>Observaciones</th><th>Fecha</th><th style="text-align:right">Días</th><th></th></tr></thead><tbody>'
     +(ver.map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(r.cliente||'—')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td>'
       +(VV.modo==='pend'?'':'<td>'+chip(r.estado)+'</td>')
+      +'<td style="font-size:11px;color:var(--text2)"><div style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escRes(r.obs)+'">'+_escRes(r.obs||'—')+'</div></td>'
       +'<td style="font-size:12px;white-space:nowrap">'+(r.fecha?r.fecha.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—')+'</td><td style="text-align:right;font-weight:700;color:'+(r.estado!=='VENDIDA'||r.dias==null?'var(--text3)':r.dias>60?'#DC2626':r.dias>30?'#B45309':'inherit')+'">'+(r.dias==null?'—':r.dias)+'</td>'
-      +'<td style="white-space:nowrap">'+(r.estado==='VENDIDA'?'<button class="btn-sec" onclick="vvEntregar(\''+r.id+'\')" title="Marcar esta máquina como ENTREGADA y registrar la fecha" style="border-color:#16A34A;color:#166534;font-size:12px;padding:3px 9px">✓ Entregada</button> ':'')+'<a href="https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(r.id)+'" target="_blank" title="Abrir este registro en SharePoint" style="color:var(--text2);font-size:15px"><i class="ti ti-external-link"></i></a></td></tr>').join('')||'<tr><td colspan="9" style="padding:14px;color:var(--text3)">'+(VV.modo==='pend'?'No hay máquinas vendidas pendientes de entrega con estos filtros.':'No hay máquinas con estos filtros.')+'</td></tr>')
+      +'<td style="white-space:nowrap">'+(r.estado==='VENDIDA'?'<button class="btn-sec" onclick="vvEntregar(\''+r.id+'\')" title="Marcar esta máquina como ENTREGADA y registrar la fecha" style="border-color:#16A34A;color:#166534;font-size:12px;padding:3px 9px">✓ Entregada</button> ':'')+'<a href="https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(r.id)+'" target="_blank" title="Abrir este registro en SharePoint" style="color:var(--text2);font-size:15px"><i class="ti ti-external-link"></i></a></td></tr>').join('')||'<tr><td colspan="10" style="padding:14px;color:var(--text3)">'+(VV.modo==='pend'?'No hay máquinas vendidas pendientes de entrega con estos filtros.':'No hay máquinas con estos filtros.')+'</td></tr>')
     +'</tbody></table>';
 }
 // Botón "✓ Entregada": VENDIDA → ENTREGADA en LISTS con la fecha de entrega (hoy por defecto). Además de que SharePoint actualiza "Modificado",
@@ -6628,7 +6630,7 @@ async function vvEntregarOk(id){
 }
 function vvCsv(){
   const d=vvFiltradas(); const lim=v=>String(v==null?'':v).replace(/[;\r\n]+/g,' ').trim();
-  const csv=['Máquina;Marca;Tipología;Serial;Cliente;Asesor;Pedido;Cotización;Estado;Fecha (Modificado);Días'].concat(d.map(r=>[r.titulo,r.marca,r.tip,r.idMQ,r.cliente,asesorLabel(r.vendedor),r.pedido,r.cot,r.estado,r.fecha?r.fecha.toLocaleDateString('es-CO'):'',r.dias==null?'':r.dias].map(lim).join(';'))).join('\n');
+  const csv=['Máquina;Marca;Tipología;Serial;Cliente;Asesor;Pedido;Cotización;Estado;Observaciones;Fecha (Modificado);Días'].concat(d.map(r=>[r.titulo,r.marca,r.tip,r.idMQ,r.cliente,asesorLabel(r.vendedor),r.pedido,r.cot,r.estado,r.obs,r.fecha?r.fecha.toLocaleDateString('es-CO'):'',r.dias==null?'':r.dias].map(lim).join(';'))).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download=(VV.modo==='pend'?'vendidas-por-entregar':'vendidas-y-entregadas')+'.csv';
   document.body.appendChild(a); a.click(); a.remove(); showToast(d.length+' máquinas → '+a.download,'success');
 }
