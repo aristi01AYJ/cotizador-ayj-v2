@@ -6580,7 +6580,7 @@ async function rolesGuardar(){
 // PEDIDO de TODAS_2025. La clave de un pedido es CÓDIGO DE FÁBRICA + NÚMERO (P01 = TWM, NX16 = Nanxing…); el cotizador arma el código con la Marca de la máquina
 // más su PEDIDO y junta las dos listas al leer (no se copia nada a TODAS_2025 salvo al "Recibir pedido en AYJ": las unidades pasan de En Importación a En Stock).
 // El estado del pedido NO se guarda: se calcula con el último hito que tenga fecha real. El barco se ubica en el globo interpolando por las fechas (no es seguimiento AIS).
-const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,cen:[-30,15],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null,tab:'pedidos',uf:'',ut:'',ue:'',uq:'',un:60};
+const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,cen:[-74,12],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null,tab:'pedidos',uf:'',ut:'',ue:'',uq:'',un:60};
 // código de fábrica por Marca (editable aquí cuando haya una fábrica nueva)
 const LOG_FAB={TWM:'P',TAILOR:'P',TAILORWOOD:'P',NANXING:'NX',BALA:'BL',WOODMIZER:'WM',WM:'WM',MAGGI:'MG',FREUD:'FRE',JOWAT:'JOW',RIMA:'RM',SAFTEKNIC:'SAF'};
 const LOG_FAB_NOMBRE={P:'TWM',NX:'NANXING',BL:'BALA',WM:'WOODMIZER',MG:'MAGGI',FRE:'FREUD',JOW:'JOWAT',RM:'RIMA',SAF:'SAFTEKNIC'};
@@ -6899,7 +6899,7 @@ function logCaja(pts){   // encuadra una lista de puntos [lon,lat] con longitude
   const zoom=Math.max(1,Math.min(16,Math.min(sx,sy)/base)), cLat=logLatDe((logYM(a0)+logYM(a1))/2);
   return {cen:[logNormLon((l0+l1)/2),Math.max(-55,Math.min(70,cLat))],zoom};
 }
-const LOG_VISTAS={colombia:{cen:[-74,6],zoom:4},mundo:{cen:[-30,15],zoom:1}};
+const LOG_VISTAS={colombia:{cen:[-74,6],zoom:4},mundo:{cen:[-74,12],zoom:1}};
 function logVer(nombre){ const v=LOG_VISTAS[nombre]; if(v) logAnimar(v.cen,v.zoom,600); }
 function logFocus(codigo){
   const p=LOG.pedidos.find(x=>x.codigo===codigo), pos=p&&logPosicion(p);
