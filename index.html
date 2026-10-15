@@ -316,6 +316,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <button id="navReservadas" onclick="switchView('reservadas')" style="position:relative"><i class="ti ti-lock"></i> Reservadas<span id="badgeReservadas" style="display:none;position:absolute;top:1px;right:1px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3"></span></button>
         <button id="navPorEntregar" onclick="vvAbrir('pend')" title="Máquinas vendidas que todavía no se han entregado"><i class="ti ti-truck-delivery"></i> Por entregar</button>
         <button id="navVendidas" onclick="vvAbrir('todas')" title="Histórico de máquinas vendidas y entregadas"><i class="ti ti-history"></i> Vendidas y entregadas</button>
+        <button id="navLogistica" onclick="logAbrir()" title="Control logístico: pedidos a fábrica, ubicación del stock y entregas"><i class="ti ti-ship"></i> Logística</button>
         <button id="navFotos" onclick="evFotosAbrir()" title="Fotos de las máquinas: súbelas una a una o en lote; viajan a la columna Foto de LISTS"><i class="ti ti-camera"></i> Fotos</button>
         </div></div>
       <button id="navLiquidador" onclick="abrirLiquidador()"><i class="ti ti-calculator"></i> Liquidador</button>
@@ -712,6 +713,20 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div id="segVencidosWrap"></div>
         <div id="segRangoWrap"></div>
       </div>
+    </div>
+
+    <!-- LOGÍSTICA: control de pedidos a fábrica, stock y entregas locales -->
+    <div id="logisticaView" style="display:none;flex:1;flex-direction:column;overflow:hidden;background:var(--bg)">
+      <div style="padding:12px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex-shrink:0">
+        <strong style="font-size:15px">🚢 Control logístico</strong>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="ev-tab on" type="button">1 · Pedidos a fábrica</button>
+          <button class="ev-tab" type="button" disabled style="opacity:.45;cursor:not-allowed" title="Próxima fase">2 · Ubicación en stock</button>
+          <button class="ev-tab" type="button" disabled style="opacity:.45;cursor:not-allowed" title="Próxima fase">3 · Entregas locales</button>
+        </div>
+        <button class="btn-sec" style="margin-left:auto" onclick="LOG.ts=0;logCargar()" title="Volver a leer de SharePoint"><i class="ti ti-refresh"></i></button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px"><div id="logBody"></div></div>
     </div>
 
     <!-- VENDIDAS: por entregar / vendidas y entregadas (Inventario) -->
@@ -4003,6 +4018,7 @@ function switchView(v){
   document.getElementById('seguimientoView').style.display=v==='seguimiento'?'flex':'none';
   document.getElementById('reservadasView').style.display=v==='reservadas'?'flex':'none';
   document.getElementById('ventasView').style.display=v==='ventas'?'flex':'none';
+  document.getElementById('logisticaView').style.display=v==='logistica'?'flex':'none';
   document.getElementById('eventoView').style.display=v==='evento'?'flex':'none';
   document.body.classList.toggle('modo-evento',v==='evento');
   if(v!=='evento'&&typeof EV!=='undefined'&&EV.admin&&!document.getElementById('modalEvConfig')) EV.admin=false;
@@ -4012,9 +4028,9 @@ function switchView(v){
   if(v==='stock')cargarStock();
   // Ocultar sidebar en vistas de pantalla completa
   const sidebar=document.querySelector('.sidebar');
-  if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock'||v==='evento'||v==='ventas')?'none':'';
-  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navPorEntregar','navVendidas','navEvento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
-  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',reservadas:'navReservadas',evento:'navEvento',dashboard:'navDashboard',stock:'navStock'};
+  if(sidebar) sidebar.style.display=(v==='dashboard'||v==='stock'||v==='evento'||v==='ventas'||v==='logistica')?'none':'';
+  ['navNueva','navHistorial','navClientes','navSeguimiento','navReservadas','navPorEntregar','navVendidas','navLogistica','navEvento','navDashboard','navStock'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='';});
+  const navMap={nueva:'navNueva',historial:'navHistorial',clientes:'navClientes',seguimiento:'navSeguimiento',reservadas:'navReservadas',evento:'navEvento',dashboard:'navDashboard',stock:'navStock',logistica:'navLogistica'};
   if(navMap[v])document.getElementById(navMap[v]).className='active';
   if(v==='ventas'){ const el=document.getElementById(VV.modo==='pend'?'navPorEntregar':'navVendidas'); if(el) el.className='active'; }
   if(v==='historial')cargarHistorial();
@@ -4022,6 +4038,7 @@ function switchView(v){
   if(v==='seguimiento') abrirSeguimiento();
   if(v==='reservadas') renderReservadas();
   if(v==='ventas') vvPrepara();
+  if(v==='logistica') logPrepara();
   if(v==='evento') abrirEvento();
   // Sincronizar tabs móvil
   if(esMobil()){
@@ -6434,6 +6451,457 @@ async function pedidoRegistrarAhora(){
   await abrirPedidoIdx(id,{forzar:true});
 }
 
+// ── LOGÍSTICA ─────────────────────────────────────────────────────────────────────────────────────────
+// Control logístico en 3 niveles. FASE 1 (este bloque): PEDIDOS A FÁBRICA — una fila por pedido en la lista PEDIDOS_FABRICA (SharePoint), alineada con la columna
+// PEDIDO de TODAS_2025. La clave de un pedido es CÓDIGO DE FÁBRICA + NÚMERO (P01 = TWM, NX16 = Nanxing…); el cotizador arma el código con la Marca de la máquina
+// más su PEDIDO y junta las dos listas al leer (no se copia nada a TODAS_2025 salvo al "Recibir pedido en AYJ": las unidades pasan de En Importación a En Stock).
+// El estado del pedido NO se guarda: se calcula con el último hito que tenga fecha real. El barco se ubica en el globo interpolando por las fechas (no es seguimiento AIS).
+const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,rot:[-74,12],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null};
+// código de fábrica por Marca (editable aquí cuando haya una fábrica nueva)
+const LOG_FAB={TWM:'P',TAILOR:'P',TAILORWOOD:'P',NANXING:'NX',BALA:'BL',WOODMIZER:'WM',WM:'WM',MAGGI:'MG',FREUD:'FRE',JOWAT:'JOW',RIMA:'RM',SAFTEKNIC:'SAF'};
+const LOG_FAB_NOMBRE={P:'TWM',NX:'NANXING',BL:'BALA',WM:'WOODMIZER',MG:'MAGGI',FRE:'FREUD',JOW:'JOWAT',RM:'RIMA',SAF:'SAFTEKNIC'};
+// columnas de PEDIDOS_FABRICA: clave lógica → nombres posibles (tolera diferencias de tildes/ortografía: DesapachoReal)
+const LOG_CAMPOS={fabrica:['fabrica'],creado:['fechacreado'],fabEst:['fabricadoest','fabricacionest'],fabReal:['fabricadoreal','fabricacionreal'],despEst:['despachoest','desapachoest'],despReal:['despachoreal','desapachoreal'],
+  zarpeEst:['zarpeest'],zarpeReal:['zarpereal'],puertoEst:['llegadapuertoest'],puertoReal:['llegadapuertoreal'],ayjEst:['llegadaayjest'],ayjReal:['llegadaayjreal'],
+  ciudad:['ciudadorigen'],pOrigen:['puertoorigen'],pDestino:['puertodestino'],buque:['buque'],contenedor:['contenedor'],especial:['estadoespecial'],notas:['notas']};
+const LOG_FECHAS=['creado','fabEst','fabReal','despEst','despReal','zarpeEst','zarpeReal','puertoEst','puertoReal','ayjEst','ayjReal'];
+const LOG_HITOS=[{nom:'Fabricación',est:'fabEst',real:'fabReal',estado:'Fabricado'},{nom:'Despacho de fábrica',est:'despEst',real:'despReal',estado:'Despachado de fábrica'},
+  {nom:'Zarpe del barco',est:'zarpeEst',real:'zarpeReal',estado:'En tránsito internacional'},{nom:'Llegada a puerto',est:'puertoEst',real:'puertoReal',estado:'En puerto / nacionalización'},{nom:'Llegada a AYJ',est:'ayjEst',real:'ayjReal',estado:'Recibido en AYJ'}];
+const LOG_AYJ=[-74.1,4.65];   // Bogotá (sede y consignatario)
+// lugares conocidos [lon,lat]; el texto escrito en CiudadOrigen / PuertoOrigen / PuertoDestino se reconoce por contener alguno de estos nombres
+const LOG_LUG={shanghai:[121.47,31.23],ningbo:[121.55,29.87],qingdao:[120.38,36.07],shenzhen:[114.05,22.54],yantian:[114.27,22.57],guangzhou:[113.26,23.13],nansha:[113.6,22.75],xiamen:[118.09,24.48],tianjin:[117.7,39.0],xingang:[117.7,39.0],dalian:[121.61,38.91],hongkong:[114.17,22.3],
+  foshan:[113.12,23.02],dongguan:[113.75,23.02],zhongshan:[113.39,22.52],hangzhou:[120.16,30.27],taizhou:[121.42,28.66],linyi:[118.35,35.1],jinan:[117.0,36.65],weifang:[119.16,36.7],yantai:[121.45,37.46],suzhou:[120.58,31.3],wuxi:[120.31,31.49],zhengzhou:[113.63,34.75],
+  genova:[8.93,44.41],genoa:[8.93,44.41],laspezia:[9.82,44.1],milan:[9.19,45.46],milano:[9.19,45.46],bologna:[11.34,44.49],pesaro:[12.91,43.91],rimini:[12.57,44.06],vicenza:[11.55,45.55],brescia:[10.22,45.54],barcelona:[2.17,41.35],valencia:[-0.32,39.45],hamburg:[9.97,53.54],rotterdam:[4.14,51.95],antwerp:[4.4,51.27],
+  houston:[-95.27,29.73],miami:[-80.18,25.78],charleston:[-79.93,32.78],savannah:[-81.09,32.08],newyork:[-74.04,40.67],newark:[-74.15,40.68],indianapolis:[-86.16,39.77],losangeles:[-118.27,33.74],longbeach:[-118.2,33.75],manzanillo:[-104.32,19.05],
+  cartagena:[-75.5,10.39],buenaventura:[-77.03,3.88],barranquilla:[-74.8,10.96],santamarta:[-74.21,11.24],bogota:[-74.1,4.65],medellin:[-75.57,6.25],cali:[-76.53,3.45]};
+const LOG_PUERTOS_ORIGEN=['Shanghai','Ningbo','Qingdao','Shenzhen','Yantian','Guangzhou','Nansha','Xiamen','Tianjin','Dalian','Hong Kong','Genova','La Spezia','Barcelona','Valencia','Hamburg','Rotterdam','Houston','Miami','Charleston','Savannah','New York','Los Angeles'];
+function logNorm(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,''); }
+function logCoord(txt){
+  const k=logNorm(txt); if(!k) return null;
+  if(LOG_LUG[k]) return LOG_LUG[k];
+  let mejor=null; Object.keys(LOG_LUG).forEach(n=>{ if(k.includes(n)&&(!mejor||n.length>mejor.length)) mejor=n; });
+  return mejor?LOG_LUG[mejor]:null;
+}
+function logPrefijo(marca){ const k=String(marca||'').toUpperCase().replace(/[^A-Z]/g,''); if(LOG_FAB[k]) return LOG_FAB[k]; if(/TAILOR/.test(k)) return 'P'; if(/WOOD/.test(k)) return 'WM'; return ''; }
+function logCodigo(pref,num){ const n=parseInt(num); if(!pref||isNaN(n)) return ''; return pref+String(n).padStart(2,'0'); }
+function logPartes(c){ const m=String(c||'').trim().toUpperCase().replace(/[\s-]/g,'').match(/^([A-Z]+)0*(\d+)$/); return m?{pref:m[1],num:parseInt(m[2])}:null; }
+function logNormCodigo(c){ const p=logPartes(c); return p?logCodigo(p.pref,p.num):''; }
+const logF=d=>d?d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'2-digit'}):'';
+const logInput=d=>d?new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10):'';
+const logIso=s=>s?s+'T12:00:00Z':null;   // fecha sin hora: al mediodía UTC para que no cambie de día en Colombia
+function logFechaDe(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d; }
+// ── datos ──
+async function logListaId(){
+  if(LOG.listId) return LOG.listId;
+  const r=await graphGet('/sites/'+siteId+'/lists?$select=id,displayName');
+  const l=(r.value||[]).find(x=>/pedidos.?fabrica/i.test(String(x.displayName||'')));
+  if(!l) throw new Error('No encuentro la lista PEDIDOS_FABRICA en SharePoint (créala con las columnas acordadas).');
+  LOG.listId=l.id; return l.id;
+}
+async function logColumnas(){
+  const id=await logListaId();
+  const r=await graphGet('/sites/'+siteId+'/lists/'+id+'/columns?$top=200');
+  const cols=r.value||[]; LOG.map={}; LOG.def={}; LOG.faltan=[];
+  Object.keys(LOG_CAMPOS).forEach(k=>{
+    let c=null; for(const a of LOG_CAMPOS[k]){ c=cols.find(x=>!x.readOnly&&(logNorm(x.name)===a||logNorm(x.displayName)===a)); if(c) break; }
+    if(c){ LOG.map[k]=c.name; LOG.def[k]=c; } else LOG.faltan.push(k);
+  });
+}
+function logModelo(i){
+  const f=i.fields||{}, g=k=>LOG.map[k]?f[LOG.map[k]]:undefined;
+  const p={id:i.id,titulo:String(f.Title||'').trim(),codigo:logNormCodigo(f.Title)||String(f.Title||'').trim().toUpperCase(),fabrica:String(g('fabrica')||'').trim(),units:[]};
+  LOG_FECHAS.forEach(k=>{ p[k]=logFechaDe(g(k)); });
+  ['ciudad','pOrigen','pDestino','buque','contenedor','especial'].forEach(k=>{ p[k]=String(g(k)||'').trim(); });
+  p.notas=String(g('notas')||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/[ \t]+/g,' ').trim();
+  return p;
+}
+async function logUnidades(){
+  const items=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO','RESERVADA','VENDIDA'],200);
+  const cols=await columnasCatalogo();
+  const cPed=buscarColCat(cols,['pedido']), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
+  LOG.catCols={ped:cPed&&cPed.name,fd:cFD&&cFD.name,fc:cFC&&cFC.name};
+  const campos=window._catCampos||{marcaField:'Marca'};
+  LOG.units=items.map(i=>{
+    const f=i.fields||{}, marca=String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(), num=cPed?parseFloat(f[cPed.name]):NaN, pref=logPrefijo(marca);
+    let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
+    if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
+    return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,pref,estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
+      num:isNaN(num)?null:num,codigo:isNaN(num)?'':logCodigo(pref,num),fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim()};
+  });
+}
+async function logCargar(){
+  LOG.cargando=true; LOG.error=''; logRender();
+  try{
+    await logColumnas();
+    const [items]=await Promise.all([graphGetAll('/sites/'+siteId+'/lists/'+LOG.listId+'/items?expand=fields&$top=500'),logUnidades()]);
+    LOG.pedidos=items.map(logModelo).filter(p=>p.titulo);
+    const porCodigo={}; LOG.pedidos.forEach(p=>{ porCodigo[p.codigo]=p; });
+    LOG.units.forEach(u=>{ if(u.codigo&&porCodigo[u.codigo]) porCodigo[u.codigo].units.push(u); });
+    LOG.sinCodigo=[...new Set(LOG.units.filter(u=>u.num!=null&&!u.pref).map(u=>u.marca||'(sin marca)'))];
+  }catch(e){ LOG.error=e.message; }
+  LOG.cargando=false; logRender();
+}
+// ── estado, hitos y posición ──
+function logEstado(p){
+  if(p.especial) return {txt:p.especial,cls:'#B91C1C',bg:'#FEE2E2',idx:-1,especial:true};
+  let idx=-1; LOG_HITOS.forEach((h,i)=>{ if(p[h.real]) idx=i; });
+  if(idx<0) return {txt:'En fabricación',cls:'#92400E',bg:'#FEF3C7',idx:-1};
+  const col=[['#92400E','#FEF3C7'],['#92400E','#FEF3C7'],['#1E40AF','#DBEAFE'],['#5B21B6','#EDE9FE'],['#166534','#DCFCE7']][idx];
+  return {txt:LOG_HITOS[idx].estado,cls:col[0],bg:col[1],idx};
+}
+function logActivo(p){ return !p.ayjReal&&!/cancel/i.test(p.especial); }
+function logAtraso(p){ const hoy=new Date(); hoy.setHours(0,0,0,0); const e=logEstado(p); if(!logActivo(p)) return 0; const sig=LOG_HITOS.find((h,i)=>i>e.idx&&p[h.est]&&!p[h.real]); const ref=p.ayjEst&&!p.ayjReal?p.ayjEst:null; const d=[sig&&p[sig.est],ref].filter(x=>x&&x<hoy).sort((a,b)=>a-b)[0]; return d?Math.floor((hoy-d)/86400000):0; }
+// puntos de la ruta [lon,lat] y posición del barco según las fechas
+function logRuta(p){
+  const o=logCoord(p.ciudad)||logCoord(p.pOrigen), po=logCoord(p.pOrigen)||o, pd=logCoord(p.pDestino);
+  return {o,po,pd,ayj:LOG_AYJ};
+}
+// Ruta marítima con puntos de paso (los barcos no siguen el círculo máximo: no cruzan el Ártico ni la tierra). Cubre los casos habituales:
+// Asia → Pacífico → (Canal de Panamá) → Caribe/Pacífico colombiano; Mediterráneo → Gibraltar; norte de Europa → Canal de la Mancha; Golfo de México → Yucatán.
+const LOG_PANAMA={balboa:[-79.5,8.7],colon:[-79.9,9.45]};
+function logPuntosMar(po,pd){
+  if(!po||!pd) return null;
+  const car=pd[1]>9&&pd[0]>-78.5, asia=po[0]>60, med=po[0]>-15&&po[0]<45&&po[1]>30, norte=med&&po[1]>47, usaEste=po[0]<-60&&po[0]>-85&&po[1]>24, golfo=po[0]<=-85&&po[0]>-100&&po[1]>24&&po[1]<31, usaOeste=po[0]<=-100&&po[1]>25;
+  const w=[po], pasoPanama=()=>{ w.push(LOG_PANAMA.colon,LOG_PANAMA.balboa); };
+  if(asia){ w.push([160,30],[-150,25]); if(car){ w.push([-105,9],LOG_PANAMA.balboa,LOG_PANAMA.colon); } else w.push([-100,5]); }
+  else if(med){ w.push(norte?[-4.5,49.6]:[-5.6,35.95]); w.push([-45,26]); if(!car) pasoPanama(); }
+  else if(golfo){ w.push([-86,22]); if(!car) pasoPanama(); }
+  else if(usaEste){ if(!car) pasoPanama(); }
+  else if(usaOeste){ w.push([-110,15]); if(car){ w.push(LOG_PANAMA.balboa,LOG_PANAMA.colon); } }
+  w.push(pd); return w;
+}
+function logAlong(w,t){
+  const d=[]; let tot=0; for(let i=1;i<w.length;i++){ const x=d3.geoDistance(w[i-1],w[i]); d.push(x); tot+=x; }
+  let obj=t*tot; for(let i=0;i<d.length;i++){ if(obj<=d[i]||i===d.length-1) return d3.geoInterpolate(w[i],w[i+1])(Math.min(1,d[i]?obj/d[i]:0)); obj-=d[i]; }
+  return w[w.length-1];
+}
+function logPosicion(p){
+  const r=logRuta(p), e=logEstado(p), ahora=Date.now();
+  if(!r.o&&!r.po&&!r.pd) return null;
+  if(p.ayjReal) return {pos:r.ayj,etapa:'AYJ',t:1};
+  if(p.puertoReal&&r.pd) return {pos:r.pd,etapa:'Puerto',t:1};
+  if(p.zarpeReal&&r.po&&r.pd){
+    const fin=(p.puertoEst||new Date(p.zarpeReal.getTime()+30*86400000)).getTime(), ini=p.zarpeReal.getTime();
+    const t=Math.max(0.03,Math.min(0.97,(ahora-ini)/Math.max(1,fin-ini)));
+    return {pos:logAlong(logPuntosMar(r.po,r.pd),t),etapa:'En el mar',t};
+  }
+  if(p.despReal&&r.po) return {pos:r.po,etapa:'Puerto de origen',t:0};
+  const base=r.o||r.po; return base?{pos:base,etapa:'Fábrica',t:0}:null;
+}
+function logColor(p){ if(logAtraso(p)>0) return '#DC2626'; const e=logEstado(p); return e.idx<0?'#F59E0B':e.idx<2?'#D97706':e.idx===2?'#2563EB':e.idx===3?'#7C3AED':'#16A34A'; }
+// ── globo (D3 ortográfico sobre canvas; las librerías se cargan solo al abrir Logística) ──
+function logScript(src){ return new Promise((ok,ko)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>ko(new Error('No se pudo cargar '+src)); document.head.appendChild(s); }); }
+async function logLibs(){
+  if(LOG.libs) return LOG.libs;
+  LOG.libs=(async()=>{
+    if(!window.d3) await logScript('https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js');
+    if(!window.topojson) await logScript('https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js');
+    const r=await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json'); if(!r.ok) throw new Error('mapa HTTP '+r.status);
+    const w=await r.json();
+    LOG.mundo={land:topojson.feature(w,w.objects.land),paises:topojson.feature(w,w.objects.countries),bordes:topojson.mesh(w,w.objects.countries,(a,b)=>a!==b)};
+  })();
+  try{ await LOG.libs; }catch(e){ LOG.libs=null; throw e; }
+}
+function logDibujar(){
+  const c=LOG.cv; if(!c||!window.d3||!LOG.mundo||!c.isConnected) return;
+  const W=c.clientWidth, H=c.clientHeight; if(!W||!H) return;
+  const dpr=window.devicePixelRatio||1; if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){ c.width=Math.round(W*dpr); c.height=Math.round(H*dpr); }
+  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const R=Math.min(W,H)/2-6, proj=d3.geoOrthographic().scale(R*LOG.zoom).translate([W/2,H/2]).rotate([-LOG.rot[0],-LOG.rot[1]]).clipAngle(90), path=d3.geoPath(proj,ctx);
+  const centro=[LOG.rot[0],LOG.rot[1]], visible=pt=>pt&&d3.geoDistance(pt,centro)<Math.PI/2-0.02;
+  ctx.beginPath(); path({type:'Sphere'}); const gr=ctx.createRadialGradient(W/2-R*0.3,H/2-R*0.3,R*0.1,W/2,H/2,R*LOG.zoom); gr.addColorStop(0,'#F2F8FE'); gr.addColorStop(1,'#D6E6F5'); ctx.fillStyle=gr; ctx.fill();
+  ctx.beginPath(); path(d3.geoGraticule10()); ctx.strokeStyle='rgba(120,150,180,.25)'; ctx.lineWidth=.5; ctx.stroke();
+  ctx.beginPath(); path(LOG.mundo.land); ctx.fillStyle='#E7EDDA'; ctx.fill();
+  const col=LOG.mundo.paises.features.find(f=>String(f.id)==='170'); if(col){ ctx.beginPath(); path(col); ctx.fillStyle='#CFE39A'; ctx.fill(); }
+  ctx.beginPath(); path(LOG.mundo.bordes); ctx.strokeStyle='rgba(150,165,130,.55)'; ctx.lineWidth=.4; ctx.stroke();
+  ctx.beginPath(); path({type:'Sphere'}); ctx.strokeStyle='#8FB0CF'; ctx.lineWidth=1.2; ctx.stroke();
+  LOG.marcas=[];
+  const lista=logFiltrados(), dibujarRuta=(a,b,estilo)=>{ if(!a||!b) return; ctx.beginPath(); path({type:'LineString',coordinates:[a,b]}); ctx.setLineDash(estilo.d||[]); ctx.strokeStyle=estilo.c; ctx.lineWidth=estilo.w; ctx.stroke(); ctx.setLineDash([]); };
+  // sede AYJ
+  const pa=proj(LOG_AYJ); if(visible(LOG_AYJ)&&pa){ ctx.fillStyle='#80A61B'; ctx.beginPath(); ctx.arc(pa[0],pa[1],5,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.fillStyle='#3F5A0A'; ctx.font='bold 10px sans-serif'; ctx.fillText('AYJ',pa[0]+8,pa[1]+3); }
+  const ordenados=lista.filter(p=>logPosicion(p)).sort((a,b)=>(a.codigo===LOG.sel)-(b.codigo===LOG.sel));
+  ordenados.forEach(p=>{
+    const r=logRuta(p), pos=logPosicion(p), sel=p.codigo===LOG.sel, color=logColor(p);
+    ctx.globalAlpha=sel||!LOG.sel?1:0.35;
+    dibujarRuta(r.o,r.po&&r.o&&(r.o[0]!==r.po[0]||r.o[1]!==r.po[1])?r.po:null,{c:color,w:sel?1.8:1,d:[3,3]});
+    const mar=logPuntosMar(r.po,r.pd); if(mar) for(let k=1;k<mar.length;k++) dibujarRuta(mar[k-1],mar[k],{c:color,w:sel?2.4:1.3});
+    dibujarRuta(r.pd,r.ayj,{c:color,w:sel?1.8:1,d:[3,3]});
+    [r.o,r.po,r.pd].forEach((pt,i)=>{ if(pt&&visible(pt)&&(i!==1||!r.o||pt!==r.o)){ const q=proj(pt); ctx.fillStyle='#fff'; ctx.strokeStyle=color; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(q[0],q[1],sel?3.6:2.6,0,7); ctx.fill(); ctx.stroke(); } });
+    if(visible(pos.pos)){
+      const q=proj(pos.pos); ctx.beginPath(); ctx.arc(q[0],q[1],sel?8:6,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+      LOG.marcas.push({codigo:p.codigo,x:q[0],y:q[1],r:12,txt:p.codigo+' · '+logEstado(p).txt+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
+      if(sel||lista.length<=6){ ctx.fillStyle='#1F2937'; ctx.font='bold 11px sans-serif'; ctx.fillText(p.codigo,q[0]+10,q[1]-8); }
+    }
+    ctx.globalAlpha=1;
+  });
+}
+function logAnimar(destino,ms){
+  const a=[...LOG.rot]; const dl=((destino[0]-a[0]+540)%360)-180, t0=performance.now();
+  const paso=now=>{ const t=Math.min(1,(now-t0)/ms), e=t<.5?2*t*t:-1+(4-2*t)*t; LOG.rot=[a[0]+dl*e,a[1]+(destino[1]-a[1])*e]; logDibujar(); if(t<1) requestAnimationFrame(paso); };
+  requestAnimationFrame(paso);
+}
+function logFocus(codigo){
+  const p=LOG.pedidos.find(x=>x.codigo===codigo); if(!p){ logAnimar([-74,12],600); return; }
+  const r=logRuta(p), pos=logPosicion(p); let centro=null;
+  if(pos&&pos.etapa==='En el mar') centro=pos.pos;
+  else if(r.po&&r.pd) centro=logAlong(logPuntosMar(r.po,r.pd),0.5);
+  else if(pos) centro=pos.pos;
+  logAnimar(centro?[centro[0],Math.max(-40,Math.min(50,centro[1]))]:[-74,12],700);
+}
+function logGloboEventos(c){
+  let arr=null, mov=false;
+  c.addEventListener('pointerdown',e=>{ arr={x:e.clientX,y:e.clientY,rot:[...LOG.rot]}; mov=false; c.setPointerCapture(e.pointerId); });
+  c.addEventListener('pointermove',e=>{
+    if(arr){ const dx=e.clientX-arr.x, dy=e.clientY-arr.y; if(Math.abs(dx)+Math.abs(dy)>4) mov=true; LOG.rot=[arr.rot[0]-dx*0.35/LOG.zoom,Math.max(-80,Math.min(80,arr.rot[1]+dy*0.35/LOG.zoom))]; logDibujar(); }
+    const b=c.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top, h=LOG.marcas.find(m=>Math.hypot(m.x-x,m.y-y)<m.r), tip=LOG.tip;
+    c.style.cursor=h?'pointer':(arr?'grabbing':'grab');
+    if(tip){ if(h&&!arr){ tip.textContent=h.txt; tip.style.display='block'; tip.style.left=Math.min(x+12,b.width-200)+'px'; tip.style.top=(y+12)+'px'; } else tip.style.display='none'; }
+  });
+  c.addEventListener('pointerup',e=>{
+    if(arr&&!mov){ const b=c.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top, h=LOG.marcas.find(m=>Math.hypot(m.x-x,m.y-y)<m.r); if(h) logSel(h.codigo); }
+    arr=null;
+  });
+  c.addEventListener('wheel',e=>{ e.preventDefault(); LOG.zoom=Math.max(0.7,Math.min(2.6,LOG.zoom*(e.deltaY<0?1.1:0.9))); logDibujar(); },{passive:false});
+  if(!LOG.resizeOk){ LOG.resizeOk=true; window.addEventListener('resize',()=>{ if(document.getElementById('logCanvas')) logDibujar(); }); }
+}
+// ── pantalla ──
+function logFiltrados(){
+  const q=(LOG.q||'').toLowerCase().trim();
+  return LOG.pedidos.filter(p=>{
+    if(LOG.ver==='activos'&&!logActivo(p)) return false;
+    if(LOG.ver==='recibidos'&&logActivo(p)) return false;
+    if(LOG.fab&&(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica).toUpperCase()!==LOG.fab) return false;
+    if(q&&![p.codigo,p.fabrica,p.buque,p.contenedor,p.pOrigen,p.pDestino,p.notas,...p.units.map(u=>u.idMQ+' '+u.titulo)].join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=>{ const ea=(a.ayjReal||a.ayjEst||new Date(8.64e15)), eb=(b.ayjReal||b.ayjEst||new Date(8.64e15)); return ea-eb; });
+}
+function logCelda(est,real){
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  if(real) return '<div style="font-weight:700;color:#166534;white-space:nowrap">✓ '+logF(real)+'</div>'+(est?'<div style="font-size:10px;color:var(--text3)">est. '+logF(est)+'</div>':'');
+  if(est){ const at=est<hoy; return '<div style="color:'+(at?'#DC2626':'var(--text2)')+';font-style:italic;white-space:nowrap">'+logF(est)+(at?' ⚠':'')+'</div><div style="font-size:10px;color:var(--text3)">estimada</div>'; }
+  return '<span style="color:var(--text3)">—</span>';
+}
+function logPuntos(idx,especial){ return '<span style="display:inline-flex;gap:3px;margin-top:3px">'+LOG_HITOS.map((h,i)=>'<span title="'+h.nom+'" style="width:8px;height:8px;border-radius:50%;background:'+(i<=idx?(especial?'#DC2626':'#16A34A'):'#E5E7EB')+(i===idx+1?';outline:1.5px solid #9CA3AF':'')+'"></span>').join('')+'</span>'; }
+function logRender(){
+  const c=document.getElementById('logBody'); if(!c) return;
+  if(LOG.cargando){ c.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Leyendo pedidos a fábrica…</div>'; return; }
+  if(LOG.error){ c.innerHTML='<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#7F1D1D;border-radius:var(--radius);padding:14px">'+_escRes(LOG.error)+' <button class="btn-sec" onclick="logCargar()">Reintentar</button></div>'; return; }
+  const lista=logFiltrados(), hoy=new Date(); hoy.setHours(0,0,0,0);
+  const act=LOG.pedidos.filter(logActivo), atras=act.filter(p=>logAtraso(p)>0);
+  const enRuta=act.reduce((s,p)=>s+p.units.length,0);
+  const kpi=(t,n,col,s)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:22px;font-weight:800;color:'+col+'">'+n+'</div>'+(s?'<div style="font-size:11px;color:var(--text3)">'+s+'</div>':'')+'</div>';
+  const cuenta=fn=>act.filter(p=>fn(logEstado(p).idx)).length;
+  const fabs=[...new Set(LOG.pedidos.map(p=>(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'').toUpperCase()).filter(Boolean))].sort();
+  const sel=LOG.pedidos.find(p=>p.codigo===LOG.sel);
+  c.innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">'
+      +kpi('Pedidos activos',act.length,'#575756',enRuta+' máquinas en camino')+kpi('En fabricación',cuenta(i=>i<2),'#92400E','antes de zarpar')+kpi('En tránsito',cuenta(i=>i===2),'#1D4ED8','en el barco')+kpi('En puerto / aduana',cuenta(i=>i===3),'#6D28D9','por nacionalizar')+kpi('Con atraso',atras.length,atras.length?'#DC2626':'#166534','fecha estimada vencida')+'</div>'
+    +'<div id="logGlobo" style="position:relative;height:360px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:12px"><canvas id="logCanvas" style="width:100%;height:100%;display:block;touch-action:none;cursor:grab"></canvas><div id="logTip" style="display:none;position:absolute;background:#1F2937;color:#fff;font-size:11px;padding:5px 8px;border-radius:6px;pointer-events:none;max-width:260px"></div>'
+      +'<div style="position:absolute;left:10px;top:8px;font-size:11px;color:var(--text2)">Arrastra para girar · rueda para acercar · clic en un barco para ver el pedido</div>'
+      +'<div style="position:absolute;right:10px;top:8px;display:flex;gap:6px"><button class="btn-sec" style="font-size:11px;padding:3px 8px" onclick="LOG.zoom=1;logAnimar([-74,12],600)">📍 Colombia</button><button class="btn-sec" style="font-size:11px;padding:3px 8px" onclick="LOG.sel=null;LOG.zoom=1;logRender();logAnimar([-150,20],700)">🌏 Pacífico</button></div>'
+      +'<div id="logGloboMsg" style="position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:var(--text2)"></div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+      +'<input type="text" placeholder="Buscar pedido, serial, buque, contenedor…" value="'+_escRes(LOG.q)+'" oninput="LOG.q=this.value;logRender();logFoco()" id="logQ" style="min-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">'
+      +'<select onchange="LOG.fab=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todas las fábricas</option>'+fabs.map(f=>'<option'+(LOG.fab===f?' selected':'')+'>'+_escRes(f)+'</option>').join('')+'</select>'
+      +'<select onchange="LOG.ver=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="activos"'+(LOG.ver==='activos'?' selected':'')+'>Pedidos activos</option><option value="recibidos"'+(LOG.ver==='recibidos'?' selected':'')+'>Ya recibidos en AYJ</option><option value="todos"'+(LOG.ver==='todos'?' selected':'')+'>Todos</option></select>'
+      +'<span style="flex:1"></span><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
+    +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.join(', ')+'</div>':'')
+    +(LOG.sinCodigo.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">ℹ Hay máquinas con N° de PEDIDO de marcas sin código de fábrica: <b>'+_escRes(LOG.sinCodigo.join(', '))+'</b>. Agrega su código en <code>LOG_FAB</code> (index.html) para que se alineen con la lista de pedidos.</div>':'')
+    +'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr><th>Pedido</th><th>Estado</th><th>Máquinas</th><th>Creado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th></th></tr></thead><tbody>'
+    +(lista.map(p=>{
+      const e=logEstado(p), at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
+      const dias=eta&&!p.ayjReal?Math.round((eta-hoy)/86400000):null;
+      return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
+        +'<td><strong style="font-size:14px">'+_escRes(p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
+        +'<td><span style="background:'+e.bg+';color:'+e.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(e.txt)+'</span><div>'+logPuntos(e.idx,e.especial)+'</div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700">atrasado '+at+' d</div>':'')+'</td>'
+        +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+'</td>'
+        +'<td style="font-size:12px;white-space:nowrap">'+(p.creado?logF(p.creado):'—')+'</td>'
+        +'<td style="font-size:12px">'+logCelda(p.fabEst,p.fabReal)+'</td><td style="font-size:12px">'+logCelda(p.despEst,p.despReal)+'</td><td style="font-size:12px">'+logCelda(p.zarpeEst,p.zarpeReal)+'</td>'
+        +'<td style="font-size:12px">'+logCelda(p.puertoEst,p.puertoReal)+(p.pDestino?'<div style="font-size:10px;color:var(--text2)">'+_escRes(p.pDestino)+'</div>':'')+'</td>'
+        +'<td style="font-size:12px">'+logCelda(p.ayjEst,p.ayjReal)+(dias!=null?'<div style="font-size:10px;font-weight:700;color:'+(dias<0?'#DC2626':'var(--text2)')+'">'+(dias<0?'hace '+(-dias)+' d':'en '+dias+' d')+'</div>':'')+'</td>'
+        +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="btn-sec" style="font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎</button> '+(logActivo(p)?'<button class="btn-sec" style="font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</td></tr>'
+        +(es?'<tr><td colspan="10" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
+    }).join('')||'<tr><td colspan="10" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
+    +'</tbody></table></div>';
+  logIniciarGlobo();
+}
+function logFoco(){ const q=document.getElementById('logQ'); if(q){ q.focus(); q.setSelectionRange(q.value.length,q.value.length); } }   // el buscador se redibuja con cada letra: se devuelve el cursor
+function logDetalle(p){
+  const datos=[['Origen',[p.ciudad,p.pOrigen].filter(Boolean).join(' · ')],['Destino',p.pDestino],['Buque',p.buque],['Contenedor',p.contenedor]].filter(x=>x[1]).map(x=>'<span style="margin-right:16px"><b style="color:var(--text2)">'+x[0]+':</b> '+_escRes(x[1])+'</span>').join('');
+  const sinCoord=(!logCoord(p.ciudad)&&!logCoord(p.pOrigen))||!logCoord(p.pDestino);
+  return '<div style="font-size:12px;margin-bottom:8px">'+(datos||'<span style="color:var(--text3)">Sin datos de ruta todavía (ciudad de origen, puertos, buque, contenedor).</span>')+(p.notas?'<div style="margin-top:4px;color:var(--text2)">📝 '+_escRes(p.notas)+'</div>':'')+(sinCoord?'<div style="margin-top:4px;color:#92400E">⚠ Para ver este pedido en el globo falta reconocer el origen o el puerto de destino (escribe una ciudad/puerto conocido, ej. Shanghai, Genova, Cartagena).</div>':'')+'</div>'
+    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>'
+    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px">'+_escRes(u.cliente||'—')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO (marca + número).</td></tr>')+'</tbody></table>';
+}
+function logSel(codigo){
+  LOG.sel=LOG.sel===codigo?null:codigo; logRender();
+  if(LOG.sel){ logFocus(LOG.sel); const tr=[...document.querySelectorAll('#logBody tbody tr')].find(t=>t.querySelector('strong')&&t.querySelector('strong').textContent===codigo); if(tr) tr.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+}
+async function logIniciarGlobo(){
+  const c=document.getElementById('logCanvas'), msg=document.getElementById('logGloboMsg'); if(!c) return;
+  const nuevo=LOG.cv!==c; LOG.cv=c; LOG.tip=document.getElementById('logTip');
+  try{
+    if(!LOG.mundo){ if(msg) msg.textContent='Cargando el mapa…'; await logLibs(); if(msg) msg.textContent=''; }
+    if(nuevo) logGloboEventos(c);
+    const sinRuta=logFiltrados().filter(p=>!logPosicion(p)).length;
+    if(msg&&sinRuta) msg.textContent=sinRuta+' pedido(s) sin ciudad/puerto reconocido: no se pueden ubicar en el globo todavía.';
+    logDibujar();
+  }catch(e){ if(msg) msg.textContent='No se pudo cargar el mapa ('+e.message+'). La tabla funciona igual.'; }
+}
+// ── edición ──
+function logOpcion(k,valor){
+  const d=LOG.def[k]; if(!valor) return valor; if(!(d&&d.choice&&Array.isArray(d.choice.choices))) return valor;
+  const n=logNorm(valor); return d.choice.choices.find(x=>logNorm(x)===n)||d.choice.choices.find(x=>logNorm(x).startsWith(n)||n.startsWith(logNorm(x)))||null;
+}
+async function logEscribir(id,campos){
+  const token=await getToken(), descartadas=[]; const f={...campos}; let n=0;
+  while(true){
+    n++;
+    const r=await fetch('https://graph.microsoft.com/v1.0/sites/'+siteId+'/lists/'+LOG.listId+'/items'+(id?'/'+id+'/fields':''),{method:id?'PATCH':'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(id?f:{fields:f})});
+    if(r.ok) return {descartadas,json:await r.json()};
+    const t=await r.text(), m=t.match(/Field '([^']+)' is not recognized/i);
+    if(m&&f[m[1]]!==undefined&&n<12){ descartadas.push(m[1]); delete f[m[1]]; continue; }
+    throw new Error((id?'PATCH ':'POST ')+r.status+': '+t.slice(0,220));
+  }
+}
+function logEditar(codigo){
+  const nuevo=!codigo, p=nuevo?{codigo:'',units:[],especial:''}:LOG.pedidos.find(x=>x.codigo===codigo); if(!p) return;
+  const inp='padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px;width:100%;box-sizing:border-box';
+  const fec=(k,t)=>'<div><label style="font-size:11px;font-weight:700">'+t+'</label><input type="date" id="lgE_'+k+'" value="'+logInput(p[k])+'" style="'+inp+'"></div>';
+  const hito=(h)=>'<div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">'+h.nom+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fec(h.est,'Estimada')+fec(h.real,'Real (ya ocurrió)')+'</div></div>';
+  const opcFab=Object.values(LOG_FAB_NOMBRE).map(n=>'<option'+(p.fabrica&&logNorm(p.fabrica)===logNorm(n)?' selected':'')+'>'+n+'</option>').join('');
+  const dl=id=>'<datalist id="'+id+'">'+LOG_PUERTOS_ORIGEN.map(x=>'<option value="'+x+'">').join('')+'</datalist>';
+  const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:760px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">'+(nuevo?'＋ Nuevo pedido a fábrica':'✎ Pedido '+_escRes(p.codigo))+'</strong><button onclick="document.getElementById(\'logModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;flex:1;display:grid;gap:10px">'
+      +(nuevo?'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Fábrica</label><select id="lgE_fab" onchange="logSugerirNumero()" style="'+inp+'">'+opcFab+'</select></div><div><label style="font-size:11px;font-weight:700">Número de pedido</label><input type="number" id="lgE_num" min="1" style="'+inp+'" oninput="logSugerirNumero(true)"></div><div><label style="font-size:11px;font-weight:700">Código</label><input type="text" id="lgE_cod" readonly style="'+inp+';background:#F3F4F6;font-weight:700"></div></div>'
+        :'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Código</label><input type="text" value="'+_escRes(p.codigo)+'" readonly style="'+inp+';background:#F3F4F6;font-weight:700"></div>'+fec('creado','Fecha de creación del pedido')+'</div>')
+      +(nuevo?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fec('creado','Fecha de creación del pedido')+'<div></div></div>':'')
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+LOG_HITOS.map(hito).join('')+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Ciudad de origen (fábrica)</label><input type="text" id="lgE_ciudad" value="'+_escRes(p.ciudad||'')+'" list="lgDL1" placeholder="Ej. Foshan" style="'+inp+'"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Puerto de origen</label><input type="text" id="lgE_pOrigen" value="'+_escRes(p.pOrigen||'')+'" list="lgDL1" placeholder="Ej. Shenzhen" style="'+inp+'"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Puerto de destino</label><input type="text" id="lgE_pDestino" value="'+_escRes(p.pDestino||'')+'" list="lgDL2" placeholder="Cartagena, Buenaventura…" style="'+inp+'"></div></div>'
+      +dl('lgDL1')+'<datalist id="lgDL2"><option value="Cartagena"><option value="Buenaventura"><option value="Barranquilla"><option value="Santa Marta"></datalist>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Buque</label><input type="text" id="lgE_buque" value="'+_escRes(p.buque||'')+'" style="'+inp+'"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Contenedor</label><input type="text" id="lgE_contenedor" value="'+_escRes(p.contenedor||'')+'" style="'+inp+'"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Estado especial</label><select id="lgE_especial" style="'+inp+'"><option value=""></option>'+['Cancelado','Retenido en aduana'].map(x=>'<option'+(logNorm(p.especial)===logNorm(x)?' selected':'')+'>'+x+'</option>').join('')+'</select></div></div>'
+      +'<div><label style="font-size:11px;font-weight:700">Notas</label><textarea id="lgE_notas" rows="3" style="'+inp+'">'+_escRes(p.notas||'')+'</textarea></div>'
+      +'<div style="font-size:11px;color:var(--text2)">El estado del pedido se calcula solo con el último hito que tenga <b>fecha real</b>. Borra una fecha para quitarla.</div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgE_ok" onclick="logGuardar('+(nuevo?'null':'\''+p.codigo+'\'')+')">Guardar</button></div></div>';
+  document.body.appendChild(m);
+  if(nuevo) logSugerirNumero();
+}
+function logSugerirNumero(manual){
+  const f=document.getElementById('lgE_fab'), n=document.getElementById('lgE_num'), c=document.getElementById('lgE_cod'); if(!f||!n||!c) return;
+  const pref=Object.keys(LOG_FAB_NOMBRE).find(k=>LOG_FAB_NOMBRE[k]===f.value)||'';
+  if(!manual||!n.value){ const nums=LOG.pedidos.map(x=>logPartes(x.codigo)).filter(x=>x&&x.pref===pref).map(x=>x.num); const un=LOG.units.filter(u=>u.pref===pref&&u.num!=null).map(u=>u.num); n.value=Math.max(0,...nums,...un)+1; }
+  c.value=logCodigo(pref,n.value);
+}
+async function logGuardar(codigo){
+  const v=id=>(document.getElementById('lgE_'+id)||{}).value||'', btn=document.getElementById('lgE_ok');
+  const nuevo=!codigo; let cod=codigo;
+  if(nuevo){ cod=v('cod'); if(!cod){ showToast('Indica la fábrica y el número del pedido','error'); return; } if(LOG.pedidos.some(p=>p.codigo===cod)){ showToast('El pedido '+cod+' ya existe','error'); return; } }
+  const campos={}, avisos=[];
+  const poner=(k,val)=>{ if(!LOG.map[k]){ if(val) avisos.push(k); return; } campos[LOG.map[k]]=val; };
+  if(nuevo){ campos.Title=cod; const nf=LOG_FAB_NOMBRE[logPartes(cod).pref]; const op=logOpcion('fabrica',nf); if(LOG.map.fabrica){ if(op) campos[LOG.map.fabrica]=op; else avisos.push('Fabrica ("'+nf+'" no es una opción de la columna)'); } }
+  LOG_FECHAS.forEach(k=>{ poner(k,logIso(v(k))); });
+  ['ciudad','pOrigen','pDestino','buque','contenedor'].forEach(k=>{
+    const val=v(k).trim(), d=LOG.def[k];
+    if(d&&d.choice&&val&&!logOpcion(k,val)){ avisos.push(k+' (la columna es de Elección y "'+val+'" no está en sus opciones: cámbiala a "Una línea de texto")'); return; }
+    poner(k,val?(d&&d.choice?logOpcion(k,val):val):(d&&d.choice?null:''));
+  });
+  poner('especial',v('especial')); poner('notas',v('notas'));
+  if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    const r=await logEscribir(nuevo?null:LOG.pedidos.find(p=>p.codigo===cod).id,campos);
+    document.getElementById('logModal')?.remove();
+    const extra=[...avisos,...r.descartadas]; showToast(extra.length?'⚠ Pedido '+cod+' guardado, pero no se pudo guardar: '+extra.join('; '):'✓ Pedido '+cod+' guardado',extra.length?'error':'success');
+    LOG.sel=cod; await logCargar(); logFocus(cod);
+  }catch(e){ showToast('No se pudo guardar: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Guardar'; } }
+}
+// ── importar desde TODAS_2025 ──
+function logCandidatos(incluirTodos){
+  const g={};
+  LOG.units.forEach(u=>{ if(!u.codigo) return; (g[u.codigo]=g[u.codigo]||[]).push(u); });
+  return Object.keys(g).filter(c=>!LOG.pedidos.some(p=>p.codigo===c)&&(incluirTodos||g[c].some(u=>/importa/i.test(u.estadoStock)))).sort((a,b)=>{ const x=logPartes(a),y=logPartes(b); return x.pref===y.pref?x.num-y.num:x.pref.localeCompare(y.pref); }).map(c=>{
+    const us=g[c], cre=us.map(u=>u.fCreado).filter(Boolean).sort((a,b)=>a-b)[0]||null, disp=us.map(u=>u.fDisp).filter(Boolean).sort((a,b)=>b-a)[0]||null;
+    return {codigo:c,units:us,creado:cre,disp,enImpo:us.filter(u=>/importa/i.test(u.estadoStock)).length};
+  });
+}
+function logImportar(){
+  const cand=logCandidatos(false);
+  const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:680px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⤓ Importar pedidos desde TODAS_2025</strong><button onclick="document.getElementById(\'logModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;flex:1"><div style="font-size:12px;color:var(--text2);margin-bottom:8px">Pedidos que existen en la columna PEDIDO de TODAS_2025 (código = marca + número) y todavía no están en PEDIDOS_FABRICA. Por defecto solo los que tienen máquinas <b>En Importación</b>. Se crean con la fecha de creado y la fecha disponible (llegada estimada a AYJ) de sus máquinas; luego completas las demás fechas.</div>'
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-bottom:8px"><input type="checkbox" id="lgI_todos" onchange="logImportarLista()"> Incluir también pedidos cuyas máquinas ya están en stock (histórico)</label><div id="lgI_lista"></div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center"><span id="lgI_n" style="margin-right:auto;font-size:12px;color:var(--text2)"></span><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgI_ok" onclick="logImportarOk()">Importar seleccionados</button></div></div>';
+  document.body.appendChild(m); logImportarLista();
+}
+function logImportarLista(){
+  const t=document.getElementById('lgI_todos')?.checked, cand=logCandidatos(!!t); LOG.cand=cand;
+  document.getElementById('lgI_lista').innerHTML=cand.length?'<table class="hist-table"><thead><tr><th></th><th>Pedido</th><th>Máquinas</th><th>En importación</th><th>Creado</th><th>Llegada est.</th></tr></thead><tbody>'
+    +cand.map((c,i)=>'<tr><td><input type="checkbox" class="lgI_c" data-i="'+i+'" checked onchange="logImportarContar()"></td><td><strong>'+_escRes(c.codigo)+'</strong></td><td style="font-size:12px">'+c.units.map(u=>_escRes(u.titulo)).slice(0,3).join(', ')+(c.units.length>3?'… ':'')+' <span style="color:var(--text3)">('+c.units.length+')</span></td><td style="font-size:12px">'+c.enImpo+'</td><td style="font-size:12px">'+(c.creado?logF(c.creado):'—')+'</td><td style="font-size:12px">'+(c.disp?logF(c.disp):'—')+'</td></tr>').join('')+'</tbody></table>'
+    :'<div style="color:var(--text3);font-size:13px;padding:10px 0">No hay pedidos nuevos para importar'+(LOG.units.some(u=>u.num!=null)?'.':'. No encontré máquinas con el campo PEDIDO lleno (o su marca no tiene código de fábrica).')+'</div>';
+  logImportarContar();
+}
+function logImportarContar(){ const n=document.querySelectorAll('.lgI_c:checked').length, e=document.getElementById('lgI_n'), b=document.getElementById('lgI_ok'); if(e) e.textContent=n+' pedido(s) seleccionado(s)'; if(b) b.disabled=!n; }
+async function logImportarOk(){
+  const sel=[...document.querySelectorAll('.lgI_c:checked')].map(x=>LOG.cand[+x.dataset.i]); if(!sel.length) return;
+  const btn=document.getElementById('lgI_ok'); if(btn){ btn.disabled=true; btn.textContent='Importando…'; }
+  let ok=0; const fallos=[], avisos=new Set(); let i=0;
+  async function trabajar(){
+    while(i<sel.length){
+      const c=sel[i++], pref=logPartes(c.codigo).pref, campos={Title:c.codigo};
+      const nf=LOG_FAB_NOMBRE[pref]; const op=logOpcion('fabrica',nf); if(LOG.map.fabrica){ if(op) campos[LOG.map.fabrica]=op; else avisos.add('Fabrica "'+nf+'" no es opción de la columna'); }
+      if(LOG.map.creado&&c.creado) campos[LOG.map.creado]=logIso(logInput(c.creado));
+      if(LOG.map.ayjEst&&c.disp) campos[LOG.map.ayjEst]=logIso(logInput(c.disp));
+      try{ const r=await logEscribir(null,campos); r.descartadas.forEach(d=>avisos.add(d)); ok++; }catch(e){ fallos.push(c.codigo+': '+e.message); }
+    }
+  }
+  await Promise.all([trabajar(),trabajar(),trabajar()]);
+  document.getElementById('logModal')?.remove();
+  showToast('✓ '+ok+' pedido(s) importado(s)'+(fallos.length?' · '+fallos.length+' con error':'')+(avisos.size?' · avisos: '+[...avisos].join('; '):''),fallos.length||avisos.size?'error':'success');
+  await logCargar();
+}
+// ── recibir en AYJ ──
+function logRecibir(codigo){
+  const p=LOG.pedidos.find(x=>x.codigo===codigo); if(!p) return;
+  const enImpo=p.units.filter(u=>/importa/i.test(u.estadoStock)), hoy=logInput(new Date());
+  const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:480px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:10px">📦 Recibir el pedido '+_escRes(codigo)+' en AYJ</div>'
+    +'<div style="font-size:13px;margin-bottom:10px">Se registra la <b>llegada real a AYJ</b> y las <b>'+enImpo.length+' máquina(s) En Importación</b> de este pedido pasan a <b>En Stock</b> en TODAS_2025:</div>'
+    +'<div style="max-height:120px;overflow:auto;font-size:12px;color:var(--text2);margin-bottom:10px">'+(enImpo.map(u=>_escRes(u.titulo+' · '+(u.idMQ||'sin serial'))).join('<br>')||'Ninguna máquina está marcada En Importación (solo se registra la fecha).')+'</div>'
+    +'<label style="font-size:12px;font-weight:700">Fecha de llegada a AYJ</label><input type="date" id="lgR_f" value="'+hoy+'" max="'+hoy+'" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 12px;font-family:inherit">'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgR_ok" onclick="logRecibirOk(\''+codigo+'\')">Recibir pedido</button></div></div>';
+  document.body.appendChild(m);
+}
+async function logRecibirOk(codigo){
+  const p=LOG.pedidos.find(x=>x.codigo===codigo), f=document.getElementById('lgR_f')?.value, btn=document.getElementById('lgR_ok'); if(!p||!f) return;
+  if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    const enImpo=p.units.filter(u=>/importa/i.test(u.estadoStock));
+    let valor='En Stock'; const cols=await columnasCatalogo(), cE=cols.find(c=>c.name==='ESTADO');
+    if(cE&&cE.choice&&Array.isArray(cE.choice.choices)){ const op=cE.choice.choices.find(x=>/^en\s*stock$/i.test(String(x).trim())); if(op) valor=op; else if(enImpo.length) throw new Error('La columna ESTADO no tiene la opción "En Stock"'); }
+    const fallos=[]; let i=0;
+    async function trabajar(){ while(i<enImpo.length){ const u=enImpo[i++]; try{ await patchUnidadResiliente(u.id,{ESTADO:valor}); u.estadoStock=valor; }catch(e){ fallos.push((u.idMQ||u.titulo)+': '+e.message); } } }
+    await Promise.all([trabajar(),trabajar(),trabajar(),trabajar()]);
+    if(fallos.length) throw new Error(fallos.length+' máquina(s) no se pudieron actualizar ('+fallos[0]+'). El pedido NO se marcó como recibido: reintenta.');
+    if(LOG.map.ayjReal){ const r=await logEscribir(p.id,{[LOG.map.ayjReal]:logIso(f)}); if(r.descartadas.length) showToast('No se pudo guardar la fecha de llegada: columna '+r.descartadas.join(', '),'error'); }
+    else showToast('La lista PEDIDOS_FABRICA no tiene la columna LlegadaAYJReal: no se guardó la fecha','error');
+    document.getElementById('logModal')?.remove();
+    showToast('✓ Pedido '+codigo+' recibido: '+enImpo.length+' máquina(s) pasaron a En Stock','success');
+    try{ if(typeof cargarMaquinas==='function') cargarMaquinas(); }catch(e){}
+    await logCargar();
+  }catch(e){ showToast('No se pudo recibir el pedido: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Recibir pedido'; } }
+}
+// ── entrada ──
+function logAbrir(){ switchView('logistica'); }
+async function logPrepara(){
+  if(!LOG.pedidos.length||!LOG.ts||Date.now()-LOG.ts>300000){ await logCargar(); LOG.ts=Date.now(); }
+  else logRender();
+}
 // ── CATÁLOGO: FILTRO POR ESTADO EN SHAREPOINT + VENTAS REALES + TRM 30 DÍAS ─────────────────────────────
 // (1) El catálogo (TODAS_2025) tiene una fila por unidad y ~3 de cada 4 son VENDIDA/ENTREGADA (historia). ESTADO_ está indexada en LISTS, así que se le
 // pide a SharePoint solo lo operativo (DISPONIBLE / BAJO PEDIDO / RESERVADA) en vez de bajar todo y descartar en el navegador. Si el filtro falla, se
