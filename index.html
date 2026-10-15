@@ -1643,13 +1643,15 @@ async function showApp(account){
   poblarAsesorSel(currentUserName);
   try{
     await resolverSite();
+    await rolCargar(account);   // rol del usuario (lista USUARIOS_APP): sin lista o sin entrada ve todo
     // cargarHistorial() se suma aquí (antes solo cargaba al entrar a Historial) para que el
     // badge de Seguimiento (vencidos/próximos) esté listo desde que se abre la app.
-    await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM(),cargarHistorial()]);
-    generarNumOferta();
+    if(ROL.restringido){ await Promise.all([cargarMaquinas(),cargarClientes(true)]); }   // p. ej. Logística: no necesita ofertas, TRM ni consecutivo
+    else{ await Promise.all([cargarMaquinas(),cargarClientes(true),cargarTRM(),cargarHistorial()]); generarNumOferta(); }
   } finally {
     if(overlay) overlay.style.display='none';
   }
+  if(ROL.restringido){ switchView(rolInicio()); return; }   // p. ej. Logística abre directo en su módulo
   if(/(^|[#&?])evento\b/.test(location.hash+location.search)){ switchView('evento'); return; }   // enlace dedicado al modo evento
   mostrarResumenSeguimientoInicio();
 }
@@ -1706,6 +1708,7 @@ async function resolverSite(){
     const site=await graphGet(`/sites/${SP_HOST}:/sites/${SP_SITE}`);
     siteId=site.id;
     const lists=await graphGet(`/sites/${siteId}/lists?$select=id,displayName`);
+    window._listasSitio=lists.value;   // las reutiliza la carga de roles
     lists.value.forEach(l=>{
       const n=l.displayName.toLowerCase();
       if(n.includes('todas_2025')) listIdMaquinas=l.id;
@@ -4013,6 +4016,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') navCerrar(); });
 })();
 
 function switchView(v){
+  if(typeof rolPermite==='function'&&!rolPermite(v)) v=rolInicio();   // vista no permitida para el rol → su pantalla de inicio
   document.getElementById('nuevaView').style.display=v==='nueva'?'flex':'none';
   document.getElementById('historialView').style.display=v==='historial'?'flex':'none';
   document.getElementById('clientesView').style.display=v==='clientes'?'flex':'none';
@@ -6451,6 +6455,55 @@ async function pedidoRegistrarAhora(){
   cerrarPedido();
   await abrirPedidoIdx(id,{forzar:true});
 }
+
+// ── ROLES Y MÓDULOS POR USUARIO ─────────────────────────────────────────────────────────────────────────
+// Cada persona ve solo las herramientas que usa (orden por relevancia, NO seguridad: los datos se protegen con los permisos de SharePoint).
+// El rol sale de la lista de SharePoint USUARIOS_APP (columnas: Title = nombre, Correo = correo de la cuenta Microsoft, Rol = Elección).
+// Si la lista no existe, no se puede leer, o la persona no aparece en ella → ve TODO (comportamiento de siempre). Enlace de prueba: ?rol=logistica
+const ROLES={
+  gerencia:{nombre:'Gerencia General',vistas:null},
+  comercial:{nombre:'Comercial',vistas:null},                 // gerentes y asesores: todo, por ahora
+  administracion:{nombre:'Administración',vistas:null},       // su módulo de pedidos llegará después (hoy se lleva en Synergy): por ahora ve todo
+  logistica:{nombre:'Logística',inicio:'logistica',
+    vistas:['stock','reservadas','ventas','logistica'],
+    menus:['navStock','navReservadas','navPorEntregar','navVendidas','navLogistica','navFotos']}
+};
+const ROL={id:'comercial',nombre:'Comercial',restringido:false,fuente:'sin lista',encontrado:false,email:''};
+function rolDeTexto(t){
+  const k=String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  if(/gerencia/.test(k)) return 'gerencia';
+  if(/logistic/.test(k)) return 'logistica';
+  if(/administra/.test(k)) return 'administracion';
+  return 'comercial';
+}
+function rolFijar(id){ const r=ROLES[id]||ROLES.comercial; ROL.id=ROLES[id]?id:'comercial'; ROL.nombre=r.nombre; ROL.restringido=!!r.vistas; }
+function rolPermite(v){ const r=ROLES[ROL.id]; return !r||!r.vistas||r.vistas.includes(v); }
+function rolInicio(){ return (ROLES[ROL.id]||{}).inicio||'nueva'; }
+function rolAplicar(){
+  const r=ROLES[ROL.id]||ROLES.comercial;
+  document.body.classList.toggle('rol-restringido',!!r.vistas);
+  const chip=document.getElementById('userChip'); if(chip) chip.title='Rol: '+r.nombre+(ROL.fuente==='lista'&&!ROL.encontrado?' (por defecto: no aparece en la lista USUARIOS_APP)':ROL.fuente==='enlace'?' (forzado por enlace)':'');
+  const nav=document.getElementById('mainNav'); if(!nav) return;
+  const ok=r.menus?id=>r.menus.includes(id):()=>true;
+  nav.querySelectorAll('button[id^="nav"]').forEach(b=>{ b.style.display=ok(b.id)?'':'none'; });
+  nav.querySelectorAll('.nav-group').forEach(g=>{ g.style.display=[...g.querySelectorAll('.nav-menu button')].some(b=>b.style.display!=='none')?'':'none'; });
+}
+async function rolCargar(account){
+  ROL.email=String((account&&account.username)||'').trim().toLowerCase(); ROL.encontrado=false; ROL.fuente='sin lista'; rolFijar('comercial');
+  try{
+    const listas=window._listasSitio||((await graphGet('/sites/'+siteId+'/lists?$select=id,displayName')).value)||[];
+    const l=listas.find(x=>/usuarios.?app/i.test(String(x.displayName||'')));
+    if(l){
+      ROL.fuente='lista';
+      const items=await graphGetAll('/sites/'+siteId+'/lists/'+l.id+'/items?expand=fields&$top=500');
+      const mio=items.map(i=>i.fields||{}).find(f=>Object.values(f).some(v=>typeof v==='string'&&v.trim().toLowerCase()===ROL.email));
+      if(mio){ const e=Object.entries(mio).find(([k])=>/^rol/i.test(k)); rolFijar(rolDeTexto(mio.Rol||(e&&e[1])||'')); ROL.encontrado=true; }
+    }
+  }catch(e){ console.warn('[AYJ] Roles: no se pudo leer la lista USUARIOS_APP; se muestra todo:',e.message); }
+  const q=new URLSearchParams(location.search).get('rol'); if(q){ rolFijar(rolDeTexto(q)); ROL.fuente='enlace'; }   // para probar cómo ve cada rol: ?rol=logistica
+  rolAplicar();
+}
+(function(){ const s=document.createElement('style'); s.textContent='body.rol-restringido .mobile-tabs{display:none!important}'; document.head.appendChild(s); })();
 
 // ── LOGÍSTICA ─────────────────────────────────────────────────────────────────────────────────────────
 // Control logístico en 3 niveles. FASE 1 (este bloque): PEDIDOS A FÁBRICA — una fila por pedido en la lista PEDIDOS_FABRICA (SharePoint), alineada con la columna
