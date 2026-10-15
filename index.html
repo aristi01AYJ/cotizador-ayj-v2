@@ -6484,8 +6484,9 @@ function logCoord(txt){
 }
 function logPrefijo(marca){ const k=String(marca||'').toUpperCase().replace(/[^A-Z]/g,''); if(LOG_FAB[k]) return LOG_FAB[k]; if(/TAILOR/.test(k)) return 'P'; if(/WOOD/.test(k)) return 'WM'; return ''; }
 function logCodigo(pref,num){ const n=parseInt(num); if(!pref||isNaN(n)) return ''; return pref+String(n).padStart(2,'0'); }
-function logPartes(c){ const m=String(c||'').trim().toUpperCase().replace(/[\s-]/g,'').match(/^([A-Z]+)0*(\d+)$/); return m?{pref:m[1],num:parseInt(m[2])}:null; }
-function logNormCodigo(c){ const p=logPartes(c); return p?logCodigo(p.pref,p.num):''; }
+function logPartes(c){ const m=String(c||'').trim().toUpperCase().replace(/\s+/g,'').match(/^([A-Z]+)0*(\d+)$/); return m?{pref:m[1],num:parseInt(m[2])}:null; }
+function logNormCodigo(c){ const t=String(c||'').trim().toUpperCase().replace(/\s+/g,''); const p=logPartes(t); return p?logCodigo(p.pref,p.num):t; }   // NX9 ≡ NX09; WM1-2025 y BL01_26 se respetan tal cual
+const logEnCamino=u=>/importa|fabrica/i.test(u.estadoStock);   // ESTADO de la máquina: En Importación o En Fabricación (todavía no está en AYJ)
 const logF=d=>d?d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'2-digit'}):'';
 const logInput=d=>d?new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10):'';
 const logIso=s=>s?s+'T12:00:00Z':null;   // fecha sin hora: al mediodía UTC para que no cambie de día en Colombia
@@ -6516,18 +6517,26 @@ function logModelo(i){
   const fobN=parseFloat(g('fob')); p.fob=isNaN(fobN)?null:fobN;
   return p;
 }
+// La columna PEDIDO de TODAS_2025 es de TEXTO y trae el código completo. Si hay más de una columna llamada PEDIDO (ej. una numérica vieja), se prefiere la de texto/elección y la que se llama así por nombre visible.
+function logColPedido(cols){
+  const c=cols.filter(x=>!x.readOnly&&(_nrmP(x.displayName)==='pedido'||_nrmP(x.name)==='pedido'));
+  const tipo=x=>(x.text||x.choice)?0:1, porNombre=x=>_nrmP(x.displayName)==='pedido'?0:1;
+  c.sort((a,b)=>tipo(a)-tipo(b)||porNombre(a)-porNombre(b));
+  if(c.length>1) console.warn('[AYJ] Logística: hay varias columnas PEDIDO en TODAS_2025:',c.map(x=>x.name+' ('+x.displayName+')'),'→ se usa',c[0].name);
+  return c[0]||null;
+}
 async function logUnidades(){
   const items=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO','RESERVADA','VENDIDA'],200);
   const cols=await columnasCatalogo();
-  const cPed=buscarColCat(cols,['pedido']), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
+  const cPed=logColPedido(cols), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
   LOG.catCols={ped:cPed&&cPed.name,fd:cFD&&cFD.name,fc:cFC&&cFC.name};
   const campos=window._catCampos||{marcaField:'Marca'};
   LOG.units=items.map(i=>{
-    const f=i.fields||{}, marca=String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(), num=cPed?parseFloat(f[cPed.name]):NaN, pref=logPrefijo(marca);
+    const f=i.fields||{}, marca=String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(), raw=cPed&&f[cPed.name]!=null?String(f[cPed.name]).trim():'', codigo=raw?logNormCodigo(raw):'', pt=logPartes(codigo);
     let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
     if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
-    return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,pref,estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
-      num:isNaN(num)?null:num,codigo:isNaN(num)?'':logCodigo(pref,num),fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim()};
+    return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,raw,pref:pt?pt.pref:(codigo.match(/^[A-Z]+/)||[''])[0],estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
+      num:pt?pt.num:null,codigo,fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim()};
   });
 }
 async function logCargar(){
@@ -6538,7 +6547,7 @@ async function logCargar(){
     LOG.pedidos=items.map(logModelo).filter(p=>p.titulo);
     const porCodigo={}; LOG.pedidos.forEach(p=>{ porCodigo[p.codigo]=p; });
     LOG.units.forEach(u=>{ if(u.codigo&&porCodigo[u.codigo]) porCodigo[u.codigo].units.push(u); });
-    LOG.sinCodigo=[...new Set(LOG.units.filter(u=>u.num!=null&&!u.pref).map(u=>u.marca||'(sin marca)'))];
+    LOG.sinCodigo=[];
   }catch(e){ LOG.error=e.message; }
   LOG.cargando=false; logRender();
 }
@@ -6759,7 +6768,7 @@ function logRender(){
       const e=logEstado(p), at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
       const dias=eta&&!p.ayjReal?Math.round((eta-hoy)/86400000):null;
       return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
-        +'<td><strong style="font-size:14px">'+_escRes(p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
+        +'<td><strong style="font-size:14px">'+_escRes(p.titulo||p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
         +'<td><span style="background:'+e.bg+';color:'+e.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(e.txt)+'</span><div>'+logPuntos(e.idx,e.especial)+'</div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700">atrasado '+at+' d</div>':'')+'</td>'
         +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
         +'<td style="font-size:12px;white-space:nowrap">'+(p.creado?logF(p.creado):'—')+'</td>'
@@ -6778,7 +6787,7 @@ function logDetalle(p){
   const sinCoord=(!logCoord(p.ciudad)&&!logCoord(p.pOrigen))||!logCoord(p.pDestino);
   return '<div style="font-size:12px;margin-bottom:8px">'+(datos||'<span style="color:var(--text3)">Sin datos de ruta todavía (ciudad de origen, puertos, buque, contenedor).</span>')+(p.notas?'<div style="margin-top:4px;color:var(--text2)">📝 '+_escRes(p.notas)+'</div>':'')+(sinCoord?'<div style="margin-top:4px;color:#92400E">⚠ Para ver este pedido en el globo falta reconocer el origen o el puerto de destino (escribe una ciudad/puerto conocido, ej. Shanghai, Genova, Cartagena).</div>':'')+'</div>'
     +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>'
-    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px">'+_escRes(u.cliente||'—')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO (marca + número).</td></tr>')+'</tbody></table>';
+    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px">'+_escRes(u.cliente||'—')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table>';
 }
 function logSel(codigo){
   LOG.sel=LOG.sel===codigo?null:codigo; logRender();
@@ -6884,9 +6893,10 @@ async function logGuardar(codigo){
 function logCandidatos(incluirTodos){
   const g={};
   LOG.units.forEach(u=>{ if(!u.codigo) return; (g[u.codigo]=g[u.codigo]||[]).push(u); });
-  return Object.keys(g).filter(c=>!LOG.pedidos.some(p=>p.codigo===c)&&(incluirTodos||g[c].some(u=>/importa/i.test(u.estadoStock)))).sort((a,b)=>{ const x=logPartes(a),y=logPartes(b); return x.pref===y.pref?x.num-y.num:x.pref.localeCompare(y.pref); }).map(c=>{
+  return Object.keys(g).filter(c=>!LOG.pedidos.some(p=>p.codigo===c)&&(incluirTodos||g[c].some(u=>logEnCamino(u)))).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(c=>{
     const us=g[c], cre=us.map(u=>u.fCreado).filter(Boolean).sort((a,b)=>a-b)[0]||null, disp=us.map(u=>u.fDisp).filter(Boolean).sort((a,b)=>b-a)[0]||null;
-    return {codigo:c,units:us,creado:cre,disp,enImpo:us.filter(u=>/importa/i.test(u.estadoStock)).length};
+    const hoy=new Date(); hoy.setHours(0,0,0,0);
+    return {codigo:c,titulo:(us.find(u=>u.raw)||{}).raw||c,units:us,creado:cre,disp,enImpo:us.filter(u=>logEnCamino(u)).length,venc:disp&&disp<hoy?Math.floor((hoy-disp)/86400000):0};
   });
 }
 function logImportar(){
@@ -6894,18 +6904,19 @@ function logImportar(){
   const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
   m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:680px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
     +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⤓ Importar pedidos desde TODAS_2025</strong><button onclick="document.getElementById(\'logModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
-    +'<div style="padding:14px 18px;overflow-y:auto;flex:1"><div style="font-size:12px;color:var(--text2);margin-bottom:8px">Pedidos que existen en la columna PEDIDO de TODAS_2025 (código = marca + número) y todavía no están en PEDIDOS_FABRICA. Por defecto solo los que tienen máquinas <b>En Importación</b>. Se crean con la fecha de creado y la fecha disponible (llegada estimada a AYJ) de sus máquinas; luego completas las demás fechas.</div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;flex:1"><div style="font-size:12px;color:var(--text2);margin-bottom:8px">Pedidos que existen en la columna PEDIDO de TODAS_2025 (el código tal cual: NX16, P38…) y todavía no están en PEDIDOS_FABRICA. Por defecto solo los que tienen máquinas <b>En Importación o En Fabricación</b>. Se crean con la fecha de creado y la fecha disponible (llegada estimada a AYJ) de sus máquinas; luego completas las demás fechas.</div>'
     +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-bottom:8px"><input type="checkbox" id="lgI_todos" onchange="logImportarLista()"> Incluir también pedidos cuyas máquinas ya están en stock (histórico)</label><div id="lgI_lista"></div></div>'
     +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center"><span id="lgI_n" style="margin-right:auto;font-size:12px;color:var(--text2)"></span><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgI_ok" onclick="logImportarOk()">Importar seleccionados</button></div></div>';
   document.body.appendChild(m); logImportarLista();
 }
 function logImportarLista(){
   const t=document.getElementById('lgI_todos')?.checked, cand=logCandidatos(!!t); LOG.cand=cand;
-  document.getElementById('lgI_lista').innerHTML=cand.length?'<table class="hist-table"><thead><tr><th></th><th>Pedido</th><th>Máquinas</th><th>En importación</th><th>Creado</th><th>Llegada est.</th></tr></thead><tbody>'
-    +cand.map((c,i)=>'<tr><td><input type="checkbox" class="lgI_c" data-i="'+i+'" checked onchange="logImportarContar()"></td><td><strong>'+_escRes(c.codigo)+'</strong></td><td style="font-size:12px">'+c.units.map(u=>_escRes(u.titulo)).slice(0,3).join(', ')+(c.units.length>3?'… ':'')+' <span style="color:var(--text3)">('+c.units.length+')</span></td><td style="font-size:12px">'+c.enImpo+'</td><td style="font-size:12px">'+(c.creado?logF(c.creado):'—')+'</td><td style="font-size:12px">'+(c.disp?logF(c.disp):'—')+'</td></tr>').join('')+'</tbody></table>'
-    :'<div style="color:var(--text3);font-size:13px;padding:10px 0">No hay pedidos nuevos para importar'+(LOG.units.some(u=>u.num!=null)?'.':'. No encontré máquinas con el campo PEDIDO lleno (o su marca no tiene código de fábrica).')+'</div>';
+  document.getElementById('lgI_lista').innerHTML=cand.length?'<table class="hist-table"><thead><tr><th></th><th>Pedido</th><th>Máquinas</th><th>En camino</th><th>Creado</th><th>Llegada est.</th><th>Aviso</th></tr></thead><tbody>'
+    +cand.map((c,i)=>'<tr><td><input type="checkbox" class="lgI_c" data-i="'+i+'"'+(c.venc>30?'':' checked')+' onchange="logImportarContar()"></td><td><strong>'+_escRes(c.titulo||c.codigo)+'</strong></td><td style="font-size:12px">'+c.units.map(u=>_escRes(u.titulo)).slice(0,3).join(', ')+(c.units.length>3?'… ':'')+' <span style="color:var(--text3)">('+c.units.length+')</span></td><td style="font-size:12px">'+c.enImpo+'</td><td style="font-size:12px">'+(c.creado?logF(c.creado):'—')+'</td><td style="font-size:12px">'+(c.disp?logF(c.disp):'—')+'</td><td style="font-size:11px;color:#B45309">'+(c.venc>30?'⚠ la fecha disponible venció hace '+c.venc+' d: ¿ya llegó?':'')+'</td></tr>').join('')+'</tbody></table>'
+    :'<div style="color:var(--text3);font-size:13px;padding:10px 0">No hay pedidos nuevos para importar'+(LOG.units.some(u=>u.codigo)?'.':'. No encontré máquinas con el campo PEDIDO lleno.')+'</div>';
   logImportarContar();
 }
+function logFabricaDe(c){ const m=String(c.codigo).match(/^[A-Z]+/), pref=m?m[0]:'', marca=(c.units[0]&&c.units[0].marca)||''; return LOG_FAB_NOMBRE[pref]||LOG_FAB_NOMBRE[logPrefijo(marca)]||String(marca).toUpperCase(); }
 function logImportarContar(){ const n=document.querySelectorAll('.lgI_c:checked').length, e=document.getElementById('lgI_n'), b=document.getElementById('lgI_ok'); if(e) e.textContent=n+' pedido(s) seleccionado(s)'; if(b) b.disabled=!n; }
 async function logImportarOk(){
   const sel=[...document.querySelectorAll('.lgI_c:checked')].map(x=>LOG.cand[+x.dataset.i]); if(!sel.length) return;
@@ -6913,8 +6924,8 @@ async function logImportarOk(){
   let ok=0; const fallos=[], avisos=new Set(); let i=0;
   async function trabajar(){
     while(i<sel.length){
-      const c=sel[i++], pref=logPartes(c.codigo).pref, campos={Title:c.codigo};
-      const nf=LOG_FAB_NOMBRE[pref]; const op=logOpcion('fabrica',nf); if(LOG.map.fabrica){ if(op) campos[LOG.map.fabrica]=op; else avisos.add('Fabrica "'+nf+'" no es opción de la columna'); }
+      const c=sel[i++], campos={Title:c.titulo||c.codigo};
+      const nf=logFabricaDe(c); const op=logOpcion('fabrica',nf); if(LOG.map.fabrica){ if(op) campos[LOG.map.fabrica]=op; else avisos.add('Fabrica "'+nf+'" no es opción de la columna'); }
       if(LOG.map.creado&&c.creado) campos[LOG.map.creado]=logIso(logInput(c.creado));
       if(LOG.map.ayjEst&&c.disp) campos[LOG.map.ayjEst]=logIso(logInput(c.disp));
       try{ const r=await logEscribir(null,campos); r.descartadas.forEach(d=>avisos.add(d)); ok++; }catch(e){ fallos.push(c.codigo+': '+e.message); }
@@ -6928,11 +6939,11 @@ async function logImportarOk(){
 // ── recibir en AYJ ──
 function logRecibir(codigo){
   const p=LOG.pedidos.find(x=>x.codigo===codigo); if(!p) return;
-  const enImpo=p.units.filter(u=>/importa/i.test(u.estadoStock)), hoy=logInput(new Date());
+  const enImpo=p.units.filter(u=>logEnCamino(u)), hoy=logInput(new Date());
   const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
   m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:480px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:10px">📦 Recibir el pedido '+_escRes(codigo)+' en AYJ</div>'
-    +'<div style="font-size:13px;margin-bottom:10px">Se registra la <b>llegada real a AYJ</b> y las <b>'+enImpo.length+' máquina(s) En Importación</b> de este pedido pasan a <b>En Stock</b> en TODAS_2025:</div>'
-    +'<div style="max-height:120px;overflow:auto;font-size:12px;color:var(--text2);margin-bottom:10px">'+(enImpo.map(u=>_escRes(u.titulo+' · '+(u.idMQ||'sin serial'))).join('<br>')||'Ninguna máquina está marcada En Importación (solo se registra la fecha).')+'</div>'
+    +'<div style="font-size:13px;margin-bottom:10px">Se registra la <b>llegada real a AYJ</b> y las <b>'+enImpo.length+' máquina(s) en camino</b> (En Importación / En Fabricación) de este pedido pasan a <b>En Stock</b> en TODAS_2025:</div>'
+    +'<div style="max-height:120px;overflow:auto;font-size:12px;color:var(--text2);margin-bottom:10px">'+(enImpo.map(u=>_escRes(u.titulo+' · '+(u.idMQ||'sin serial'))).join('<br>')||'Ninguna máquina está marcada En Importación ni En Fabricación (solo se registra la fecha).')+'</div>'
     +'<label style="font-size:12px;font-weight:700">Fecha de llegada a AYJ</label><input type="date" id="lgR_f" value="'+hoy+'" max="'+hoy+'" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 12px;font-family:inherit">'
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgR_ok" onclick="logRecibirOk(\''+codigo+'\')">Recibir pedido</button></div></div>';
   document.body.appendChild(m);
@@ -6941,7 +6952,7 @@ async function logRecibirOk(codigo){
   const p=LOG.pedidos.find(x=>x.codigo===codigo), f=document.getElementById('lgR_f')?.value, btn=document.getElementById('lgR_ok'); if(!p||!f) return;
   if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
   try{
-    const enImpo=p.units.filter(u=>/importa/i.test(u.estadoStock));
+    const enImpo=p.units.filter(u=>logEnCamino(u));
     let valor='En Stock'; const cols=await columnasCatalogo(), cE=cols.find(c=>c.name==='ESTADO');
     if(cE&&cE.choice&&Array.isArray(cE.choice.choices)){ const op=cE.choice.choices.find(x=>/^en\s*stock$/i.test(String(x).trim())); if(op) valor=op; else if(enImpo.length) throw new Error('La columna ESTADO no tiene la opción "En Stock"'); }
     const fallos=[]; let i=0;
