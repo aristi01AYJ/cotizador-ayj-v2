@@ -6499,9 +6499,10 @@ function rolAplicar(){
   nav.querySelectorAll('.nav-group').forEach(g=>{ g.style.display=[...g.querySelectorAll('.nav-menu button')].some(b=>b.style.display!=='none')?'':'none'; });
 }
 const rolTextoDe=f=>{ const e=Object.entries(f||{}).find(([k])=>/^rol/i.test(k)); return String((f&&f.Rol)||(e&&e[1])||'').trim(); };
-async function rolLeerListas(){
-  const listas=window._listasSitio||((await graphGet('/sites/'+siteId+'/lists?$select=id,displayName')).value)||[];
-  const lu=listas.find(x=>/usuarios.?app/i.test(String(x.displayName||''))), lr=listas.find(x=>/roles.?app/i.test(String(x.displayName||'')));
+async function rolLeerListas(fresco){
+  const buscar=ls=>[ls.find(x=>/usuarios.?app/i.test(String(x.displayName||''))),ls.find(x=>/roles.?app/i.test(String(x.displayName||'')))];
+  let [lu,lr]=buscar(window._listasSitio||[]);
+  if(fresco||!lu||!lr){ const ls=await graphGetAll('/sites/'+siteId+'/lists?$select=id,displayName&$top=200'); window._listasSitio=ls; [lu,lr]=buscar(ls); }   // las listas pueden haberse creado después de abrir el cotizador
   ROL.listaRoles=lr?lr.id:''; ROL.matriz={}; ROL.filas={}; ROL.usuarios={}; ROL.items=[];
   if(lu){
     ROL.fuente='lista';
@@ -6543,7 +6544,7 @@ async function rolesAbrir(){
   const m=document.createElement('div'); m.id='rolModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
   m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:900px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">🛡 Roles y módulos</strong><button onclick="document.getElementById(\'rolModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div><div id="rolCuerpo" style="padding:14px 18px;overflow-y:auto;flex:1"><div class="loading-list"><span class="spinner dark"></span> Leyendo roles…</div></div><div id="rolPie" style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"></div></div>';
   document.body.appendChild(m);
-  try{ await rolLeerListas(); }catch(e){ document.getElementById('rolCuerpo').innerHTML='<div style="color:var(--red)">No se pudieron leer las listas: '+_escRes(e.message)+'</div>'; return; }
+  try{ await rolLeerListas(true); }catch(e){ document.getElementById('rolCuerpo').innerHTML='<div style="color:var(--red)">No se pudieron leer las listas: '+_escRes(e.message)+'</div>'; return; }
   const roles=[...ROL_BASE]; Object.keys(ROL.usuarios).forEach(t=>{ if(!roles.some(r=>rolNorm(r)===rolNorm(t))) roles.push(t); });
   ROL.edit=roles;
   const th=m=>'<th style="font-size:11px;text-align:center;padding:4px 6px;'+(ROL_MODULOS[m].futuro?'color:#9CA3AF':'')+'" title="'+_escRes(ROL_MODULOS[m].desc)+'">'+m+(ROL_MODULOS[m].futuro?'<div style="font-weight:400;font-size:9px">(próx.)</div>':'')+'</th>';
@@ -6571,7 +6572,7 @@ async function rolesGuardar(){
       const r=await fetch(url,{method:ex?'PATCH':'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(ex?campos:{fields:{Title:f.r,...campos}})});
       if(!r.ok) throw new Error((ex?'PATCH ':'POST ')+r.status+': '+(await r.text()).slice(0,160)); n++;
     }
-    await rolLeerListas(); rolFijar(ROL.rolTexto||ROL.nombre,rolModulosDe(ROL.rolTexto||ROL.nombre)); rolAplicar();
+    await rolLeerListas(true); rolFijar(ROL.rolTexto||ROL.nombre,rolModulosDe(ROL.rolTexto||ROL.nombre)); rolAplicar();
     document.getElementById('rolModal')?.remove(); showToast('✓ Roles guardados ('+n+'). Aplican la próxima vez que cada persona abra el cotizador.','success');
   }catch(e){ showToast('No se pudieron guardar los roles: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Guardar roles'; } }
 }
