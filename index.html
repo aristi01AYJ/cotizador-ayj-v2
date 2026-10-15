@@ -738,6 +738,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div class="field-group"><label>Año</label><select id="vvAnio" onchange="VV.anio=this.value;vvRender()" style="min-width:110px;display:none"><option value="">Todos los años</option></select></div>
         <div class="field-group" style="margin-left:auto"><label>Asesor</label><select id="vvAsesor" onchange="VV.asesor=this.value;vvRender()" style="min-width:160px"><option value="">Todos los asesores</option></select></div>
         <button class="btn-sec" onclick="vvCsv()" title="Descargar lo que se ve en pantalla"><i class="ti ti-download"></i> CSV</button>
+        <button class="btn-sec" onclick="vvMigrarClientes()" title="Guarda en la columna Cliente los clientes que antes se anotaban en Observaciones"><i class="ti ti-user-check"></i> Clientes de Observaciones</button>
         <button class="btn-sec" onclick="vvRefrescar()" title="Volver a leer de LISTS"><i class="ti ti-refresh"></i></button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">
@@ -6536,8 +6537,10 @@ async function logUnidades(){
     const f=i.fields||{}, marca=String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(), raw=cPed&&f[cPed.name]!=null?String(f[cPed.name]).trim():'', codigo=raw?logNormCodigo(raw):'', pt=logPartes(codigo);
     let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
     if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
+    const obs=String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(), clienteCampo=!!cliente;
+    if(!cliente){ const mc=obs.match(/Cliente:\s*([^·|]+)/i); if(mc) cliente=mc[1].trim(); }   // máquinas viejas: el cliente se anotaba en Observaciones
     return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,raw,pref:pt?pt.pref:(codigo.match(/^[A-Z]+/)||[''])[0],estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
-      num:pt?pt.num:null,codigo,fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim()};
+      num:pt?pt.num:null,codigo,fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim(),clienteCampo,obs};
   });
 }
 async function logCargar(){
@@ -6608,6 +6611,24 @@ function logAlong(w,t){
   let obj=t*tot; for(let i=0;i<d.length;i++){ if(obj<=d[i]||i===d.length-1){ const f=d[i]?Math.min(1,obj/d[i]):0; return [w[i][0]+(w[i+1][0]-w[i][0])*f,w[i][1]+(w[i+1][1]-w[i][1])*f]; } obj-=d[i]; }
   return w[w.length-1];
 }
+// como logAlong pero devuelve también el tramo (seg) y la fracción dentro del tramo (f): sirve para ubicar el barco sobre la línea desplazada
+function logAlongIdx(w,t){
+  const d=[]; let tot=0; for(let i=1;i<w.length;i++){ const x=logDist(w[i-1],w[i]); d.push(x); tot+=x; }
+  let obj=t*tot; for(let i=0;i<d.length;i++){ if(obj<=d[i]||i===d.length-1){ const f=d[i]?Math.min(1,obj/d[i]):0; return {seg:i,f,pos:[w[i][0]+(w[i+1][0]-w[i][0])*f,w[i][1]+(w[i+1][1]-w[i][1])*f]}; } obj-=d[i]; }
+  return {seg:w.length-2,f:1,pos:w[w.length-1]};
+}
+// Desplaza una polilínea (en píxeles) hacia un lado para que varios pedidos que comparten corredor se vean como líneas paralelas.
+// Los extremos (puertos) no se mueven: las líneas se abren en abanico al salir y se juntan al llegar.
+function logDesplazar(P,off){
+  if(!off||P.length<3) return P;
+  const nor=(a,b)=>{ const dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1; return [-dy/l,dx/l]; };
+  return P.map((q,i)=>{
+    if(i===0||i===P.length-1) return q;
+    const a=nor(P[i-1],q), b=nor(q,P[i+1]); let nx=a[0]+b[0], ny=a[1]+b[1]; const l=Math.hypot(nx,ny);
+    if(l<0.2){ nx=a[0]; ny=a[1]; } else { const k=Math.min(2,2/Math.max(l,1)); nx=nx/l*k; ny=ny/l*k; }
+    return [q[0]+nx*off,q[1]+ny*off];
+  });
+}
 // posición actual del pedido (longitudes continuas, coherentes con logTrazado) según las fechas
 function logPosicion(p){
   const T=logTrazado(p); if(!T) return null; const ahora=Date.now();
@@ -6616,7 +6637,7 @@ function logPosicion(p){
   if(p.zarpeReal&&T.mar){
     const fin=(p.puertoEst||new Date(p.zarpeReal.getTime()+30*86400000)).getTime(), ini=p.zarpeReal.getTime();
     const t=Math.max(0.03,Math.min(0.97,(ahora-ini)/Math.max(1,fin-ini)));
-    return {pos:logAlong(T.mar,t),etapa:'En el mar',t,T};
+    const a=logAlongIdx(T.mar,t); return {pos:a.pos,seg:a.seg,f:a.f,etapa:'En el mar',t,T};
   }
   if(p.despReal&&T.po) return {pos:T.po,etapa:'Puerto de origen',t:0,T};
   const base=T.o||T.po; return base?{pos:base,etapa:'Fábrica',t:0,T}:null;
@@ -6663,19 +6684,31 @@ function logDibujar(){
   const sede=n=>{ const x=v.xp(LOG_AYJ[0])+n*v.ww, y=v.yp(LOG_AYJ[1]); if(x<-10||x>W+10) return; ctx.fillStyle='#80A61B'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.fillStyle='#3F5A0A'; ctx.font='bold 11px sans-serif'; ctx.fillText('AYJ',x+8,y+4); };
   copias.forEach(sede);
   const pedidos=lista.map(p=>({p,pos:logPosicion(p)})).filter(x=>x.pos).sort((a,b)=>(a.p.codigo===LOG.sel)-(b.p.codigo===LOG.sel));
-  pedidos.forEach(({p,pos})=>{
+  // Pedidos que comparten corredor (mismos puntos de paso y destino) → líneas paralelas separadas 5 px; barcos o pedidos en un mismo puerto → separados horizontalmente
+  const GAP=5, gr={}, gm={};
+  pedidos.forEach(it=>{
+    const T=it.pos.T;
+    if(T.mar&&T.mar.length>2){ const k=T.mar.slice(1,-1).map(q=>q.map(z=>Math.round(z)).join(',')).join('|')+'>'+it.p.pDestino; (gr[k]=gr[k]||[]).push(it); }
+    if(it.pos.etapa!=='En el mar'){ const k=it.pos.etapa+'|'+it.pos.pos.map(z=>z.toFixed(2)).join(','); (gm[k]=gm[k]||[]).push(it); }
+  });
+  Object.values(gr).forEach(g=>{ g.sort((a,b)=>a.p.codigo.localeCompare(b.p.codigo)); g.forEach((it,i)=>{ it.off=(i-(g.length-1)/2)*GAP; }); });
+  Object.values(gm).forEach(g=>{ g.sort((a,b)=>a.p.codigo.localeCompare(b.p.codigo)); g.forEach((it,i)=>{ it.offM=(i-(g.length-1)/2)*13; }); });
+  pedidos.forEach(it=>{
+    const {p,pos}=it;
     const T=pos.T, sel=p.codigo===LOG.sel, color=logColor(p);
     copias.forEach(n=>{
       const dx=n*v.ww, X=pt=>v.xp(pt[0])+dx, Y=pt=>v.yp(pt[1]);
       ctx.globalAlpha=sel||!LOG.sel?1:0.3; ctx.lineJoin='round'; ctx.lineCap='round';
       const traza=(a,b,dash,w)=>{ ctx.beginPath(); for(let i=a;i<=b;i++){ if(i===a) ctx.moveTo(X(T.pts[i]),Y(T.pts[i])); else ctx.lineTo(X(T.pts[i]),Y(T.pts[i])); } ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke(); ctx.setLineDash([]); };
       if(T.iniMar>0) traza(0,T.iniMar,[4,4],sel?1.8:1);                       // fábrica → puerto de origen (tierra)
-      if(T.mar) traza(T.iniMar,T.finMar,[],sel?3:1.8);                        // travesía marítima
+      let PO=null;
+      if(T.mar){ PO=logDesplazar(T.mar.map(q=>[X(q),Y(q)]),it.off||0); ctx.beginPath(); PO.forEach((q,k)=>{ if(k) ctx.lineTo(q[0],q[1]); else ctx.moveTo(q[0],q[1]); }); ctx.setLineDash([]); ctx.strokeStyle=color; ctx.lineWidth=sel?3:1.8; ctx.stroke(); }   // travesía marítima
       traza(T.finMar,T.pts.length-1,[4,4],sel?1.8:1);                         // puerto de destino → AYJ (tierra)
       const punto=(pt,r)=>{ if(!pt) return; ctx.beginPath(); ctx.arc(X(pt),Y(pt),r,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.stroke(); };
       punto(T.o,sel?4:3); if(T.po&&T.po!==T.o) punto(T.po,sel?4:3); punto(T.pd,sel?4:3);
       if(sel){ ctx.font='11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.fillStyle='#374151'; [[T.po,p.pOrigen],[T.pd,p.pDestino],[T.o&&T.o!==T.po?T.o:null,p.ciudad]].forEach(([pt,nom])=>{ if(pt&&nom){ ctx.strokeText(nom,X(pt)+7,Y(pt)+14); ctx.fillText(nom,X(pt)+7,Y(pt)+14); } }); }
-      const x=X(pos.pos), y=Y(pos.pos);
+      let x=X(pos.pos), y=Y(pos.pos);
+      if(pos.etapa==='En el mar'&&PO&&pos.seg!=null&&PO[pos.seg+1]){ x=PO[pos.seg][0]+(PO[pos.seg+1][0]-PO[pos.seg][0])*pos.f; y=PO[pos.seg][1]+(PO[pos.seg+1][1]-PO[pos.seg][1])*pos.f; } else if(it.offM) x+=it.offM;
       if(x>-20&&x<W+20&&y>-20&&y<H+20){
         ctx.beginPath(); ctx.arc(x,y,sel?9:7,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke();
         LOG.marcas.push({codigo:p.codigo,x,y,r:13,txt:p.codigo+' · '+logEstado(p).txt+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
@@ -6796,7 +6829,11 @@ function logDetalle(p){
   const sinCoord=(!logCoord(p.ciudad)&&!logCoord(p.pOrigen))||!logCoord(p.pDestino);
   return '<div style="font-size:12px;margin-bottom:8px">'+(datos||'<span style="color:var(--text3)">Sin datos de ruta todavía (ciudad de origen, puertos, buque, contenedor).</span>')+(p.notas?'<div style="margin-top:4px;color:var(--text2)">📝 '+_escRes(p.notas)+'</div>':'')+(sinCoord?'<div style="margin-top:4px;color:#92400E">⚠ Para ver este pedido en el globo falta reconocer el origen o el puerto de destino (escribe una ciudad/puerto conocido, ej. Shanghai, Genova, Cartagena).</div>':'')+'</div>'
     +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>'
-    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px">'+_escRes(u.cliente||'—')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table>';
+    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px;cursor:pointer" onclick="logCliente(\''+u.id+'\')" title="'+(u.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(u.cliente?'<span'+(u.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(u.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table>';
+}
+function logCliente(uid){
+  const u=LOG.units.find(x=>String(x.id)===String(uid)); if(!u) return;
+  catPedirCliente(u.id,{titulo:u.titulo,serial:u.idMQ,cliente:u.cliente,obs:u.obs},nombre=>{ u.cliente=nombre; u.clienteCampo=!!nombre; logRender(); });
 }
 function logSel(codigo){
   LOG.sel=LOG.sel===codigo?null:codigo; logRender();
@@ -7020,13 +7057,14 @@ async function vrCargar(){
       let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
       const obs=String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
       if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
-      if(!cliente){ const mc=obs.match(/Cliente:\s*([^·|]+)/i); if(mc) cliente=mc[1].trim(); }   // en registros viejos el cliente quedaba anotado en Observaciones
+      const clienteCampo=!!cliente, mc=obs.match(/Cliente:\s*([^·|]+)/i), clienteObs=mc?mc[1].trim():'';
+      if(!cliente&&clienteObs) cliente=clienteObs;   // en registros viejos el cliente quedaba anotado en Observaciones
       const m=obs.match(/COT-\d{4}-\d+(?:-R\d+)?/i);
       let fr=i.lastModifiedDateTime||f.Modified||null;
       const estadoFila=String(f.ESTADO_||'').trim().toUpperCase();
       const me=obs.match(/Entregada:\s*(\d{4}-\d{2}-\d{2})/i);   // si se marcó con el botón "Entregada", se respeta la fecha elegida
       if(estadoFila==='ENTREGADA'&&me) fr=me[1]+'T12:00:00';
-      return {obs,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
+      return {obs,clienteCampo,clienteObs,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
         tip:String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),estado:String(f.ESTADO_||'').trim().toUpperCase(),cliente:String(cliente||'').trim(),vendedor:'',
         pedido:String(f.PEDIDOSYNERGY||'').trim(),cot:m?m[0].toUpperCase():'',tarifa:tarifaDe(f),fecha:fr?new Date(fr):null};
     });
@@ -7137,7 +7175,7 @@ function vvRender(){
   const MAX=300, ver=d.slice(0,MAX);
   body.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Fecha de venta/entrega = columna <b>Modificado</b> de LISTS · '+d.length+' máquina(s)'+(d.length>MAX?' (se muestran las primeras '+MAX+'; usa los filtros o el CSV)':'')+'</div>'
     +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Cliente</th><th>Asesor</th><th>Pedido / Cotización</th>'+(VV.modo==='pend'?'':'<th>Estado</th>')+'<th>Observaciones</th><th>Fecha</th><th style="text-align:right">Días</th><th></th></tr></thead><tbody>'
-    +(ver.map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(r.cliente||'—')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td>'
+    +(ver.map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ||'—')+'</td><td style="font-size:12px;cursor:pointer" onclick="vvCliente(\''+r.id+'\')" title="'+(r.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(r.cliente?'<span'+(r.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(r.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td>'
       +(VV.modo==='pend'?'':'<td>'+chip(r.estado)+'</td>')
       +'<td style="font-size:11px;color:var(--text2)"><div style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escRes(r.obs)+'">'+_escRes(r.obs||'—')+'</div></td>'
       +'<td style="font-size:12px;white-space:nowrap">'+(r.fecha?r.fecha.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—')+'</td><td style="text-align:right;font-weight:700;color:'+(r.estado!=='VENDIDA'||r.dias==null?'var(--text3)':r.dias>60?'#DC2626':r.dias>30?'#B45309':'inherit')+'">'+(r.dias==null?'—':r.dias)+'</td>'
@@ -7185,6 +7223,81 @@ function vvCsv(){
   const csv=['Máquina;Marca;Tipología;Serial;Cliente;Asesor;Pedido;Cotización;Estado;Observaciones;Fecha (Modificado);Días'].concat(d.map(r=>[r.titulo,r.marca,r.tip,r.idMQ,r.cliente,asesorLabel(r.vendedor),r.pedido,r.cot,r.estado,r.obs,r.fecha?r.fecha.toLocaleDateString('es-CO'):'',r.dias==null?'':r.dias].map(lim).join(';'))).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download=(VV.modo==='pend'?'vendidas-por-entregar':'vendidas-y-entregadas')+'.csv';
   document.body.appendChild(a); a.click(); a.remove(); showToast(d.length+' máquinas → '+a.download,'success');
+}
+
+// ── CLIENTE DE LA MÁQUINA: columna dedicada "Cliente" de TODAS_2025 ──
+// Antes el cliente se anotaba en Observaciones; ahora hay una columna propia (búsqueda a la lista Clientes, o texto). catEscribirCliente la escribe igual que el flujo Venta→Pedido.
+const CAT_CLI={id:null,alGuardar:null};
+async function catEscribirCliente(id,titulo){
+  const cols=await columnasCatalogo(), c=buscarColCat(cols,['cliente','clientefinal','nombrecliente','clientes']);
+  if(!c) throw new Error('No encontré la columna Cliente en TODAS_2025');
+  const campos={};
+  if(c.lookup){
+    if(typeof clientesData!=='undefined'&&!clientesData.length){ try{ await cargarClientes(); }catch(e){} }
+    if(!titulo) campos[c.name+'LookupId']=null;
+    else{ const cl=clientesData.find(x=>_kTitulo(x.titulo)===_kTitulo(titulo)); if(!cl) throw new Error('El cliente "'+titulo+'" no está en la lista Clientes'); campos[c.name+'LookupId']=parseInt(cl.id); }
+  }else if(c.text||c.choice) campos[c.name]=titulo||'';
+  else throw new Error('La columna Cliente es de un tipo que la app no puede escribir');
+  await patchUnidadResiliente(id,campos);
+}
+function catPedirCliente(id,d,alGuardar){
+  if(typeof clientesData!=='undefined'&&!clientesData.length){ try{ cargarClientes(); }catch(e){} }
+  CAT_CLI.id=id; CAT_CLI.alGuardar=alGuardar;
+  const lista=(typeof clientesData!=='undefined'?clientesData:[]).map(c=>'<option value="'+_escRes(c.titulo)+'">').join('');
+  const m=document.createElement('div'); m.id='catCliModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:460px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:8px">👤 Cliente de la máquina</div>'
+    +'<div style="font-size:13px;margin-bottom:10px"><strong>'+_escRes(d.titulo||'')+'</strong><div style="color:var(--text2);font-size:12px">Serial '+_escRes(d.serial||'—')+'</div></div>'
+    +(d.obs?'<div style="font-size:11px;color:var(--text2);background:#F9FAFB;border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin-bottom:10px;max-height:70px;overflow:auto"><b>Observaciones:</b> '+_escRes(d.obs)+'</div>':'')
+    +'<label style="font-size:12px;font-weight:700">Cliente (de la lista Clientes)</label><input type="text" id="catCliInp" list="catCliDL" value="'+_escRes(d.cliente||'')+'" placeholder="Escribe para buscar…" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 6px;font-family:inherit"><datalist id="catCliDL">'+lista+'</datalist>'
+    +'<div style="font-size:11px;color:var(--text2);margin-bottom:12px">Se guarda en la columna <b>Cliente</b> de TODAS_2025. Si el cliente no existe, créalo primero en la pestaña Clientes.</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'+(d.cliente?'<button class="btn-sec" style="margin-right:auto;color:#DC2626" onclick="catClienteOk(true)">Quitar cliente</button>':'')+'<button class="btn-sec" onclick="document.getElementById(\'catCliModal\').remove()">Cancelar</button><button class="btn-primary" id="catCliOk" onclick="catClienteOk(false)">Guardar</button></div></div>';
+  document.body.appendChild(m); setTimeout(()=>{ const i=document.getElementById('catCliInp'); if(i){ i.focus(); i.select(); } },50);
+}
+async function catClienteOk(quitar){
+  const inp=document.getElementById('catCliInp'), btn=document.getElementById('catCliOk'); let canon='';
+  if(!quitar){
+    const v=(inp&&inp.value||'').trim(), cl=(typeof clientesData!=='undefined'?clientesData:[]).find(x=>_kTitulo(x.titulo)===_kTitulo(v));
+    if(!cl){ showToast('Elige un cliente de la lista. Si no existe, créalo primero en Clientes.','error'); return; }
+    canon=cl.titulo;
+  }
+  if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    await catEscribirCliente(CAT_CLI.id,canon);
+    document.getElementById('catCliModal')?.remove();
+    showToast(canon?'✓ Cliente guardado: '+canon:'Cliente quitado','success');
+    if(CAT_CLI.alGuardar) CAT_CLI.alGuardar(canon);
+  }catch(e){ showToast('No se pudo guardar el cliente: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Guardar'; } }
+}
+function vvCliente(id){
+  const r=(VR.rows||[]).find(x=>String(x.id)===String(id)); if(!r) return;
+  catPedirCliente(r.id,{titulo:r.titulo,serial:r.idMQ,cliente:r.cliente,obs:r.obs},nombre=>{ r.cliente=nombre; r.clienteCampo=!!nombre; vvRender(); if(document.getElementById('vrContenido')) vrRender(); });
+}
+// Migración: máquinas cuyo cliente solo está en Observaciones ("Cliente: XXX") → columna Cliente, cuando el nombre coincide EXACTO con un cliente de la lista (ignora mayúsculas/espacios). Se muestra qué se va a guardar y se confirma.
+function vvMigrarClientes(){
+  const cli=typeof clientesData!=='undefined'?clientesData:[];
+  if(!cli.length){ showToast('Los clientes todavía no han cargado; intenta de nuevo en unos segundos','error'); try{ cargarClientes(); }catch(e){} return; }
+  if(!VR.rows){ showToast('Espera a que carguen las máquinas','error'); return; }
+  const por={}; cli.forEach(c=>{ const k=_kTitulo(c.titulo); if(!por[k]) por[k]=c; });
+  const ok=[], no={}; VR.rows.filter(r=>!r.clienteCampo&&r.clienteObs).forEach(r=>{ const c=por[_kTitulo(r.clienteObs)]; if(c) ok.push({r,c}); else (no[r.clienteObs]=no[r.clienteObs]||[]).push(r); });
+  VV.mig=ok;
+  const m=document.createElement('div'); m.id='catCliModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:720px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">⇄ Clientes de Observaciones → columna Cliente</strong><button onclick="document.getElementById(\'catCliModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;flex:1"><div style="font-size:12px;color:var(--text2);margin-bottom:8px">Máquinas vendidas o entregadas que tienen el cliente anotado en Observaciones y la columna Cliente vacía. Solo se proponen las que coinciden <b>exactamente</b> con un cliente de la lista Clientes. Observaciones no se modifica.</div>'
+    +(ok.length?'<table class="hist-table"><thead><tr><th></th><th>Máquina</th><th>Serial</th><th>En Observaciones</th><th>Cliente que se guardará</th></tr></thead><tbody>'+ok.map((x,i)=>'<tr><td><input type="checkbox" class="catMig" data-i="'+i+'" checked onchange="vvMigrarContar()"></td><td style="font-size:12px"><strong>'+_escRes(x.r.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(x.r.idMQ||'—')+'</td><td style="font-size:12px;color:var(--text2)">'+_escRes(x.r.clienteObs)+'</td><td style="font-size:12px"><b>'+_escRes(x.c.titulo)+'</b></td></tr>').join('')+'</tbody></table>':'<div style="color:var(--text3);padding:8px 0">No hay máquinas con cliente en Observaciones que coincidan con la lista de Clientes.</div>')
+    +(Object.keys(no).length?'<div style="margin-top:12px;font-size:12px;background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:8px;padding:8px 10px"><b>'+Object.values(no).reduce((a,l)=>a+l.length,0)+' máquina(s) no coinciden</b> con ningún cliente de la lista (nombres distintos o clientes que aún no existen): '+Object.keys(no).slice(0,15).map(_escRes).join(' · ')+(Object.keys(no).length>15?' …':'')+'. Asígnalas a mano con clic en el cliente de cada fila.</div>':'')+'</div>'
+    +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center"><span id="catMigN" style="margin-right:auto;font-size:12px;color:var(--text2)"></span><button class="btn-sec" onclick="document.getElementById(\'catCliModal\').remove()">Cancelar</button><button class="btn-primary" id="catMigOk" onclick="vvMigrarOk()">Guardar en la columna Cliente</button></div></div>';
+  document.body.appendChild(m); vvMigrarContar();
+}
+function vvMigrarContar(){ const n=document.querySelectorAll('.catMig:checked').length, e=document.getElementById('catMigN'), b=document.getElementById('catMigOk'); if(e) e.textContent=n+' máquina(s) seleccionada(s)'; if(b) b.disabled=!n; }
+async function vvMigrarOk(){
+  const sel=[...document.querySelectorAll('.catMig:checked')].map(x=>VV.mig[+x.dataset.i]); if(!sel.length) return;
+  const btn=document.getElementById('catMigOk'); let i=0, hechos=0; const fallos=[];
+  async function trabajar(){ while(i<sel.length){ const x=sel[i++]; try{ await catEscribirCliente(x.r.id,x.c.titulo); x.r.cliente=x.c.titulo; x.r.clienteCampo=true; hechos++; }catch(e){ fallos.push((x.r.idMQ||x.r.titulo)+': '+e.message); } if(btn) btn.textContent='Guardando… '+(hechos+fallos.length)+' de '+sel.length; } }
+  if(btn) btn.disabled=true;
+  await Promise.all([trabajar(),trabajar(),trabajar(),trabajar()]);
+  document.getElementById('catCliModal')?.remove();
+  showToast('✓ '+hechos+' máquina(s) con el cliente guardado en su columna'+(fallos.length?' · '+fallos.length+' con error ('+fallos[0]+')':''),fallos.length?'error':'success');
+  vvRender(); if(document.getElementById('vrContenido')) vrRender();
 }
 
 // ── TRM: mini gráfica de los últimos 30 días (datos.gov.co, Banco de la República) ──
