@@ -6809,7 +6809,7 @@ function logRender(){
       +'<input type="text" placeholder="Buscar pedido, serial, buque, contenedor…" value="'+_escRes(LOG.q)+'" oninput="LOG.q=this.value;logRender();logFoco()" id="logQ" style="min-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">'
       +'<select onchange="LOG.fab=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todas las fábricas</option>'+fabs.map(f=>'<option'+(LOG.fab===f?' selected':'')+'>'+_escRes(f)+'</option>').join('')+'</select>'
       +'<select onchange="LOG.ver=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="activos"'+(LOG.ver==='activos'?' selected':'')+'>Pedidos activos</option><option value="recibidos"'+(LOG.ver==='recibidos'?' selected':'')+'>Ya recibidos en AYJ</option><option value="todos"'+(LOG.ver==='todos'?' selected':'')+'>Todos</option></select>'
-      +'<span style="flex:1"></span><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
+      +'<span style="flex:1"></span><button class="btn-sec" onclick="logReporteAbrir()" title="Reporte del estado de los pedidos con fechas estimadas y reales y notas, para comunicar al equipo">📄 Reporte</button><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
     +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.join(', ')+'</div>':'')
     +(LOG.sinCodigo.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">ℹ Hay máquinas con N° de PEDIDO de marcas sin código de fábrica: <b>'+_escRes(LOG.sinCodigo.join(', '))+'</b>. Agrega su código en <code>LOG_FAB</code> (index.html) para que se alineen con la lista de pedidos.</div>':'')
     +'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr><th>Pedido</th><th>Estado</th><th>Máquinas</th><th>Creado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th></th></tr></thead><tbody>'
@@ -7019,6 +7019,102 @@ async function logRecibirOk(codigo){
     try{ if(typeof cargarMaquinas==='function') cargarMaquinas(); }catch(e){}
     await logCargar();
   }catch(e){ showToast('No se pudo recibir el pedido: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Recibir pedido'; } }
+}
+// ── REPORTE DE PEDIDOS (por demanda) ──────────────────────────────────────────────────────────────────
+// Para que Logística comunique al equipo: (1) reporte imprimible / PDF con novedades, fechas estimadas y reales, ruta, máquinas y notas;
+// (2) resumen en texto para pegar en Teams, WhatsApp o un correo. Se genera al momento con lo que hay en PEDIDOS_FABRICA.
+function logRepLista(alc){
+  const ord=(a,b)=>(a.ayjReal||a.ayjEst||new Date(8.64e15))-(b.ayjReal||b.ayjEst||new Date(8.64e15));
+  if(alc==='sel'){ const p=LOG.pedidos.find(x=>x.codigo===LOG.sel); return p?[p]:[]; }
+  if(alc==='vista') return logFiltrados();
+  return LOG.pedidos.filter(p=>alc==='todos'||logActivo(p)).sort(ord);
+}
+function logReporteAbrir(){
+  const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  const n={vista:logRepLista('vista').length,activos:logRepLista('activos').length,todos:logRepLista('todos').length,sel:logRepLista('sel').length};
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:460px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:10px">📄 Reporte de pedidos a fábrica</div>'
+    +'<label style="font-size:12px;font-weight:700">¿Qué pedidos incluir?</label><select id="lgRp_alc" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 10px;font-family:inherit">'
+      +'<option value="vista">Los que se ven ahora, con los filtros de pantalla ('+n.vista+')</option><option value="activos">Todos los pedidos activos ('+n.activos+')</option><option value="todos">Todos, incluidos los ya recibidos ('+n.todos+')</option>'+(n.sel?'<option value="sel">Solo el pedido seleccionado ('+_escRes(LOG.sel)+')</option>':'')+'</select>'
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-bottom:5px"><input type="checkbox" id="lgRp_nov" checked> Resumen de novedades al inicio (atrasados, próximas llegadas)</label>'
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-bottom:5px"><input type="checkbox" id="lgRp_ser" checked> Listar las máquinas de cada pedido (con serial)</label>'
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-bottom:12px"><input type="checkbox" id="lgRp_not" checked> Incluir las notas</label>'
+    +'<div style="font-size:11px;color:var(--text2);margin-bottom:12px">Las fechas reales salen con ✓; las estimadas en cursiva (⚠ si ya pasaron). Se genera al momento con lo que hay en la lista.</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-sec" onclick="logReporteTexto()">📋 Copiar resumen</button><button class="btn-primary" onclick="logReporteVer()">📄 Abrir reporte</button></div></div>';
+  document.body.appendChild(m);
+}
+function logRepOpc(){ const v=id=>document.getElementById(id); return {alc:v('lgRp_alc')?v('lgRp_alc').value:'vista',nov:!v('lgRp_nov')||v('lgRp_nov').checked,ser:!v('lgRp_ser')||v('lgRp_ser').checked,not:!v('lgRp_not')||v('lgRp_not').checked}; }
+const logRepMaq=p=>{ const g={}; p.units.forEach(u=>{ (g[u.titulo]=g[u.titulo]||[]).push(u.idMQ||'sin serial'); }); return Object.keys(g).map(t=>t+(g[t].length>1?' ×'+g[t].length:'')+' ('+g[t].join(', ')+')'); };
+function logRepNovedades(ps){
+  const hoy=new Date(); hoy.setHours(0,0,0,0); const d15=new Date(hoy.getTime()+15*86400000), h15=new Date(hoy.getTime()-15*86400000);
+  return {atras:ps.filter(p=>logActivo(p)&&logAtraso(p)>0).sort((a,b)=>logAtraso(b)-logAtraso(a)),
+    prox:ps.filter(p=>logActivo(p)&&!p.ayjReal&&p.ayjEst&&p.ayjEst>=hoy&&p.ayjEst<=d15).sort((a,b)=>a.ayjEst-b.ayjEst),
+    puerto:ps.filter(p=>logActivo(p)&&logEstado(p).idx===3),
+    recib:LOG.pedidos.filter(p=>p.ayjReal&&p.ayjReal>=h15).sort((a,b)=>b.ayjReal-a.ayjReal)};
+}
+function logReporteHTML(ps,o){
+  const hoy=new Date(), ahora=new Date(); hoy.setHours(0,0,0,0);
+  const esc=_escRes, N=logRepNovedades(ps), act=ps.filter(logActivo), fob=act.reduce((s,p)=>s+(p.fob||0),0);
+  const cel=(est,real)=>real?'<b style="color:#166534">✓ '+logF(real)+'</b>'+(est?'<div class="s">est. '+logF(est)+'</div>':''):est?'<i style="color:'+(est<hoy?'#B91C1C':'#4B5563')+'">'+logF(est)+(est<hoy?' ⚠':'')+'</i><div class="s">estimada</div>':'<span class="s">—</span>';
+  const nom=p=>esc(p.titulo||p.codigo)+' ('+esc(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+')';
+  const li=(arr,fn)=>arr.length?'<ul>'+arr.map(p=>'<li>'+fn(p)+'</li>').join('')+'</ul>':'<div class="s">Sin novedades.</div>';
+  const nov=o.nov?'<div class="nov"><h3>Novedades</h3><div class="g">'
+    +'<div><b style="color:#B91C1C">⚠ Atrasados ('+N.atras.length+')</b>'+li(N.atras,p=>nom(p)+' — llegada a AYJ estimada '+logF(p.ayjEst||p.puertoEst)+', <b>'+logAtraso(p)+' d de atraso</b>')+'</div>'
+    +'<div><b style="color:#1D4ED8">🚢 Llegan a AYJ en ≤ 15 días ('+N.prox.length+')</b>'+li(N.prox,p=>nom(p)+' — '+logF(p.ayjEst)+(p.pDestino?' · puerto '+esc(p.pDestino):''))+'</div>'
+    +'<div><b style="color:#6D28D9">⚓ En puerto / nacionalización ('+N.puerto.length+')</b>'+li(N.puerto,p=>nom(p)+' — llegó a puerto '+logF(p.puertoReal)+(p.ayjEst?' · a AYJ est. '+logF(p.ayjEst):''))+'</div>'
+    +'<div><b style="color:#166534">✅ Recibidos en los últimos 15 días ('+N.recib.length+')</b>'+li(N.recib,p=>nom(p)+' — '+logF(p.ayjReal))+'</div></div></div>':'';
+  const filas=ps.map(p=>{
+    const e=logEstado(p), at=logAtraso(p), ruta=[[p.ciudad,p.pOrigen].filter(Boolean).join(' · '),p.pDestino&&'→ '+p.pDestino].filter(Boolean).join(' '), cont=[p.tipoCont,p.numCont].filter(Boolean).join(' ');
+    const det=[o.ser&&p.units.length?'<b>Máquinas ('+p.units.length+'):</b> '+logRepMaq(p).map(esc).join('; '):'',o.not&&p.notas?'<b>Notas:</b> '+esc(p.notas).replace(/\n/g,'<br>'):''].filter(Boolean).join('<br>');
+    return '<tr><td><b>'+esc(p.titulo||p.codigo)+'</b><div class="s">'+esc(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
+      +'<td><span class="chip" style="background:'+e.bg+';color:'+e.cls+'">'+esc(e.txt)+'</span>'+(at?'<div style="color:#B91C1C;font-weight:700;font-size:10px">atrasado '+at+' d</div>':'')+'</td>'
+      +'<td>'+cel(p.fabEst,p.fabReal)+'</td><td>'+cel(p.despEst,p.despReal)+'</td><td>'+cel(p.zarpeEst,p.zarpeReal)+'</td><td>'+cel(p.puertoEst,p.puertoReal)+'</td><td>'+cel(p.ayjEst,p.ayjReal)+'</td>'
+      +'<td class="s2">'+esc(ruta||'—')+(p.buque?'<br>Buque: '+esc(p.buque):'')+(cont?'<br>Contenedor: '+esc(cont):'')+'</td><td style="text-align:right;white-space:nowrap">'+(p.fob?'USD '+Math.round(p.fob).toLocaleString('es-CO'):'—')+'</td></tr>'
+      +(det?'<tr class="det"><td colspan="9">'+det+'</td></tr>':'');
+  }).join('')||'<tr><td colspan="9" style="padding:14px;color:#777">No hay pedidos con ese alcance.</td></tr>';
+  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Estado de pedidos a fábrica — AYJ</title><style>'
+    +'@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:18px;font-size:12px}'
+    +'.top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #80A61B;padding-bottom:8px;margin-bottom:12px}.top h1{font-size:18px;margin:0}.top .s{color:#666}'
+    +'.k{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:12px}.k div{border:1px solid #ddd;border-radius:8px;padding:6px 10px}.k b{font-size:18px;display:block}.k span{font-size:10px;text-transform:uppercase;color:#666}'
+    +'.nov{border:1px solid #D9E4B8;background:#F7FAEF;border-radius:8px;padding:8px 12px;margin-bottom:12px}.nov h3{margin:0 0 6px;font-size:13px}.nov .g{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}.nov ul{margin:3px 0 0;padding-left:16px}.nov li{margin:2px 0}'
+    +'table{width:100%;border-collapse:collapse}th{background:#F3F4F6;text-align:left;font-size:10px;text-transform:uppercase;padding:6px;border-bottom:2px solid #ccc}td{padding:6px;border-bottom:1px solid #e5e5e5;vertical-align:top}.s{font-size:10px;color:#777}.s2{font-size:11px}.chip{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}'
+    +'tr.det td{background:#FAFAF7;font-size:11px;color:#444;border-bottom:1px solid #ccc}.pie{margin-top:12px;font-size:10px;color:#777}.bar{position:fixed;top:8px;right:12px;display:flex;gap:6px}.bar button{padding:6px 12px;border:1px solid #80A61B;background:#80A61B;color:#fff;border-radius:6px;cursor:pointer;font-weight:700}.bar button.b{background:#fff;color:#3F5A0A}'
+    +'@media print{.bar{display:none}body{padding:0}tr{page-break-inside:avoid}}</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 Imprimir / guardar PDF</button><button class="b" onclick="window.close()">Cerrar</button></div>'
+    +'<div class="top"><div><h1>Estado de pedidos a fábrica</h1><div class="s">AYJ Maquinaria · generado el '+ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+' '+ahora.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})+(typeof currentUserName!=='undefined'&&currentUserName?' · '+esc(currentUserName):'')+'</div></div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:40px" onerror="this.style.display=\'none\'"></div>'
+    +'<div class="k"><div><b>'+act.length+'</b><span>Pedidos activos</span></div><div><b>'+act.filter(p=>logEstado(p).idx<2).length+'</b><span>En fabricación</span></div><div><b>'+act.filter(p=>logEstado(p).idx===2).length+'</b><span>En tránsito</span></div><div><b>'+act.filter(p=>logEstado(p).idx===3).length+'</b><span>En puerto / aduana</span></div><div><b style="color:'+(N.atras.length?'#B91C1C':'#166534')+'">'+N.atras.length+'</b><span>Con atraso</span></div><div><b>'+(fob?'USD '+Math.round(fob).toLocaleString('es-CO'):'—')+'</b><span>FOB en camino</span></div></div>'
+    +nov+'<table><thead><tr><th>Pedido</th><th>Estado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th>Ruta</th><th style="text-align:right">FOB</th></tr></thead><tbody>'+filas+'</tbody></table>'
+    +'<div class="pie">✓ fecha real · <i>cursiva</i> = fecha estimada (⚠ ya pasó sin registrarse como real). El estado de cada pedido se calcula con el último hito que tiene fecha real.</div></body></html>';
+}
+function logReporteVer(){
+  const o=logRepOpc(), w=window.open('','_blank');   // se abre dentro del clic para que el navegador no lo bloquee
+  const ps=logRepLista(o.alc);
+  if(!w){ showToast('El navegador bloqueó la ventana del reporte: permite las ventanas emergentes para este sitio','error'); return; }
+  w.document.write(logReporteHTML(ps,o)); w.document.close();
+  document.getElementById('logModal')?.remove();
+}
+function logRepTextoPlano(ps,o){
+  const N=logRepNovedades(ps), act=ps.filter(logActivo), fob=act.reduce((s,p)=>s+(p.fob||0),0);
+  const fab=p=>LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'';
+  const f=(est,real)=>real?logF(real)+' ✓':est?logF(est)+' (est.)':'—';
+  const lin=p=>{
+    const e=logEstado(p), at=logAtraso(p);
+    const hitos=[['fabricación',p.fabEst,p.fabReal],['despacho',p.despEst,p.despReal],['zarpe',p.zarpeEst,p.zarpeReal],['puerto'+(p.pDestino?' '+p.pDestino:''),p.puertoEst,p.puertoReal],['llegada a AYJ',p.ayjEst,p.ayjReal]].filter(h=>h[1]||h[2]).map(h=>h[0]+' '+f(h[1],h[2])).join(' · ');
+    return '• '+(p.titulo||p.codigo)+' ('+fab(p)+') — '+e.txt+(at?' ⚠ atrasado '+at+' d':'')+'\n   '+hitos+(p.buque?'\n   Buque: '+p.buque:'')+((p.tipoCont||p.numCont)?'\n   Contenedor: '+[p.tipoCont,p.numCont].filter(Boolean).join(' '):'')+(o.ser&&p.units.length?'\n   Máquinas: '+logRepMaq(p).join('; '):'')+(o.not&&p.notas?'\n   📝 '+p.notas.replace(/\n+/g,' · '):'');
+  };
+  const grupos=[['⚠ ATRASADOS',ps.filter(p=>logActivo(p)&&logAtraso(p)>0)],['🏭 EN FABRICACIÓN',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logEstado(p).idx<2)],['🚢 EN TRÁNSITO',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logEstado(p).idx===2)],['⚓ EN PUERTO / NACIONALIZACIÓN',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logEstado(p).idx===3)],['✅ RECIBIDOS EN AYJ',ps.filter(p=>!logActivo(p)&&p.ayjReal)]];
+  const L=['ESTADO DE PEDIDOS A FÁBRICA — AYJ · '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),
+    'Activos: '+act.length+' · Con atraso: '+N.atras.length+(fob?' · FOB en camino: USD '+Math.round(fob).toLocaleString('es-CO'):'')];
+  if(o.nov){ if(N.prox.length) L.push('','Llegan a AYJ en ≤ 15 días: '+N.prox.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjEst)+')').join(', ')); if(N.recib.length) L.push('Recibidos en los últimos 15 días: '+N.recib.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjReal)+')').join(', ')); }
+  grupos.forEach(([t,a])=>{ if(a.length){ L.push('','*'+t+'* ('+a.length+')'); a.forEach(p=>L.push(lin(p))); } });
+  L.push('','(✓ fecha real · est. = fecha estimada)');
+  return L.join('\n');
+}
+async function logReporteTexto(){
+  const o=logRepOpc(), t=logRepTextoPlano(logRepLista(o.alc),o);
+  try{ await navigator.clipboard.writeText(t); }
+  catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand('copy'); }catch(x){ showToast('No se pudo copiar el resumen','error'); a.remove(); return; } a.remove(); }
+  document.getElementById('logModal')?.remove();
+  showToast('Resumen copiado: pégalo en Teams, WhatsApp o un correo','success');
 }
 // ── entrada ──
 function logAbrir(){ switchView('logistica'); }
