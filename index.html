@@ -6685,18 +6685,18 @@ function logDibujar(){
   copias.forEach(sede);
   const pedidos=lista.map(p=>({p,pos:logPosicion(p)})).filter(x=>x.pos).sort((a,b)=>(a.p.codigo===LOG.sel)-(b.p.codigo===LOG.sel));
   // Pedidos que comparten corredor (mismos puntos de paso y destino) → líneas paralelas separadas 5 px; barcos o pedidos en un mismo puerto → separados horizontalmente
-  const GAP=5, gr={}, gm={};
+  const GAP=12, gr={}, gm={};
   pedidos.forEach(it=>{
     const T=it.pos.T;
     if(T.mar&&T.mar.length>2){ const k=T.mar.slice(1,-1).map(q=>q.map(z=>Math.round(z)).join(',')).join('|')+'>'+it.p.pDestino; (gr[k]=gr[k]||[]).push(it); }
     if(it.pos.etapa!=='En el mar'){ const k=it.pos.etapa+'|'+it.pos.pos.map(z=>z.toFixed(2)).join(','); (gm[k]=gm[k]||[]).push(it); }
   });
   Object.values(gr).forEach(g=>{ g.sort((a,b)=>a.p.codigo.localeCompare(b.p.codigo)); g.forEach((it,i)=>{ it.off=(i-(g.length-1)/2)*GAP; }); });
-  Object.values(gm).forEach(g=>{ g.sort((a,b)=>a.p.codigo.localeCompare(b.p.codigo)); g.forEach((it,i)=>{ it.offM=(i-(g.length-1)/2)*13; }); });
+  Object.values(gm).forEach(g=>{ g.sort((a,b)=>a.p.codigo.localeCompare(b.p.codigo)); g.forEach((it,i)=>{ it.gi=i; it.gn=g.length; }); });
   pedidos.forEach(it=>{
     const {p,pos}=it;
     const T=pos.T, sel=p.codigo===LOG.sel, color=logColor(p);
-    copias.forEach(n=>{
+    [-2,-1,0,1,2].forEach(n=>{   // las rutas usan longitudes continuas (pueden pasar de 180°): se prueban varios desplazamientos del mundo y lo que cae fuera de pantalla se descarta
       const dx=n*v.ww, X=pt=>v.xp(pt[0])+dx, Y=pt=>v.yp(pt[1]);
       ctx.globalAlpha=sel||!LOG.sel?1:0.3; ctx.lineJoin='round'; ctx.lineCap='round';
       const traza=(a,b,dash,w)=>{ ctx.beginPath(); for(let i=a;i<=b;i++){ if(i===a) ctx.moveTo(X(T.pts[i]),Y(T.pts[i])); else ctx.lineTo(X(T.pts[i]),Y(T.pts[i])); } ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke(); ctx.setLineDash([]); };
@@ -6707,12 +6707,19 @@ function logDibujar(){
       const punto=(pt,r)=>{ if(!pt) return; ctx.beginPath(); ctx.arc(X(pt),Y(pt),r,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.stroke(); };
       punto(T.o,sel?4:3); if(T.po&&T.po!==T.o) punto(T.po,sel?4:3); punto(T.pd,sel?4:3);
       if(sel){ ctx.font='11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.fillStyle='#374151'; [[T.po,p.pOrigen],[T.pd,p.pDestino],[T.o&&T.o!==T.po?T.o:null,p.ciudad]].forEach(([pt,nom])=>{ if(pt&&nom){ ctx.strokeText(nom,X(pt)+7,Y(pt)+14); ctx.fillText(nom,X(pt)+7,Y(pt)+14); } }); }
-      let x=X(pos.pos), y=Y(pos.pos);
-      if(pos.etapa==='En el mar'&&PO&&pos.seg!=null&&PO[pos.seg+1]){ x=PO[pos.seg][0]+(PO[pos.seg+1][0]-PO[pos.seg][0])*pos.f; y=PO[pos.seg][1]+(PO[pos.seg+1][1]-PO[pos.seg][1])*pos.f; } else if(it.offM) x+=it.offM;
+      let x=X(pos.pos), y=Y(pos.pos), lado=0;
+      if(pos.etapa==='En el mar'&&PO&&pos.seg!=null&&PO[pos.seg+1]){ x=PO[pos.seg][0]+(PO[pos.seg+1][0]-PO[pos.seg][0])*pos.f; y=PO[pos.seg][1]+(PO[pos.seg+1][1]-PO[pos.seg][1])*pos.f; }
+      else if(it.gn>1){   // varios pedidos en el mismo punto (puerto o fábrica) → escalera al costado, con línea guía y código de cada uno
+        const ax=x, ay=y; lado=ax>W*0.7?-1:1; x=ax+lado*36; y=ay+(it.gi-(it.gn-1)/2)*21;
+        if(ax>-30&&ax<W+30){ ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(x,y); ctx.setLineDash([]); ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.stroke(); ctx.beginPath(); ctx.arc(ax,ay,3,0,7); ctx.fillStyle=color; ctx.fill(); }
+      }
       if(x>-20&&x<W+20&&y>-20&&y<H+20){
-        ctx.beginPath(); ctx.arc(x,y,sel?9:7,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x,y,sel?7:5.5,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke();
         LOG.marcas.push({codigo:p.codigo,x,y,r:13,txt:p.codigo+' · '+logEstado(p).txt+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
-        if(sel||etiquetas){ ctx.font='bold 11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.fillStyle='#1F2937'; ctx.strokeText(p.codigo,x+11,y-9); ctx.fillText(p.codigo,x+11,y-9); }
+        if(sel||etiquetas||lado){
+          ctx.font='bold 11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.fillStyle='#1F2937';
+          const tx=lado?x+lado*12:x+11, ty=lado?y+4:y-9; ctx.textAlign=lado<0?'right':'left'; ctx.strokeText(p.codigo,tx,ty); ctx.fillText(p.codigo,tx,ty); ctx.textAlign='left';
+        }
       }
       ctx.globalAlpha=1;
     });
