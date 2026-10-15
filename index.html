@@ -326,6 +326,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
         <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos y venta nacional (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
         <button id="navPerf" onclick="perfAbrir()" title="Mide cuánto tarda cada acción y cada llamada a SharePoint (solo lee; los datos quedan en este navegador)"><i class="ti ti-gauge"></i> Velocidad</button>
+        <button id="navRoles" onclick="rolesAbrir()" title="Define qué módulos ve cada rol (solo Gerente General)" style="display:none"><i class="ti ti-shield-lock"></i> Roles y módulos</button>
         </div></div>
     </div>
     <div class="topbar-right">
@@ -6457,62 +6458,122 @@ async function pedidoRegistrarAhora(){
 }
 
 // ── ROLES Y MÓDULOS POR USUARIO ─────────────────────────────────────────────────────────────────────────
-// Cada persona ve solo las herramientas que usa (orden por relevancia, NO seguridad: los datos se protegen con los permisos de SharePoint).
-// El rol sale de la lista de SharePoint USUARIOS_APP (columnas: Title = nombre, Correo = correo de la cuenta Microsoft, Rol = Elección).
-// Si la lista no existe, no se puede leer, o la persona no aparece en ella → ve TODO (comportamiento de siempre). Enlace de prueba: ?rol=logistica
-const ROLES={
-  gerencia:{nombre:'Gerente General',vistas:null},
-  comercial:{nombre:'Comercial',vistas:null},                 // Gerente Comercial y Comercial (asesores): todo, por ahora
-  tecnico:{nombre:'Gerente Técnico',vistas:null},               // por ahora todo (posventa llegará después)
-  administracion:{nombre:'Gerente Admon',vistas:null},        // su módulo de pedidos llegará después (hoy se lleva en Synergy): por ahora ve todo
-  logistica:{nombre:'Logística',inicio:'logistica',
-    vistas:['stock','reservadas','ventas','logistica'],
-    menus:['navStock','navReservadas','navPorEntregar','navVendidas','navLogistica','navFotos']}
-};
-const ROL={id:'comercial',nombre:'Comercial',restringido:false,fuente:'sin lista',encontrado:false,email:''};
-function rolDeTexto(t){
-  const k=String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-  if(/gerente general|gerencia/.test(k)) return 'gerencia';
-  if(/logistic/.test(k)) return 'logistica';
-  if(/admon|administra/.test(k)) return 'administracion';
-  if(/tecnic/.test(k)) return 'tecnico';
-  return 'comercial';
+// Cada persona ve solo las herramientas (módulos) que usa: orden por relevancia, NO seguridad (los datos se protegen con los permisos de SharePoint).
+// · USUARIOS_APP (lista): Title = nombre, Correo = correo de la cuenta Microsoft, Rol = Elección (Gerente General, Gerente Comercial, Comercial, Gerente Técnico, Técnico, Gerente Admon, Administración, Logística…).
+// · ROLES_APP (lista): qué módulos ve cada rol. Title = nombre del rol, Modulos = Elección múltiple (Ventas, Inventario, Logística, Inteligencia, Técnico, Administración).
+//   Se edita desde Más ▾ → "Roles y módulos" (solo Gerente General) como una matriz de casillas.
+// Sin listas, sin entrada para el rol, o persona que no aparece → ve TODO (comportamiento de siempre); Logística por defecto: Inventario + Logística. Prueba: ?rol=Logística
+const ROL_MODULOS={
+  'Ventas':{menus:['navNueva','navHistorial','navSeguimiento','navClientes','navLiquidador','navEvento','navEventoCfg'],vistas:['nueva','historial','seguimiento','clientes','evento'],inicio:'nueva',desc:'Ofertas, clientes, seguimiento, liquidador y evento'},
+  'Inventario':{menus:['navStock','navReservadas','navPorEntregar','navVendidas','navFotos'],vistas:['stock','reservadas','ventas'],inicio:'stock',desc:'Stock, reservadas, por entregar, vendidas y fotos'},
+  'Logística':{menus:['navLogistica'],vistas:['logistica'],inicio:'logistica',desc:'Pedidos a fábrica, ubicación en stock y reportes'},
+  'Inteligencia':{menus:['navDashboard','navPerf'],vistas:['dashboard'],inicio:'dashboard',desc:'Indicadores comerciales y diagnóstico de velocidad'},
+  'Técnico':{menus:[],vistas:[],inicio:'',desc:'Próximamente (posventa)',futuro:true},
+  'Administración':{menus:[],vistas:[],inicio:'',desc:'Próximamente (pedidos a fábrica y de clientes)',futuro:true}};
+const ROL_TODOS=Object.keys(ROL_MODULOS);
+const ROL_BASE=['Gerente General','Gerente Comercial','Comercial','Gerente Técnico','Técnico','Gerente Admon','Administración','Logística'];
+const ROL={nombre:'Comercial',rolTexto:'',modulos:[...ROL_TODOS],restringido:false,vistas:null,menus:null,gg:false,inicioV:'nueva',fuente:'sin lista',encontrado:false,email:'',correos:[],matriz:{},filas:{},usuarios:{},listaRoles:''};
+const rolNorm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const rolCanon=m=>ROL_TODOS.find(x=>rolNorm(x)===rolNorm(m));
+function rolDefecto(texto){ return /logistic/.test(rolNorm(texto))?['Inventario','Logística']:[...ROL_TODOS]; }
+function rolModulosDe(texto){ return ROL.matriz[rolNorm(texto)]||rolDefecto(texto); }
+function rolFijar(texto,modulos){
+  const orden=['Ventas','Logística','Inventario','Inteligencia'], reales=ROL_TODOS.filter(m=>!ROL_MODULOS[m].futuro);
+  ROL.nombre=texto||'Comercial'; ROL.modulos=modulos; ROL.gg=/gerente general|gerencia/.test(rolNorm(texto));
+  ROL.restringido=!modulos.includes('Ventas');    // sin Ventas: no se cargan ofertas, TRM ni consecutivo y se abre en su propio módulo
+  const todo=reales.every(m=>modulos.includes(m));
+  ROL.vistas=todo?null:new Set(modulos.flatMap(m=>ROL_MODULOS[m].vistas));
+  ROL.menus=todo?null:new Set(modulos.flatMap(m=>ROL_MODULOS[m].menus));
+  const prim=orden.find(m=>modulos.includes(m)); ROL.inicioV=prim?ROL_MODULOS[prim].inicio:'nueva';
 }
-function rolFijar(id){ const r=ROLES[id]||ROLES.comercial; ROL.id=ROLES[id]?id:'comercial'; ROL.nombre=r.nombre; ROL.restringido=!!r.vistas; }
-function rolPermite(v){ const r=ROLES[ROL.id]; return !r||!r.vistas||r.vistas.includes(v); }
-function rolInicio(){ return (ROLES[ROL.id]||{}).inicio||'nueva'; }
+function rolPermite(v){ return !ROL.vistas||ROL.vistas.has(v); }
+function rolInicio(){ return ROL.inicioV||'nueva'; }
 function rolAplicar(){
-  const r=ROLES[ROL.id]||ROLES.comercial;
-  document.body.classList.toggle('rol-restringido',!!r.vistas);
-  const chip=document.getElementById('userChip'); if(chip) chip.title='Rol: '+r.nombre+(ROL.fuente==='lista'&&!ROL.encontrado?' (por defecto: ningún correo de tu cuenta aparece en USUARIOS_APP)':ROL.fuente==='enlace'?' (forzado por enlace)':'')+(ROL.correos&&ROL.correos.length?' · correos de tu cuenta: '+ROL.correos.join(', '):'');
+  document.body.classList.toggle('rol-restringido',ROL.restringido);
+  const chip=document.getElementById('userChip');
+  if(chip) chip.title='Rol: '+ROL.nombre+' · módulos: '+ROL.modulos.filter(m=>!ROL_MODULOS[m].futuro).join(', ')+(ROL.fuente==='lista'&&!ROL.encontrado?' (por defecto: ningún correo de tu cuenta aparece en USUARIOS_APP)':ROL.fuente==='enlace'?' (forzado por enlace)':'')+(ROL.correos.length?' · correos de tu cuenta: '+ROL.correos.join(', '):'');
   const nav=document.getElementById('mainNav'); if(!nav) return;
-  const ok=r.menus?id=>r.menus.includes(id):()=>true;
-  nav.querySelectorAll('button[id^="nav"]').forEach(b=>{ b.style.display=ok(b.id)?'':'none'; });
+  nav.querySelectorAll('button[id^="nav"]').forEach(b=>{ b.style.display=b.id==='navRoles'?(ROL.gg?'':'none'):(!ROL.menus||ROL.menus.has(b.id)?'':'none'); });
   nav.querySelectorAll('.nav-group').forEach(g=>{ g.style.display=[...g.querySelectorAll('.nav-menu button')].some(b=>b.style.display!=='none')?'':'none'; });
 }
+const rolTextoDe=f=>{ const e=Object.entries(f||{}).find(([k])=>/^rol/i.test(k)); return String((f&&f.Rol)||(e&&e[1])||'').trim(); };
+async function rolLeerListas(){
+  const listas=window._listasSitio||((await graphGet('/sites/'+siteId+'/lists?$select=id,displayName')).value)||[];
+  const lu=listas.find(x=>/usuarios.?app/i.test(String(x.displayName||''))), lr=listas.find(x=>/roles.?app/i.test(String(x.displayName||'')));
+  ROL.listaRoles=lr?lr.id:''; ROL.matriz={}; ROL.filas={}; ROL.usuarios={}; ROL.items=[];
+  if(lu){
+    ROL.fuente='lista';
+    ROL.items=(await graphGetAll('/sites/'+siteId+'/lists/'+lu.id+'/items?expand=fields&$top=500')).map(i=>i.fields||{});
+    ROL.items.forEach(f=>{ const t=rolTextoDe(f); if(t) ROL.usuarios[t]=(ROL.usuarios[t]||0)+1; });
+  }
+  if(lr){
+    const its=await graphGetAll('/sites/'+siteId+'/lists/'+lr.id+'/items?expand=fields&$top=200');
+    its.forEach(i=>{
+      const f=i.fields||{}, key=rolNorm(f.Title); if(!key) return;
+      const e=Object.entries(f).find(([k])=>/^m(_x00f3_|ó|o)dulo/i.test(k)), v=e?e[1]:null;
+      const arr=Array.isArray(v)?v:(typeof v==='string'&&v?v.split(/[;,]/).map(s=>s.trim()):[]);
+      const mods=[...new Set(arr.map(rolCanon).filter(Boolean))];
+      ROL.filas[key]={id:i.id,col:e?e[0]:""}; if(mods.length) ROL.matriz[key]=mods;
+    });
+  }
+}
 async function rolCargar(account){
-  ROL.email=String((account&&account.username)||'').trim().toLowerCase(); ROL.encontrado=false; ROL.fuente='sin lista'; rolFijar('comercial');
+  ROL.email=String((account&&account.username)||'').trim().toLowerCase(); ROL.encontrado=false; ROL.fuente='sin lista'; ROL.rolTexto='';
   // todos los correos con los que se conoce la cuenta (UPN, correo, alias): en Microsoft pueden convivir @ayj.com.co y @ayjcsp.onmicrosoft.com
   const correos=new Set([ROL.email]), cl=(account&&account.idTokenClaims)||{};
   [cl.email,cl.preferred_username].concat(cl.emails||[]).forEach(x=>{ if(x) correos.add(String(x).trim().toLowerCase()); });
   try{ const me=await graphGet('/me?$select=mail,userPrincipalName,otherMails'); [me.mail,me.userPrincipalName].concat(me.otherMails||[]).forEach(x=>{ if(x) correos.add(String(x).trim().toLowerCase()); }); }catch(e){}
   correos.delete(''); ROL.correos=[...correos];
   const locales=new Set(ROL.correos.map(c=>c.split('@')[0]));
+  rolFijar('Comercial',[...ROL_TODOS]);
   try{
-    const listas=window._listasSitio||((await graphGet('/sites/'+siteId+'/lists?$select=id,displayName')).value)||[];
-    const l=listas.find(x=>/usuarios.?app/i.test(String(x.displayName||'')));
-    if(l){
-      ROL.fuente='lista';
-      const items=await graphGetAll('/sites/'+siteId+'/lists/'+l.id+'/items?expand=fields&$top=500');
-      const coincide=v=>{ if(typeof v!=='string'||!v.includes('@')) return false; const c=v.trim().toLowerCase(); return correos.has(c)||locales.has(c.split('@')[0]); };
-      const mio=items.map(i=>i.fields||{}).find(f=>Object.values(f).some(coincide));
-      if(mio){ const e=Object.entries(mio).find(([k])=>/^rol/i.test(k)); rolFijar(rolDeTexto(mio.Rol||(e&&e[1])||'')); ROL.encontrado=true; }
-    }
-  }catch(e){ console.warn('[AYJ] Roles: no se pudo leer la lista USUARIOS_APP; se muestra todo:',e.message); }
-  const q=new URLSearchParams(location.search).get('rol'); if(q){ rolFijar(rolDeTexto(q)); ROL.fuente='enlace'; }   // para probar cómo ve cada rol: ?rol=logistica
+    await rolLeerListas();
+    const coincide=v=>{ if(typeof v!=='string'||!v.includes('@')) return false; const c=v.trim().toLowerCase(); return correos.has(c)||locales.has(c.split('@')[0]); };
+    const mio=ROL.items.find(f=>Object.values(f).some(coincide));
+    if(mio){ ROL.encontrado=true; ROL.rolTexto=rolTextoDe(mio)||'Comercial'; rolFijar(ROL.rolTexto,rolModulosDe(ROL.rolTexto)); }
+  }catch(e){ console.warn('[AYJ] Roles: no se pudieron leer las listas USUARIOS_APP / ROLES_APP; se muestra todo:',e.message); }
+  const q=new URLSearchParams(location.search).get('rol'); if(q){ rolFijar(q,rolModulosDe(q)); ROL.fuente='enlace'; }   // para probar cómo ve cada rol: ?rol=Logística
   rolAplicar();
 }
-(function(){ const s=document.createElement('style'); s.textContent='body.rol-restringido .mobile-tabs{display:none!important}'; document.head.appendChild(s); })();
+// ── matriz de roles × módulos (solo Gerente General) ──
+async function rolesAbrir(){
+  if(!ROL.gg){ showToast('Solo la Gerencia General puede cambiar los roles y módulos','error'); return; }
+  const m=document.createElement('div'); m.id='rolModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:900px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">🛡 Roles y módulos</strong><button onclick="document.getElementById(\'rolModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div><div id="rolCuerpo" style="padding:14px 18px;overflow-y:auto;flex:1"><div class="loading-list"><span class="spinner dark"></span> Leyendo roles…</div></div><div id="rolPie" style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"></div></div>';
+  document.body.appendChild(m);
+  try{ await rolLeerListas(); }catch(e){ document.getElementById('rolCuerpo').innerHTML='<div style="color:var(--red)">No se pudieron leer las listas: '+_escRes(e.message)+'</div>'; return; }
+  const roles=[...ROL_BASE]; Object.keys(ROL.usuarios).forEach(t=>{ if(!roles.some(r=>rolNorm(r)===rolNorm(t))) roles.push(t); });
+  ROL.edit=roles;
+  const th=m=>'<th style="font-size:11px;text-align:center;padding:4px 6px;'+(ROL_MODULOS[m].futuro?'color:#9CA3AF':'')+'" title="'+_escRes(ROL_MODULOS[m].desc)+'">'+m+(ROL_MODULOS[m].futuro?'<div style="font-weight:400;font-size:9px">(próx.)</div>':'')+'</th>';
+  const cuerpo=(ROL.listaRoles?'':'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:10px 12px;font-size:12px;margin-bottom:10px"><b>Falta crear la lista ROLES_APP</b> en SharePoint (la usa esta matriz para guardar tus cambios): columna <b>Title</b> (ya existe) y <b>Modulos</b> de tipo <b>Elección</b> con <b>selección múltiple</b> y estas opciones: '+ROL_TODOS.join(', ')+'. Mientras no exista, los roles usan los valores por defecto y no se puede guardar.</div>')
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Marca qué módulos ve cada rol. Los cambios aplican la próxima vez que cada persona abra el cotizador. <b>Gerente General siempre ve todo.</b> Para probar cómo ve un rol, abre el cotizador con <code>?rol=Nombre del rol</code>.</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse" class="rol-tabla"><thead><tr><th style="text-align:left;padding:4px 6px">Rol</th><th style="text-align:center">Personas</th>'+ROL_TODOS.map(th).join('')+'</tr></thead><tbody>'
+    +roles.map((r,i)=>{ const gg=/gerente general|gerencia/.test(rolNorm(r)), mods=gg?ROL_TODOS:rolModulosDe(r);
+      return '<tr><td><strong>'+_escRes(r)+'</strong></td><td style="text-align:center;color:var(--text2)">'+(ROL.usuarios[r]||0)+'</td>'+ROL_TODOS.map(mm=>'<td style="text-align:center"><input type="checkbox" class="rolChk" data-r="'+i+'" data-m="'+_escRes(mm)+'"'+(mods.includes(mm)?' checked':'')+(gg||!ROL.listaRoles?' disabled':'')+'></td>').join('')+'</tr>'; }).join('')
+    +'</tbody></table></div><div style="font-size:11px;color:var(--text3);margin-top:8px">Ventas: '+ROL_MODULOS.Ventas.desc+' · Inventario: '+ROL_MODULOS.Inventario.desc+' · Logística: '+ROL_MODULOS['Logística'].desc+' · Inteligencia: '+ROL_MODULOS.Inteligencia.desc+'. Técnico y Administración quedan marcables para cuando existan sus pantallas.</div>';
+  document.getElementById('rolCuerpo').innerHTML=cuerpo;
+  document.getElementById('rolPie').innerHTML='<button class="btn-sec" onclick="document.getElementById(\'rolModal\').remove()">Cerrar</button>'+(ROL.listaRoles?'<button class="btn-primary" id="rolGuardar" onclick="rolesGuardar()">Guardar roles</button>':'');
+}
+async function rolesGuardar(){
+  const btn=document.getElementById('rolGuardar'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    const filas=ROL.edit.map((r,i)=>({r,mods:ROL_TODOS.filter(mm=>[...document.querySelectorAll('.rolChk')].some(c=>+c.dataset.r===i&&c.dataset.m===mm&&c.checked))}));
+    const vacia=filas.find(f=>!f.mods.length&&!/gerente general|gerencia/.test(rolNorm(f.r))); if(vacia) throw new Error('El rol "'+vacia.r+'" no tiene ningún módulo marcado: marca al menos uno.');
+    let col=Object.values(ROL.filas).map(x=>x.col).find(Boolean);
+    if(!col){ const cs=await graphGet('/sites/'+siteId+'/lists/'+ROL.listaRoles+'/columns'); const c=(cs.value||[]).find(x=>rolNorm(x.displayName)==='modulos'||rolNorm(x.name)==='modulos'); col=c&&c.name; }
+    if(!col) throw new Error('No encontré la columna Modulos en la lista ROLES_APP');
+    const token=await getToken(); let n=0;
+    for(const f of filas){
+      const campos={[col]:f.mods,[col+'@odata.type']:'Collection(Edm.String)'}, ex=ROL.filas[rolNorm(f.r)];
+      const url='https://graph.microsoft.com/v1.0/sites/'+siteId+'/lists/'+ROL.listaRoles+'/items'+(ex?'/'+ex.id+'/fields':'');
+      const r=await fetch(url,{method:ex?'PATCH':'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(ex?campos:{fields:{Title:f.r,...campos}})});
+      if(!r.ok) throw new Error((ex?'PATCH ':'POST ')+r.status+': '+(await r.text()).slice(0,160)); n++;
+    }
+    await rolLeerListas(); rolFijar(ROL.rolTexto||ROL.nombre,rolModulosDe(ROL.rolTexto||ROL.nombre)); rolAplicar();
+    document.getElementById('rolModal')?.remove(); showToast('✓ Roles guardados ('+n+'). Aplican la próxima vez que cada persona abra el cotizador.','success');
+  }catch(e){ showToast('No se pudieron guardar los roles: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Guardar roles'; } }
+}
+(function(){ const s=document.createElement('style'); s.textContent='body.rol-restringido .mobile-tabs{display:none!important}.rol-tabla td,.rol-tabla th{border-bottom:1px solid var(--border);padding:7px 6px}'; document.head.appendChild(s); })();
 
 // ── LOGÍSTICA ─────────────────────────────────────────────────────────────────────────────────────────
 // Control logístico en 3 niveles. FASE 1 (este bloque): PEDIDOS A FÁBRICA — una fila por pedido en la lista PEDIDOS_FABRICA (SharePoint), alineada con la columna
@@ -6630,6 +6691,35 @@ function logEstado(p){
 }
 function logActivo(p){ return !p.ayjReal&&!/cancel/i.test(p.especial); }
 function logAtraso(p){ const hoy=new Date(); hoy.setHours(0,0,0,0); const e=logEstado(p); if(!logActivo(p)) return 0; const sig=LOG_HITOS.find((h,i)=>i>e.idx&&p[h.est]&&!p[h.real]); const ref=p.ayjEst&&!p.ayjReal?p.ayjEst:null; const d=[sig&&p[sig.est],ref].filter(x=>x&&x<hoy).sort((a,b)=>a-b)[0]; return d?Math.floor((hoy-d)/86400000):0; }
+// ── Fases del pedido: 1 Fabricación · 2 Lista–Embarcada (de fabricado a llegada a puerto: despacho, zarpe y travesía) · 3 Nacionalizada–Transporte local (del puerto a AYJ) · 4 Disponible en AYJ.
+// Avance de cada fase por fechas: 100 % cuando hay fecha real de su cierre; si no, (hoy − inicio) / (fin estimado − inicio), máximo 99 %.
+const LOG_FASES=[{nom:'Fabricación',corto:'Fabricación',col:'#F59E0B',bg:'#FEF3C7',tx:'#92400E'},{nom:'Lista · Embarcada',corto:'Lista · Embarcada',col:'#2563EB',bg:'#DBEAFE',tx:'#1E40AF'},
+  {nom:'Nacionalizada · Transporte local',corto:'Nacionalizada · T. local',col:'#7C3AED',bg:'#EDE9FE',tx:'#5B21B6'},{nom:'Disponible en AYJ',corto:'Disponible en AYJ',col:'#16A34A',bg:'#DCFCE7',tx:'#166534'}];
+const LOG_FASE_DIAS=[60,35,10];   // duración supuesta de cada fase cuando falta su fecha estimada de cierre
+function logAvance(p){
+  const D=86400000, ahora=Date.now(), t=x=>x?x.getTime():null;
+  const primera=p.fabReal||p.despReal||p.zarpeReal||p.puertoReal||p.ayjReal;
+  const hecho=[!!primera,!!(p.puertoReal||p.ayjReal),!!p.ayjReal];
+  const ini=[t(p.creado)||(t(p.fabEst)?t(p.fabEst)-LOG_FASE_DIAS[0]*D:null),t(primera)||t(p.fabEst),t(p.puertoReal||p.ayjReal)||t(p.puertoEst)];
+  const fin=[t(p.fabReal)||t(p.fabEst),t(p.puertoReal)||t(p.puertoEst),t(p.ayjReal)||t(p.ayjEst)];
+  const f=[0,0,0,0], dur=[];
+  for(let i=0;i<3;i++){
+    const a=ini[i]; let b=fin[i]; if(a&&!b) b=a+LOG_FASE_DIAS[i]*D;
+    dur[i]=a&&b&&b>a?(b-a)/D:LOG_FASE_DIAS[i];
+    if(hecho[i]) f[i]=1;
+    else if((i===0||hecho[i-1])&&a&&b) f[i]=b>a?Math.max(0,Math.min(0.99,(ahora-a)/(b-a))):(ahora>=a?0.99:0);
+  }
+  f[3]=p.ayjReal?1:0;
+  const w=[dur[0],dur[1],dur[2],Math.max(1,(dur[0]+dur[1]+dur[2])*0.04)];
+  let total=f.reduce((s,x,i)=>s+x*w[i],0)/w.reduce((s,x)=>s+x,0); if(!p.ayjReal) total=Math.min(total,0.99);
+  const idx=hecho[2]?3:hecho[1]?2:hecho[0]?1:0;
+  return {f,idx,total,fase:LOG_FASES[idx]};
+}
+function logFaseInfo(p){ const av=logAvance(p), e=logEstado(p); return e.especial?{av,txt:e.txt,bg:e.bg,cls:e.cls}:{av,txt:av.fase.nom,bg:av.fase.bg,cls:av.fase.tx}; }
+function logBarra(f,col,h){ return '<div style="flex:1;min-width:46px;background:#E5E7EB;border-radius:'+(h/2)+'px;height:'+h+'px;overflow:hidden"><div style="width:'+Math.round(f*100)+'%;height:100%;background:'+col+'"></div></div>'; }
+function logBarrasFases(av){
+  return LOG_FASES.map((fs,i)=>{ const pct=Math.round(av.f[i]*100), act=i===av.idx&&pct<100; return '<div style="display:flex;align-items:center;gap:6px;margin:2px 0" title="'+fs.nom+': '+pct+'%"><span style="width:104px;font-size:10px;white-space:nowrap;color:'+(act?fs.tx:'var(--text2)')+';font-weight:'+(act?'700':'400')+'">'+(pct>=100?'✓ ':'')+fs.corto+'</span>'+logBarra(av.f[i],fs.col,7)+'<b style="font-size:10px;min-width:28px;text-align:right;color:'+(pct>=100?'#166534':'var(--text)')+'">'+pct+'%</b></div>'; }).join('');
+}
 // puntos de la ruta [lon,lat] (por nombre de ciudad/puerto)
 function logRuta(p){
   const o=logCoord(p.ciudad)||logCoord(p.pOrigen), po=logCoord(p.pOrigen)||o, pd=logCoord(p.pDestino);
@@ -6698,7 +6788,7 @@ function logDesplazar(P,off){
 function logPosicion(p){
   const T=logTrazado(p); if(!T) return null; const ahora=Date.now();
   if(p.ayjReal) return {pos:T.ayj,etapa:'AYJ',t:1,T};
-  if(p.puertoReal&&T.pd) return {pos:T.pd,etapa:'Puerto',t:1,T};
+  if(p.puertoReal&&T.pd){ const t3=logAvance(p).f[2], a=logAlongIdx(T.pts.slice(T.finMar),t3); return {pos:t3<0.02?T.pd:a.pos,etapa:t3<0.02?'Puerto':'Transporte local',t:t3,T}; }
   if(p.zarpeReal&&T.mar){
     const fin=(p.puertoEst||new Date(p.zarpeReal.getTime()+30*86400000)).getTime(), ini=p.zarpeReal.getTime();
     const t=Math.max(0.03,Math.min(0.97,(ahora-ini)/Math.max(1,fin-ini)));
@@ -6707,7 +6797,7 @@ function logPosicion(p){
   if(p.despReal&&T.po) return {pos:T.po,etapa:'Puerto de origen',t:0,T};
   const base=T.o||T.po; return base?{pos:base,etapa:'Fábrica',t:0,T}:null;
 }
-function logColor(p){ if(logAtraso(p)>0) return '#DC2626'; const e=logEstado(p); return e.idx<0?'#F59E0B':e.idx<2?'#D97706':e.idx===2?'#2563EB':e.idx===3?'#7C3AED':'#16A34A'; }
+function logColor(p){ return logAtraso(p)>0?'#DC2626':LOG_FASES[logAvance(p).idx].col; }
 // ── mapa plano (Mercator con repetición horizontal, zoom y arrastre) — D3 + TopoJSON se cargan solo al abrir Logística ──
 function logScript(src){ return new Promise((ok,ko)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>ko(new Error('No se pudo cargar '+src)); document.head.appendChild(s); }); }
 async function logLibs(){
@@ -6748,7 +6838,7 @@ function logDibujar(){
   const lista=logFiltrados(), etiquetas=lista.length<=8;
   const sede=n=>{ const x=v.xp(LOG_AYJ[0])+n*v.ww, y=v.yp(LOG_AYJ[1]); if(x<-10||x>W+10) return; ctx.fillStyle='#80A61B'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.fillStyle='#3F5A0A'; ctx.font='bold 11px sans-serif'; ctx.fillText('AYJ',x+8,y+4); };
   copias.forEach(sede);
-  const pedidos=lista.map(p=>({p,pos:logPosicion(p)})).filter(x=>x.pos).sort((a,b)=>(a.p.codigo===LOG.sel)-(b.p.codigo===LOG.sel));
+  const pedidos=lista.map(p=>({p,pos:logPosicion(p),av:logAvance(p)})).filter(x=>x.pos).sort((a,b)=>(a.p.codigo===LOG.sel)-(b.p.codigo===LOG.sel));
   // Pedidos que comparten corredor (mismos puntos de paso y destino) → líneas paralelas separadas 5 px; barcos o pedidos en un mismo puerto → separados horizontalmente
   const GAP=12, gr={}, gm={};
   pedidos.forEach(it=>{
@@ -6760,17 +6850,24 @@ function logDibujar(){
   Object.values(gm).forEach(g=>{ g.sort((a,b)=>a.p.codigo.localeCompare(b.p.codigo)); g.forEach((it,i)=>{ it.gi=i; it.gn=g.length; }); });
   pedidos.forEach(it=>{
     const {p,pos}=it;
-    const T=pos.T, sel=p.codigo===LOG.sel, color=logColor(p);
+    const T=pos.T, sel=p.codigo===LOG.sel, color=logColor(p), et=pos.etapa;
+    const lin=sel||it.av.idx===1||it.av.idx===2;   // solo los pedidos que ya van en camino (y el seleccionado) muestran su ruta
+    const rc={l1:et==='Fábrica'?0:1,mar:et==='En el mar'?pos.t:(et==='Fábrica'||et==='Puerto de origen')?0:1,l3:(et==='Puerto'||et==='Transporte local')?it.av.f[2]:et==='AYJ'?1:0};   // fracción recorrida de cada tramo
     [-2,-1,0,1,2].forEach(n=>{   // las rutas usan longitudes continuas (pueden pasar de 180°): se prueban varios desplazamientos del mundo y lo que cae fuera de pantalla se descarta
       const dx=n*v.ww, X=pt=>v.xp(pt[0])+dx, Y=pt=>v.yp(pt[1]);
       ctx.globalAlpha=sel||!LOG.sel?1:0.3; ctx.lineJoin='round'; ctx.lineCap='round';
-      const traza=(a,b,dash,w)=>{ ctx.beginPath(); for(let i=a;i<=b;i++){ if(i===a) ctx.moveTo(X(T.pts[i]),Y(T.pts[i])); else ctx.lineTo(X(T.pts[i]),Y(T.pts[i])); } ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke(); ctx.setLineDash([]); };
-      if(T.iniMar>0) traza(0,T.iniMar,[4,4],sel?1.8:1);                       // fábrica → puerto de origen (tierra)
-      let PO=null;
-      if(T.mar){ PO=logDesplazar(T.mar.map(q=>[X(q),Y(q)]),it.off||0); ctx.beginPath(); PO.forEach((q,k)=>{ if(k) ctx.lineTo(q[0],q[1]); else ctx.moveTo(q[0],q[1]); }); ctx.setLineDash([]); ctx.strokeStyle=color; ctx.lineWidth=sel?3:1.8; ctx.stroke(); }   // travesía marítima
-      traza(T.finMar,T.pts.length-1,[4,4],sel?1.8:1);                         // puerto de destino → AYJ (tierra)
+      const lineaArr=(arr,dash,w)=>{ if(!arr||arr.length<2) return; ctx.beginPath(); arr.forEach((q,k)=>{ if(k) ctx.lineTo(q[0],q[1]); else ctx.moveTo(q[0],q[1]); }); ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke(); ctx.setLineDash([]); };
+      const parc=(geo,scr,fr)=>{ if(fr>=1) return scr; if(fr<=0) return null; const a=logAlongIdx(geo,fr), out=scr.slice(0,a.seg+1); out.push([scr[a.seg][0]+(scr[a.seg+1][0]-scr[a.seg][0])*a.f,scr[a.seg][1]+(scr[a.seg+1][1]-scr[a.seg][1])*a.f]); return out; };   // tramo recorrido de una polilínea
+      let PO=null; if(T.mar) PO=logDesplazar(T.mar.map(q=>[X(q),Y(q)]),it.off||0);
+      if(lin){
+        const G1=T.iniMar>0?T.pts.slice(0,T.iniMar+1):null, S1=G1&&G1.map(q=>[X(q),Y(q)]), G3=T.pts.slice(T.finMar), S3=G3.map(q=>[X(q),Y(q)]), gA=ctx.globalAlpha;
+        ctx.globalAlpha=gA*0.3;   // ruta completa tenue: lo que falta por recorrer
+        if(S1) lineaArr(S1,[2,5],sel?1.8:1.2); if(PO) lineaArr(PO,[2,5],sel?2.4:1.4); lineaArr(S3,[2,5],sel?1.8:1.2);
+        ctx.globalAlpha=gA;       // recorrido: fábrica → puerto de origen → travesía → puerto de destino → AYJ
+        if(S1) lineaArr(parc(G1,S1,rc.l1),[],sel?3:2.2); if(PO) lineaArr(parc(T.mar,PO,rc.mar),[],sel?3.6:2.8); lineaArr(parc(G3,S3,rc.l3),[],sel?3:2.2);
+      }
       const punto=(pt,r)=>{ if(!pt) return; ctx.beginPath(); ctx.arc(X(pt),Y(pt),r,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.stroke(); };
-      punto(T.o,sel?4:3); if(T.po&&T.po!==T.o) punto(T.po,sel?4:3); punto(T.pd,sel?4:3);
+      if(lin){ punto(T.o,sel?4:3); if(T.po&&T.po!==T.o) punto(T.po,sel?4:3); punto(T.pd,sel?4:3); }
       if(sel){ ctx.font='11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.fillStyle='#374151'; [[T.po,p.pOrigen],[T.pd,p.pDestino],[T.o&&T.o!==T.po?T.o:null,p.ciudad]].forEach(([pt,nom])=>{ if(pt&&nom){ ctx.strokeText(nom,X(pt)+7,Y(pt)+14); ctx.fillText(nom,X(pt)+7,Y(pt)+14); } }); }
       let x=X(pos.pos), y=Y(pos.pos), lado=0;
       if(pos.etapa==='En el mar'&&PO&&pos.seg!=null&&PO[pos.seg+1]){ x=PO[pos.seg][0]+(PO[pos.seg+1][0]-PO[pos.seg][0])*pos.f; y=PO[pos.seg][1]+(PO[pos.seg+1][1]-PO[pos.seg][1])*pos.f; }
@@ -6780,7 +6877,7 @@ function logDibujar(){
       }
       if(x>-20&&x<W+20&&y>-20&&y<H+20){
         ctx.beginPath(); ctx.arc(x,y,sel?7:5.5,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke();
-        LOG.marcas.push({codigo:p.codigo,x,y,r:13,txt:p.codigo+' · '+logEstado(p).txt+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
+        LOG.marcas.push({codigo:p.codigo,x,y,r:13,txt:p.codigo+' · '+it.av.fase.nom+' · avance '+Math.round(it.av.total*100)+'%'+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
         if(sel||etiquetas||lado){
           ctx.font='bold 11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.fillStyle='#1F2937';
           const tx=lado?x+lado*12:x+11, ty=lado?y+4:y-9; ctx.textAlign=lado<0?'right':'left'; ctx.strokeText(p.codigo,tx,ty); ctx.fillText(p.codigo,tx,ty); ctx.textAlign='left';
@@ -6861,16 +6958,16 @@ function logRender(){
   const act=LOG.pedidos.filter(logActivo), atras=act.filter(p=>logAtraso(p)>0);
   const enRuta=act.reduce((s,p)=>s+p.units.length,0), fobTot=act.reduce((s,p)=>s+(p.fob||0),0);
   const kpi=(t,n,col,s)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:22px;font-weight:800;color:'+col+'">'+n+'</div>'+(s?'<div style="font-size:11px;color:var(--text3)">'+s+'</div>':'')+'</div>';
-  const cuenta=fn=>act.filter(p=>fn(logEstado(p).idx)).length;
+  const cuenta=fn=>act.filter(p=>fn(logAvance(p).idx)).length;
   const fabs=[...new Set(LOG.pedidos.map(p=>(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'').toUpperCase()).filter(Boolean))].sort();
   const sel=LOG.pedidos.find(p=>p.codigo===LOG.sel);
   c.innerHTML=
     '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px">'
-      +kpi('Pedidos activos',act.length,'#575756',enRuta+' máquinas en camino')+kpi('En fabricación',cuenta(i=>i<2),'#92400E','antes de zarpar')+kpi('En tránsito',cuenta(i=>i===2),'#1D4ED8','en el barco')+kpi('En puerto / aduana',cuenta(i=>i===3),'#6D28D9','por nacionalizar')+kpi('Con atraso',atras.length,atras.length?'#DC2626':'#166534','fecha estimada vencida')+kpi('FOB en camino',fobTot?'USD '+Math.round(fobTot).toLocaleString('es-CO'):'—','#1D4ED8','pedidos activos')+'</div>'
+      +kpi('Pedidos activos',act.length,'#575756',enRuta+' máquinas en camino')+kpi('Fabricación',cuenta(i=>i===0),'#92400E','fase 1')+kpi('Lista · Embarcada',cuenta(i=>i===1),'#1D4ED8','fase 2 · despacho y barco')+kpi('Nacionalizada · T. local',cuenta(i=>i===2),'#6D28D9','fase 3 · hacia AYJ')+kpi('Con atraso',atras.length,atras.length?'#DC2626':'#166534','fecha estimada vencida')+kpi('FOB en camino',fobTot?'USD '+Math.round(fobTot).toLocaleString('es-CO'):'—','#1D4ED8','pedidos activos')+'</div>'
     +'<div id="logGlobo" style="position:relative;height:360px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:12px"><canvas id="logCanvas" style="width:100%;height:100%;display:block;touch-action:none;cursor:grab"></canvas><div id="logTip" style="display:none;position:absolute;background:#1F2937;color:#fff;font-size:11px;padding:5px 8px;border-radius:6px;pointer-events:none;max-width:260px"></div>'
       +'<div style="position:absolute;left:10px;top:8px;font-size:11px;color:var(--text2);background:rgba(255,255,255,.8);padding:2px 8px;border-radius:6px">Arrastra para mover · rueda para zoom · clic en un barco</div>'
       +'<div style="position:absolute;right:10px;top:8px;display:flex;gap:6px"><button class="btn-sec" style="font-size:12px;padding:3px 9px;background:#fff" onclick="logZoom(1.6)" title="Acercar">＋</button><button class="btn-sec" style="font-size:12px;padding:3px 9px;background:#fff" onclick="logZoom(0.625)" title="Alejar">−</button><button class="btn-sec" style="font-size:11px;padding:3px 8px;background:#fff" onclick="logVer(\'colombia\')">📍 Colombia</button><button class="btn-sec" style="font-size:11px;padding:3px 8px;background:#fff" onclick="logVer(\'mundo\')">🌐 Mundo</button><button class="btn-sec" style="font-size:11px;padding:3px 8px;background:#fff" onclick="LOG.sel&&logFocus(LOG.sel)" title="Encuadrar el pedido seleccionado">🎯 Ruta</button></div>'
-      +'<div style="position:absolute;left:10px;bottom:8px;display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text2);background:rgba(255,255,255,.88);padding:3px 9px;border-radius:6px"><span><b style="color:#F59E0B">●</b> En fabricación</span><span><b style="color:#2563EB">●</b> En tránsito</span><span><b style="color:#7C3AED">●</b> En puerto</span><span><b style="color:#16A34A">●</b> Recibido</span><span><b style="color:#DC2626">●</b> Atrasado</span></div>'
+      +'<div style="position:absolute;left:10px;bottom:8px;display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text2);background:rgba(255,255,255,.88);padding:3px 9px;border-radius:6px"><span><b style="color:#F59E0B">●</b> Fabricación</span><span><b style="color:#2563EB">●</b> Lista · Embarcada</span><span><b style="color:#7C3AED">●</b> Nacionalizada · T. local</span><span><b style="color:#16A34A">●</b> Disponible en AYJ</span><span><b style="color:#DC2626">●</b> Atrasado</span></div>'
       +'<div id="logGloboMsg" style="position:absolute;right:10px;bottom:8px;text-align:right;max-width:50%;font-size:11px;color:var(--text2);background:rgba(255,255,255,.88);padding:2px 8px;border-radius:6px"></div></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
       +'<input type="text" placeholder="Buscar pedido, serial, buque, contenedor…" value="'+_escRes(LOG.q)+'" oninput="LOG.q=this.value;logRender();logFoco()" id="logQ" style="min-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">'
@@ -6879,21 +6976,21 @@ function logRender(){
       +'<span style="flex:1"></span><button class="btn-sec" onclick="logReporteAbrir()" title="Reporte del estado de los pedidos con fechas estimadas y reales y notas, para comunicar al equipo">📄 Reporte</button><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
     +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.join(', ')+'</div>':'')
     +(LOG.sinCodigo.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">ℹ Hay máquinas con N° de PEDIDO de marcas sin código de fábrica: <b>'+_escRes(LOG.sinCodigo.join(', '))+'</b>. Agrega su código en <code>LOG_FAB</code> (index.html) para que se alineen con la lista de pedidos.</div>':'')
-    +'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr><th>Pedido</th><th>Estado</th><th>Máquinas</th><th>Creado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th></th></tr></thead><tbody>'
+    +'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr><th>Pedido</th><th>Fase y avance total</th><th>Avance por fases</th><th>Máquinas</th><th>Creado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th></th></tr></thead><tbody>'
     +(lista.map(p=>{
-      const e=logEstado(p), at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
+      const fz=logFaseInfo(p), av=fz.av, at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
       const dias=eta&&!p.ayjReal?Math.round((eta-hoy)/86400000):null;
       return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
         +'<td><strong style="font-size:14px">'+_escRes(p.titulo||p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
-        +'<td><span style="background:'+e.bg+';color:'+e.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(e.txt)+'</span><div>'+logPuntos(e.idx,e.especial)+'</div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700">atrasado '+at+' d</div>':'')+'</td>'
+        +'<td style="min-width:150px"><span style="background:'+fz.bg+';color:'+fz.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(fz.txt)+'</span><div style="display:flex;align-items:center;gap:6px;margin-top:6px" title="Avance total del pedido: de la creación a la llegada a AYJ">'+logBarra(av.total,'#575756',9)+'<b style="font-size:11px;min-width:32px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:2px">atrasado '+at+' d</div>':'')+'</td><td style="min-width:230px">'+logBarrasFases(av)+'</td>'
         +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
         +'<td style="font-size:12px;white-space:nowrap">'+(p.creado?logF(p.creado):'—')+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.fabEst,p.fabReal)+'</td><td style="font-size:12px">'+logCelda(p.despEst,p.despReal)+'</td><td style="font-size:12px">'+logCelda(p.zarpeEst,p.zarpeReal)+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.puertoEst,p.puertoReal)+(p.pDestino?'<div style="font-size:10px;color:var(--text2)">'+_escRes(p.pDestino)+'</div>':'')+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.ayjEst,p.ayjReal)+(dias!=null?'<div style="font-size:10px;font-weight:700;color:'+(dias<0?'#DC2626':'var(--text2)')+'">'+(dias<0?'hace '+(-dias)+' d':'en '+dias+' d')+'</div>':'')+'</td>'
         +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="btn-sec" style="font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎</button> '+(logActivo(p)?'<button class="btn-sec" style="font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</td></tr>'
-        +(es?'<tr><td colspan="10" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
-    }).join('')||'<tr><td colspan="10" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
+        +(es?'<tr><td colspan="11" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
+    }).join('')||'<tr><td colspan="11" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
     +'</tbody></table></div>';
   logIniciarGlobo();
 }
@@ -7249,7 +7346,7 @@ function logRepNovedades(ps){
   const hoy=new Date(); hoy.setHours(0,0,0,0); const d15=new Date(hoy.getTime()+15*86400000), h15=new Date(hoy.getTime()-15*86400000);
   return {atras:ps.filter(p=>logActivo(p)&&logAtraso(p)>0).sort((a,b)=>logAtraso(b)-logAtraso(a)),
     prox:ps.filter(p=>logActivo(p)&&!p.ayjReal&&p.ayjEst&&p.ayjEst>=hoy&&p.ayjEst<=d15).sort((a,b)=>a.ayjEst-b.ayjEst),
-    puerto:ps.filter(p=>logActivo(p)&&logEstado(p).idx===3),
+    puerto:ps.filter(p=>logActivo(p)&&logAvance(p).idx===2),
     recib:LOG.pedidos.filter(p=>p.ayjReal&&p.ayjReal>=h15).sort((a,b)=>b.ayjReal-a.ayjReal)};
 }
 function logReporteHTML(ps,o){
@@ -7261,13 +7358,13 @@ function logReporteHTML(ps,o){
   const nov=o.nov?'<div class="nov"><h3>Novedades</h3><div class="g">'
     +'<div><b style="color:#B91C1C">⚠ Atrasados ('+N.atras.length+')</b>'+li(N.atras,p=>nom(p)+' — llegada a AYJ estimada '+logF(p.ayjEst||p.puertoEst)+', <b>'+logAtraso(p)+' d de atraso</b>')+'</div>'
     +'<div><b style="color:#1D4ED8">🚢 Llegan a AYJ en ≤ 15 días ('+N.prox.length+')</b>'+li(N.prox,p=>nom(p)+' — '+logF(p.ayjEst)+(p.pDestino?' · puerto '+esc(p.pDestino):''))+'</div>'
-    +'<div><b style="color:#6D28D9">⚓ En puerto / nacionalización ('+N.puerto.length+')</b>'+li(N.puerto,p=>nom(p)+' — llegó a puerto '+logF(p.puertoReal)+(p.ayjEst?' · a AYJ est. '+logF(p.ayjEst):''))+'</div>'
+    +'<div><b style="color:#6D28D9">⚓ Nacionalizada · transporte local ('+N.puerto.length+')</b>'+li(N.puerto,p=>nom(p)+' — llegó a puerto '+logF(p.puertoReal)+(p.ayjEst?' · a AYJ est. '+logF(p.ayjEst):''))+'</div>'
     +'<div><b style="color:#166534">✅ Recibidos en los últimos 15 días ('+N.recib.length+')</b>'+li(N.recib,p=>nom(p)+' — '+logF(p.ayjReal))+'</div></div></div>':'';
   const filas=ps.map(p=>{
-    const e=logEstado(p), at=logAtraso(p), ruta=[[p.ciudad,p.pOrigen].filter(Boolean).join(' · '),p.pDestino&&'→ '+p.pDestino].filter(Boolean).join(' '), cont=[p.tipoCont,p.numCont].filter(Boolean).join(' ');
+    const fz=logFaseInfo(p), at=logAtraso(p), ruta=[[p.ciudad,p.pOrigen].filter(Boolean).join(' · '),p.pDestino&&'→ '+p.pDestino].filter(Boolean).join(' '), cont=[p.tipoCont,p.numCont].filter(Boolean).join(' ');
     const det=[o.ser&&p.units.length?'<b>Máquinas ('+p.units.length+'):</b> '+logRepMaq(p).map(esc).join('; '):'',o.not&&p.notas?'<b>Notas:</b> '+esc(p.notas).replace(/\n/g,'<br>'):''].filter(Boolean).join('<br>');
     return '<tr><td><b>'+esc(p.titulo||p.codigo)+'</b><div class="s">'+esc(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
-      +'<td><span class="chip" style="background:'+e.bg+';color:'+e.cls+'">'+esc(e.txt)+'</span>'+(at?'<div style="color:#B91C1C;font-weight:700;font-size:10px">atrasado '+at+' d</div>':'')+'</td>'
+      +'<td><span class="chip" style="background:'+fz.bg+';color:'+fz.cls+'">'+esc(fz.txt)+'</span><div class="s" style="margin-top:3px">avance total <b>'+Math.round(fz.av.total*100)+'%</b></div><div class="s">'+fz.av.f.map((x,i)=>LOG_FASES[i].corto.split(' ')[0]+' '+Math.round(x*100)+'%').join(' · ')+'</div>'+(at?'<div style="color:#B91C1C;font-weight:700;font-size:10px">atrasado '+at+' d</div>':'')+'</td>'
       +'<td>'+cel(p.fabEst,p.fabReal)+'</td><td>'+cel(p.despEst,p.despReal)+'</td><td>'+cel(p.zarpeEst,p.zarpeReal)+'</td><td>'+cel(p.puertoEst,p.puertoReal)+'</td><td>'+cel(p.ayjEst,p.ayjReal)+'</td>'
       +'<td class="s2">'+esc(ruta||'—')+(p.buque?'<br>Buque: '+esc(p.buque):'')+(cont?'<br>Contenedor: '+esc(cont):'')+'</td><td style="text-align:right;white-space:nowrap">'+(p.fob?'USD '+Math.round(p.fob).toLocaleString('es-CO'):'—')+'</td></tr>'
       +(det?'<tr class="det"><td colspan="9">'+det+'</td></tr>':'');
@@ -7282,9 +7379,9 @@ function logReporteHTML(ps,o){
     +'@media print{.bar{display:none}body{padding:0}tr{page-break-inside:avoid}}</style></head><body>'
     +'<div class="bar"><button onclick="window.print()">🖨 Imprimir / guardar PDF</button><button class="b" onclick="window.close()">Cerrar</button></div>'
     +'<div class="top"><div><h1>Estado de pedidos a fábrica</h1><div class="s">AYJ Maquinaria · generado el '+ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+' '+ahora.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})+(typeof currentUserName!=='undefined'&&currentUserName?' · '+esc(currentUserName):'')+'</div></div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:40px" onerror="this.style.display=\'none\'"></div>'
-    +'<div class="k"><div><b>'+act.length+'</b><span>Pedidos activos</span></div><div><b>'+act.filter(p=>logEstado(p).idx<2).length+'</b><span>En fabricación</span></div><div><b>'+act.filter(p=>logEstado(p).idx===2).length+'</b><span>En tránsito</span></div><div><b>'+act.filter(p=>logEstado(p).idx===3).length+'</b><span>En puerto / aduana</span></div><div><b style="color:'+(N.atras.length?'#B91C1C':'#166534')+'">'+N.atras.length+'</b><span>Con atraso</span></div><div><b>'+(fob?'USD '+Math.round(fob).toLocaleString('es-CO'):'—')+'</b><span>FOB en camino</span></div></div>'
+    +'<div class="k"><div><b>'+act.length+'</b><span>Pedidos activos</span></div><div><b>'+act.filter(p=>logAvance(p).idx===0).length+'</b><span>Fabricación</span></div><div><b>'+act.filter(p=>logAvance(p).idx===1).length+'</b><span>Lista · Embarcada</span></div><div><b>'+act.filter(p=>logAvance(p).idx===2).length+'</b><span>Nacionalizada · T. local</span></div><div><b style="color:'+(N.atras.length?'#B91C1C':'#166534')+'">'+N.atras.length+'</b><span>Con atraso</span></div><div><b>'+(fob?'USD '+Math.round(fob).toLocaleString('es-CO'):'—')+'</b><span>FOB en camino</span></div></div>'
     +nov+'<table><thead><tr><th>Pedido</th><th>Estado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th>Ruta</th><th style="text-align:right">FOB</th></tr></thead><tbody>'+filas+'</tbody></table>'
-    +'<div class="pie">✓ fecha real · <i>cursiva</i> = fecha estimada (⚠ ya pasó sin registrarse como real). El estado de cada pedido se calcula con el último hito que tiene fecha real.</div></body></html>';
+    +'<div class="pie">✓ fecha real · <i>cursiva</i> = fecha estimada (⚠ ya pasó sin registrarse como real). Fases: Fabricación → Lista · Embarcada → Nacionalizada · Transporte local → Disponible en AYJ. El avance de cada fase se calcula con las fechas (100 % cuando hay fecha real de cierre; antes, según el tiempo transcurrido hasta la fecha estimada).</div></body></html>';
 }
 function logReporteVer(){
   const o=logRepOpc(), w=window.open('','_blank');   // se abre dentro del clic para que el navegador no lo bloquee
@@ -7298,11 +7395,11 @@ function logRepTextoPlano(ps,o){
   const fab=p=>LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'';
   const f=(est,real)=>real?logF(real)+' ✓':est?logF(est)+' (est.)':'—';
   const lin=p=>{
-    const e=logEstado(p), at=logAtraso(p);
+    const fz=logFaseInfo(p), at=logAtraso(p);
     const hitos=[['fabricación',p.fabEst,p.fabReal],['despacho',p.despEst,p.despReal],['zarpe',p.zarpeEst,p.zarpeReal],['puerto'+(p.pDestino?' '+p.pDestino:''),p.puertoEst,p.puertoReal],['llegada a AYJ',p.ayjEst,p.ayjReal]].filter(h=>h[1]||h[2]).map(h=>h[0]+' '+f(h[1],h[2])).join(' · ');
-    return '• '+(p.titulo||p.codigo)+' ('+fab(p)+') — '+e.txt+(at?' ⚠ atrasado '+at+' d':'')+'\n   '+hitos+(p.buque?'\n   Buque: '+p.buque:'')+((p.tipoCont||p.numCont)?'\n   Contenedor: '+[p.tipoCont,p.numCont].filter(Boolean).join(' '):'')+(o.ser&&p.units.length?'\n   Máquinas: '+logRepMaq(p).join('; '):'')+(o.not&&p.notas?'\n   📝 '+p.notas.replace(/\n+/g,' · '):'');
+    return '• '+(p.titulo||p.codigo)+' ('+fab(p)+') — '+fz.txt+' · avance '+Math.round(fz.av.total*100)+'%'+(at?' ⚠ atrasado '+at+' d':'')+'\n   '+hitos+(p.buque?'\n   Buque: '+p.buque:'')+((p.tipoCont||p.numCont)?'\n   Contenedor: '+[p.tipoCont,p.numCont].filter(Boolean).join(' '):'')+(o.ser&&p.units.length?'\n   Máquinas: '+logRepMaq(p).join('; '):'')+(o.not&&p.notas?'\n   📝 '+p.notas.replace(/\n+/g,' · '):'');
   };
-  const grupos=[['⚠ ATRASADOS',ps.filter(p=>logActivo(p)&&logAtraso(p)>0)],['🏭 EN FABRICACIÓN',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logEstado(p).idx<2)],['🚢 EN TRÁNSITO',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logEstado(p).idx===2)],['⚓ EN PUERTO / NACIONALIZACIÓN',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logEstado(p).idx===3)],['✅ RECIBIDOS EN AYJ',ps.filter(p=>!logActivo(p)&&p.ayjReal)]];
+  const grupos=[['⚠ ATRASADOS',ps.filter(p=>logActivo(p)&&logAtraso(p)>0)],['🏭 FABRICACIÓN',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logAvance(p).idx===0)],['🚢 LISTA · EMBARCADA',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logAvance(p).idx===1)],['⚓ NACIONALIZADA · TRANSPORTE LOCAL',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logAvance(p).idx===2)],['✅ RECIBIDOS EN AYJ',ps.filter(p=>!logActivo(p)&&p.ayjReal)]];
   const L=['ESTADO DE PEDIDOS A FÁBRICA — AYJ · '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),
     'Activos: '+act.length+' · Con atraso: '+N.atras.length+(fob?' · FOB en camino: USD '+Math.round(fob).toLocaleString('es-CO'):'')];
   if(o.nov){ if(N.prox.length) L.push('','Llegan a AYJ en ≤ 15 días: '+N.prox.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjEst)+')').join(', ')); if(N.recib.length) L.push('Recibidos en los últimos 15 días: '+N.recib.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjReal)+')').join(', ')); }
