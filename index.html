@@ -6456,14 +6456,14 @@ async function pedidoRegistrarAhora(){
 // PEDIDO de TODAS_2025. La clave de un pedido es CÓDIGO DE FÁBRICA + NÚMERO (P01 = TWM, NX16 = Nanxing…); el cotizador arma el código con la Marca de la máquina
 // más su PEDIDO y junta las dos listas al leer (no se copia nada a TODAS_2025 salvo al "Recibir pedido en AYJ": las unidades pasan de En Importación a En Stock).
 // El estado del pedido NO se guarda: se calcula con el último hito que tenga fecha real. El barco se ubica en el globo interpolando por las fechas (no es seguimiento AIS).
-const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,rot:[-74,12],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null};
+const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,cen:[-30,15],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null};
 // código de fábrica por Marca (editable aquí cuando haya una fábrica nueva)
 const LOG_FAB={TWM:'P',TAILOR:'P',TAILORWOOD:'P',NANXING:'NX',BALA:'BL',WOODMIZER:'WM',WM:'WM',MAGGI:'MG',FREUD:'FRE',JOWAT:'JOW',RIMA:'RM',SAFTEKNIC:'SAF'};
 const LOG_FAB_NOMBRE={P:'TWM',NX:'NANXING',BL:'BALA',WM:'WOODMIZER',MG:'MAGGI',FRE:'FREUD',JOW:'JOWAT',RM:'RIMA',SAF:'SAFTEKNIC'};
 // columnas de PEDIDOS_FABRICA: clave lógica → nombres posibles (tolera diferencias de tildes/ortografía: DesapachoReal)
 const LOG_CAMPOS={fabrica:['fabrica'],creado:['fechacreado'],fabEst:['fabricadoest','fabricacionest'],fabReal:['fabricadoreal','fabricacionreal'],despEst:['despachoest','desapachoest'],despReal:['despachoreal','desapachoreal'],
   zarpeEst:['zarpeest'],zarpeReal:['zarpereal'],puertoEst:['llegadapuertoest'],puertoReal:['llegadapuertoreal'],ayjEst:['llegadaayjest'],ayjReal:['llegadaayjreal'],
-  ciudad:['ciudadorigen'],pOrigen:['puertoorigen'],pDestino:['puertodestino'],buque:['buque'],contenedor:['contenedor'],especial:['estadoespecial'],notas:['notas']};
+  ciudad:['ciudadorigen'],pOrigen:['puertoorigen'],pDestino:['puertodestino'],buque:['buque'],tipoCont:['tipodecontenedor','tipocontenedor','contenedor'],numCont:['numerocontenedor','numerodecontenedor','nocontenedor','numcontenedor'],fob:['preciofob','fob','preciofobusd','preciofobdelcontenedor'],especial:['estadoespecial'],notas:['notas']};
 const LOG_FECHAS=['creado','fabEst','fabReal','despEst','despReal','zarpeEst','zarpeReal','puertoEst','puertoReal','ayjEst','ayjReal'];
 const LOG_HITOS=[{nom:'Fabricación',est:'fabEst',real:'fabReal',estado:'Fabricado'},{nom:'Despacho de fábrica',est:'despEst',real:'despReal',estado:'Despachado de fábrica'},
   {nom:'Zarpe del barco',est:'zarpeEst',real:'zarpeReal',estado:'En tránsito internacional'},{nom:'Llegada a puerto',est:'puertoEst',real:'puertoReal',estado:'En puerto / nacionalización'},{nom:'Llegada a AYJ',est:'ayjEst',real:'ayjReal',estado:'Recibido en AYJ'}];
@@ -6472,7 +6472,7 @@ const LOG_AYJ=[-74.1,4.65];   // Bogotá (sede y consignatario)
 const LOG_LUG={shanghai:[121.47,31.23],ningbo:[121.55,29.87],qingdao:[120.38,36.07],shenzhen:[114.05,22.54],yantian:[114.27,22.57],guangzhou:[113.26,23.13],nansha:[113.6,22.75],xiamen:[118.09,24.48],tianjin:[117.7,39.0],xingang:[117.7,39.0],dalian:[121.61,38.91],hongkong:[114.17,22.3],
   foshan:[113.12,23.02],dongguan:[113.75,23.02],zhongshan:[113.39,22.52],hangzhou:[120.16,30.27],taizhou:[121.42,28.66],linyi:[118.35,35.1],jinan:[117.0,36.65],weifang:[119.16,36.7],yantai:[121.45,37.46],suzhou:[120.58,31.3],wuxi:[120.31,31.49],zhengzhou:[113.63,34.75],
   genova:[8.93,44.41],genoa:[8.93,44.41],laspezia:[9.82,44.1],milan:[9.19,45.46],milano:[9.19,45.46],bologna:[11.34,44.49],pesaro:[12.91,43.91],rimini:[12.57,44.06],vicenza:[11.55,45.55],brescia:[10.22,45.54],barcelona:[2.17,41.35],valencia:[-0.32,39.45],hamburg:[9.97,53.54],rotterdam:[4.14,51.95],antwerp:[4.4,51.27],
-  houston:[-95.27,29.73],miami:[-80.18,25.78],charleston:[-79.93,32.78],savannah:[-81.09,32.08],newyork:[-74.04,40.67],newark:[-74.15,40.68],indianapolis:[-86.16,39.77],losangeles:[-118.27,33.74],longbeach:[-118.2,33.75],manzanillo:[-104.32,19.05],
+  houston:[-95.27,29.73],miami:[-80.18,25.78],charleston:[-79.93,32.78],savannah:[-81.09,32.08],newyork:[-74.04,40.67],nuevayork:[-74.04,40.67],newark:[-74.15,40.68],indianapolis:[-86.16,39.77],losangeles:[-118.27,33.74],longbeach:[-118.2,33.75],manzanillo:[-104.32,19.05],
   cartagena:[-75.5,10.39],buenaventura:[-77.03,3.88],barranquilla:[-74.8,10.96],santamarta:[-74.21,11.24],bogota:[-74.1,4.65],medellin:[-75.57,6.25],cali:[-76.53,3.45]};
 const LOG_PUERTOS_ORIGEN=['Shanghai','Ningbo','Qingdao','Shenzhen','Yantian','Guangzhou','Nansha','Xiamen','Tianjin','Dalian','Hong Kong','Genova','La Spezia','Barcelona','Valencia','Hamburg','Rotterdam','Houston','Miami','Charleston','Savannah','New York','Los Angeles'];
 function logNorm(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,''); }
@@ -6511,8 +6511,9 @@ function logModelo(i){
   const f=i.fields||{}, g=k=>LOG.map[k]?f[LOG.map[k]]:undefined;
   const p={id:i.id,titulo:String(f.Title||'').trim(),codigo:logNormCodigo(f.Title)||String(f.Title||'').trim().toUpperCase(),fabrica:String(g('fabrica')||'').trim(),units:[]};
   LOG_FECHAS.forEach(k=>{ p[k]=logFechaDe(g(k)); });
-  ['ciudad','pOrigen','pDestino','buque','contenedor','especial'].forEach(k=>{ p[k]=String(g(k)||'').trim(); });
+  ['ciudad','pOrigen','pDestino','buque','tipoCont','numCont','especial'].forEach(k=>{ p[k]=String(g(k)||'').trim(); });
   p.notas=String(g('notas')||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/[ \t]+/g,' ').trim();
+  const fobN=parseFloat(g('fob')); p.fob=isNaN(fobN)?null:fobN;
   return p;
 }
 async function logUnidades(){
@@ -6551,12 +6552,12 @@ function logEstado(p){
 }
 function logActivo(p){ return !p.ayjReal&&!/cancel/i.test(p.especial); }
 function logAtraso(p){ const hoy=new Date(); hoy.setHours(0,0,0,0); const e=logEstado(p); if(!logActivo(p)) return 0; const sig=LOG_HITOS.find((h,i)=>i>e.idx&&p[h.est]&&!p[h.real]); const ref=p.ayjEst&&!p.ayjReal?p.ayjEst:null; const d=[sig&&p[sig.est],ref].filter(x=>x&&x<hoy).sort((a,b)=>a-b)[0]; return d?Math.floor((hoy-d)/86400000):0; }
-// puntos de la ruta [lon,lat] y posición del barco según las fechas
+// puntos de la ruta [lon,lat] (por nombre de ciudad/puerto)
 function logRuta(p){
   const o=logCoord(p.ciudad)||logCoord(p.pOrigen), po=logCoord(p.pOrigen)||o, pd=logCoord(p.pDestino);
   return {o,po,pd,ayj:LOG_AYJ};
 }
-// Ruta marítima con puntos de paso (los barcos no siguen el círculo máximo: no cruzan el Ártico ni la tierra). Cubre los casos habituales:
+// Ruta marítima con puntos de paso (los barcos no cruzan el Ártico ni la tierra). Cubre los casos habituales:
 // Asia → Pacífico → (Canal de Panamá) → Caribe/Pacífico colombiano; Mediterráneo → Gibraltar; norte de Europa → Canal de la Mancha; Golfo de México → Yucatán.
 const LOG_PANAMA={balboa:[-79.5,8.7],colon:[-79.9,9.45]};
 function logPuntosMar(po,pd){
@@ -6570,26 +6571,40 @@ function logPuntosMar(po,pd){
   else if(usaOeste){ w.push([-110,15]); if(car){ w.push(LOG_PANAMA.balboa,LOG_PANAMA.colon); } }
   w.push(pd); return w;
 }
+const LOG_RAD=Math.PI/180;
+function logDist(a,b){ const x=(b[0]-a[0])*LOG_RAD, y1=a[1]*LOG_RAD, y2=b[1]*LOG_RAD, h=Math.sin((y2-y1)/2)**2+Math.cos(y1)*Math.cos(y2)*Math.sin(x/2)**2; return 2*Math.asin(Math.min(1,Math.sqrt(h))); }
+// longitudes continuas (sin saltos de ±360) para que una ruta que cruza el meridiano 180° se dibuje de un solo trazo
+function logDesenvolver(pts){ const r=[]; pts.forEach((p,i)=>{ let l=p[0]; if(i){ const prev=r[i-1][0]; while(l-prev>180) l-=360; while(prev-l>180) l+=360; } r.push([l,p[1]]); }); return r; }
+function logTrazado(p){
+  const r=logRuta(p); if(!r.o&&!r.po&&!r.pd) return null;
+  const seq=[], mar=(r.po&&r.pd)?logPuntosMar(r.po,r.pd):null;
+  if(r.o&&(!r.po||r.o[0]!==r.po[0]||r.o[1]!==r.po[1])) seq.push(r.o);
+  const iniMar=seq.length;
+  if(mar) mar.forEach(x=>seq.push(x)); else { if(r.po) seq.push(r.po); if(r.pd) seq.push(r.pd); }
+  const finMar=seq.length-1; seq.push(r.ayj);
+  const u=logDesenvolver(seq);
+  return {pts:u,iniMar,finMar,o:iniMar>0?u[0]:null,po:r.po?u[iniMar]:null,pd:r.pd?u[finMar]:null,ayj:u[u.length-1],mar:mar?u.slice(iniMar,finMar+1):null};
+}
 function logAlong(w,t){
-  const d=[]; let tot=0; for(let i=1;i<w.length;i++){ const x=d3.geoDistance(w[i-1],w[i]); d.push(x); tot+=x; }
-  let obj=t*tot; for(let i=0;i<d.length;i++){ if(obj<=d[i]||i===d.length-1) return d3.geoInterpolate(w[i],w[i+1])(Math.min(1,d[i]?obj/d[i]:0)); obj-=d[i]; }
+  const d=[]; let tot=0; for(let i=1;i<w.length;i++){ const x=logDist(w[i-1],w[i]); d.push(x); tot+=x; }
+  let obj=t*tot; for(let i=0;i<d.length;i++){ if(obj<=d[i]||i===d.length-1){ const f=d[i]?Math.min(1,obj/d[i]):0; return [w[i][0]+(w[i+1][0]-w[i][0])*f,w[i][1]+(w[i+1][1]-w[i][1])*f]; } obj-=d[i]; }
   return w[w.length-1];
 }
+// posición actual del pedido (longitudes continuas, coherentes con logTrazado) según las fechas
 function logPosicion(p){
-  const r=logRuta(p), e=logEstado(p), ahora=Date.now();
-  if(!r.o&&!r.po&&!r.pd) return null;
-  if(p.ayjReal) return {pos:r.ayj,etapa:'AYJ',t:1};
-  if(p.puertoReal&&r.pd) return {pos:r.pd,etapa:'Puerto',t:1};
-  if(p.zarpeReal&&r.po&&r.pd){
+  const T=logTrazado(p); if(!T) return null; const ahora=Date.now();
+  if(p.ayjReal) return {pos:T.ayj,etapa:'AYJ',t:1,T};
+  if(p.puertoReal&&T.pd) return {pos:T.pd,etapa:'Puerto',t:1,T};
+  if(p.zarpeReal&&T.mar){
     const fin=(p.puertoEst||new Date(p.zarpeReal.getTime()+30*86400000)).getTime(), ini=p.zarpeReal.getTime();
     const t=Math.max(0.03,Math.min(0.97,(ahora-ini)/Math.max(1,fin-ini)));
-    return {pos:logAlong(logPuntosMar(r.po,r.pd),t),etapa:'En el mar',t};
+    return {pos:logAlong(T.mar,t),etapa:'En el mar',t,T};
   }
-  if(p.despReal&&r.po) return {pos:r.po,etapa:'Puerto de origen',t:0};
-  const base=r.o||r.po; return base?{pos:base,etapa:'Fábrica',t:0}:null;
+  if(p.despReal&&T.po) return {pos:T.po,etapa:'Puerto de origen',t:0,T};
+  const base=T.o||T.po; return base?{pos:base,etapa:'Fábrica',t:0,T}:null;
 }
 function logColor(p){ if(logAtraso(p)>0) return '#DC2626'; const e=logEstado(p); return e.idx<0?'#F59E0B':e.idx<2?'#D97706':e.idx===2?'#2563EB':e.idx===3?'#7C3AED':'#16A34A'; }
-// ── globo (D3 ortográfico sobre canvas; las librerías se cargan solo al abrir Logística) ──
+// ── mapa plano (Mercator con repetición horizontal, zoom y arrastre) — D3 + TopoJSON se cargan solo al abrir Logística ──
 function logScript(src){ return new Promise((ok,ko)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>ko(new Error('No se pudo cargar '+src)); document.head.appendChild(s); }); }
 async function logLibs(){
   if(LOG.libs) return LOG.libs;
@@ -6597,71 +6612,102 @@ async function logLibs(){
     if(!window.d3) await logScript('https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js');
     if(!window.topojson) await logScript('https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js');
     const r=await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json'); if(!r.ok) throw new Error('mapa HTTP '+r.status);
-    const w=await r.json();
-    LOG.mundo={land:topojson.feature(w,w.objects.land),paises:topojson.feature(w,w.objects.countries),bordes:topojson.mesh(w,w.objects.countries,(a,b)=>a!==b)};
+    const w=await r.json(), paises=topojson.feature(w,w.objects.countries);
+    LOG.mundo={paises:{type:'FeatureCollection',features:paises.features.filter(f=>String(f.id)!=='010')},bordes:topojson.mesh(w,w.objects.countries,(a,b)=>a!==b)};   // sin la Antártida (en Mercator ocuparía media pantalla)
   })();
   try{ await LOG.libs; }catch(e){ LOG.libs=null; throw e; }
+}
+const logYM=lat=>Math.log(Math.tan(Math.PI/4+Math.max(-85,Math.min(85,lat))*LOG_RAD/2));
+const logLatDe=y=>(2*Math.atan(Math.exp(y))-Math.PI/2)/LOG_RAD;
+const logNormLon=l=>((l+540)%360)-180;
+function logVista(W,H){
+  const s=W/(2*Math.PI)*LOG.zoom, ym0=logYM(LOG.cen[1]);
+  return {W,H,s,ww:s*2*Math.PI,xp:lon=>W/2+(lon-LOG.cen[0])*LOG_RAD*s,yp:lat=>H/2-(logYM(lat)-ym0)*s};
 }
 function logDibujar(){
   const c=LOG.cv; if(!c||!window.d3||!LOG.mundo||!c.isConnected) return;
   const W=c.clientWidth, H=c.clientHeight; if(!W||!H) return;
   const dpr=window.devicePixelRatio||1; if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){ c.width=Math.round(W*dpr); c.height=Math.round(H*dpr); }
-  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
-  const R=Math.min(W,H)/2-6, proj=d3.geoOrthographic().scale(R*LOG.zoom).translate([W/2,H/2]).rotate([-LOG.rot[0],-LOG.rot[1]]).clipAngle(90), path=d3.geoPath(proj,ctx);
-  const centro=[LOG.rot[0],LOG.rot[1]], visible=pt=>pt&&d3.geoDistance(pt,centro)<Math.PI/2-0.02;
-  ctx.beginPath(); path({type:'Sphere'}); const gr=ctx.createRadialGradient(W/2-R*0.3,H/2-R*0.3,R*0.1,W/2,H/2,R*LOG.zoom); gr.addColorStop(0,'#F2F8FE'); gr.addColorStop(1,'#D6E6F5'); ctx.fillStyle=gr; ctx.fill();
-  ctx.beginPath(); path(d3.geoGraticule10()); ctx.strokeStyle='rgba(120,150,180,.25)'; ctx.lineWidth=.5; ctx.stroke();
-  ctx.beginPath(); path(LOG.mundo.land); ctx.fillStyle='#E7EDDA'; ctx.fill();
-  const col=LOG.mundo.paises.features.find(f=>String(f.id)==='170'); if(col){ ctx.beginPath(); path(col); ctx.fillStyle='#CFE39A'; ctx.fill(); }
-  ctx.beginPath(); path(LOG.mundo.bordes); ctx.strokeStyle='rgba(150,165,130,.55)'; ctx.lineWidth=.4; ctx.stroke();
-  ctx.beginPath(); path({type:'Sphere'}); ctx.strokeStyle='#8FB0CF'; ctx.lineWidth=1.2; ctx.stroke();
+  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const v=logVista(W,H);
+  ctx.fillStyle='#D9E8F5'; ctx.fillRect(0,0,W,H);
+  const copias=[]; for(let n=-4;n<=4;n++){ const x0=v.xp(-180)+n*v.ww, x1=v.xp(180)+n*v.ww; if(x1>=0&&x0<=W) copias.push(n); }
+  const grat=d3.geoGraticule().step([30,30])();
+  copias.forEach(n=>{
+    const proj=d3.geoMercator().scale(v.s).center([0,0]).translate([v.xp(0)+n*v.ww,v.yp(0)]).precision(0.6), path=d3.geoPath(proj,ctx);
+    ctx.beginPath(); path(grat); ctx.strokeStyle='rgba(110,140,170,.22)'; ctx.lineWidth=.5; ctx.stroke();
+    ctx.beginPath(); path(LOG.mundo.paises); ctx.fillStyle='#EDF1E2'; ctx.fill();
+    const col=LOG.mundo.paises.features.find(f=>String(f.id)==='170'); if(col){ ctx.beginPath(); path(col); ctx.fillStyle='#D3E6A3'; ctx.fill(); }
+    ctx.beginPath(); path(LOG.mundo.bordes); ctx.strokeStyle='rgba(140,155,120,.55)'; ctx.lineWidth=.5; ctx.stroke();
+  });
   LOG.marcas=[];
-  const lista=logFiltrados(), dibujarRuta=(a,b,estilo)=>{ if(!a||!b) return; ctx.beginPath(); path({type:'LineString',coordinates:[a,b]}); ctx.setLineDash(estilo.d||[]); ctx.strokeStyle=estilo.c; ctx.lineWidth=estilo.w; ctx.stroke(); ctx.setLineDash([]); };
-  // sede AYJ
-  const pa=proj(LOG_AYJ); if(visible(LOG_AYJ)&&pa){ ctx.fillStyle='#80A61B'; ctx.beginPath(); ctx.arc(pa[0],pa[1],5,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.fillStyle='#3F5A0A'; ctx.font='bold 10px sans-serif'; ctx.fillText('AYJ',pa[0]+8,pa[1]+3); }
-  const ordenados=lista.filter(p=>logPosicion(p)).sort((a,b)=>(a.codigo===LOG.sel)-(b.codigo===LOG.sel));
-  ordenados.forEach(p=>{
-    const r=logRuta(p), pos=logPosicion(p), sel=p.codigo===LOG.sel, color=logColor(p);
-    ctx.globalAlpha=sel||!LOG.sel?1:0.35;
-    dibujarRuta(r.o,r.po&&r.o&&(r.o[0]!==r.po[0]||r.o[1]!==r.po[1])?r.po:null,{c:color,w:sel?1.8:1,d:[3,3]});
-    const mar=logPuntosMar(r.po,r.pd); if(mar) for(let k=1;k<mar.length;k++) dibujarRuta(mar[k-1],mar[k],{c:color,w:sel?2.4:1.3});
-    dibujarRuta(r.pd,r.ayj,{c:color,w:sel?1.8:1,d:[3,3]});
-    [r.o,r.po,r.pd].forEach((pt,i)=>{ if(pt&&visible(pt)&&(i!==1||!r.o||pt!==r.o)){ const q=proj(pt); ctx.fillStyle='#fff'; ctx.strokeStyle=color; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(q[0],q[1],sel?3.6:2.6,0,7); ctx.fill(); ctx.stroke(); } });
-    if(visible(pos.pos)){
-      const q=proj(pos.pos); ctx.beginPath(); ctx.arc(q[0],q[1],sel?8:6,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
-      LOG.marcas.push({codigo:p.codigo,x:q[0],y:q[1],r:12,txt:p.codigo+' · '+logEstado(p).txt+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
-      if(sel||lista.length<=6){ ctx.fillStyle='#1F2937'; ctx.font='bold 11px sans-serif'; ctx.fillText(p.codigo,q[0]+10,q[1]-8); }
-    }
-    ctx.globalAlpha=1;
+  const lista=logFiltrados(), etiquetas=lista.length<=8;
+  const sede=n=>{ const x=v.xp(LOG_AYJ[0])+n*v.ww, y=v.yp(LOG_AYJ[1]); if(x<-10||x>W+10) return; ctx.fillStyle='#80A61B'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.fillStyle='#3F5A0A'; ctx.font='bold 11px sans-serif'; ctx.fillText('AYJ',x+8,y+4); };
+  copias.forEach(sede);
+  const pedidos=lista.map(p=>({p,pos:logPosicion(p)})).filter(x=>x.pos).sort((a,b)=>(a.p.codigo===LOG.sel)-(b.p.codigo===LOG.sel));
+  pedidos.forEach(({p,pos})=>{
+    const T=pos.T, sel=p.codigo===LOG.sel, color=logColor(p);
+    copias.forEach(n=>{
+      const dx=n*v.ww, X=pt=>v.xp(pt[0])+dx, Y=pt=>v.yp(pt[1]);
+      ctx.globalAlpha=sel||!LOG.sel?1:0.3; ctx.lineJoin='round'; ctx.lineCap='round';
+      const traza=(a,b,dash,w)=>{ ctx.beginPath(); for(let i=a;i<=b;i++){ if(i===a) ctx.moveTo(X(T.pts[i]),Y(T.pts[i])); else ctx.lineTo(X(T.pts[i]),Y(T.pts[i])); } ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke(); ctx.setLineDash([]); };
+      if(T.iniMar>0) traza(0,T.iniMar,[4,4],sel?1.8:1);                       // fábrica → puerto de origen (tierra)
+      if(T.mar) traza(T.iniMar,T.finMar,[],sel?3:1.8);                        // travesía marítima
+      traza(T.finMar,T.pts.length-1,[4,4],sel?1.8:1);                         // puerto de destino → AYJ (tierra)
+      const punto=(pt,r)=>{ if(!pt) return; ctx.beginPath(); ctx.arc(X(pt),Y(pt),r,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.stroke(); };
+      punto(T.o,sel?4:3); if(T.po&&T.po!==T.o) punto(T.po,sel?4:3); punto(T.pd,sel?4:3);
+      if(sel){ ctx.font='11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.fillStyle='#374151'; [[T.po,p.pOrigen],[T.pd,p.pDestino],[T.o&&T.o!==T.po?T.o:null,p.ciudad]].forEach(([pt,nom])=>{ if(pt&&nom){ ctx.strokeText(nom,X(pt)+7,Y(pt)+14); ctx.fillText(nom,X(pt)+7,Y(pt)+14); } }); }
+      const x=X(pos.pos), y=Y(pos.pos);
+      if(x>-20&&x<W+20&&y>-20&&y<H+20){
+        ctx.beginPath(); ctx.arc(x,y,sel?9:7,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke();
+        LOG.marcas.push({codigo:p.codigo,x,y,r:13,txt:p.codigo+' · '+logEstado(p).txt+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
+        if(sel||etiquetas){ ctx.font='bold 11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.fillStyle='#1F2937'; ctx.strokeText(p.codigo,x+11,y-9); ctx.fillText(p.codigo,x+11,y-9); }
+      }
+      ctx.globalAlpha=1;
+    });
   });
 }
-function logAnimar(destino,ms){
-  const a=[...LOG.rot]; const dl=((destino[0]-a[0]+540)%360)-180, t0=performance.now();
-  const paso=now=>{ const t=Math.min(1,(now-t0)/ms), e=t<.5?2*t*t:-1+(4-2*t)*t; LOG.rot=[a[0]+dl*e,a[1]+(destino[1]-a[1])*e]; logDibujar(); if(t<1) requestAnimationFrame(paso); };
+function logAnimar(cen,zoom,ms){
+  const a=[...LOG.cen], z0=LOG.zoom, dl=((cen[0]-a[0]+540)%360)-180, t0=performance.now();
+  const paso=now=>{ const t=Math.min(1,(now-t0)/ms), e=t<.5?2*t*t:-1+(4-2*t)*t; LOG.cen=[logNormLon(a[0]+dl*e),a[1]+(cen[1]-a[1])*e]; LOG.zoom=z0*Math.pow(zoom/z0,e); logDibujar(); if(t<1) requestAnimationFrame(paso); };
   requestAnimationFrame(paso);
 }
+function logCaja(pts){   // encuadra una lista de puntos [lon,lat] con longitudes continuas
+  const c=LOG.cv, W=c?c.clientWidth:900, H=c?c.clientHeight:360;
+  const lons=pts.map(p=>p[0]), lats=pts.map(p=>p[1]), l0=Math.min(...lons), l1=Math.max(...lons), a0=Math.min(...lats), a1=Math.max(...lats);
+  const sx=(W*0.8)/Math.max(0.0001,(l1-l0)*LOG_RAD), sy=(H*0.68)/Math.max(0.0001,logYM(a1)-logYM(a0)), base=W/(2*Math.PI);
+  const zoom=Math.max(1,Math.min(16,Math.min(sx,sy)/base)), cLat=logLatDe((logYM(a0)+logYM(a1))/2);
+  return {cen:[logNormLon((l0+l1)/2),Math.max(-55,Math.min(70,cLat))],zoom};
+}
+const LOG_VISTAS={colombia:{cen:[-74,6],zoom:4},mundo:{cen:[-30,15],zoom:1}};
+function logVer(nombre){ const v=LOG_VISTAS[nombre]; if(v) logAnimar(v.cen,v.zoom,600); }
 function logFocus(codigo){
-  const p=LOG.pedidos.find(x=>x.codigo===codigo); if(!p){ logAnimar([-74,12],600); return; }
-  const r=logRuta(p), pos=logPosicion(p); let centro=null;
-  if(pos&&pos.etapa==='En el mar') centro=pos.pos;
-  else if(r.po&&r.pd) centro=logAlong(logPuntosMar(r.po,r.pd),0.5);
-  else if(pos) centro=pos.pos;
-  logAnimar(centro?[centro[0],Math.max(-40,Math.min(50,centro[1]))]:[-74,12],700);
+  const p=LOG.pedidos.find(x=>x.codigo===codigo), pos=p&&logPosicion(p);
+  if(!pos){ logVer('mundo'); return; }
+  const T=pos.T, v=logCaja(T.pts); logAnimar(v.cen,v.zoom,700);
+}
+function logZoom(f,cx,cy){
+  const c=LOG.cv; if(!c) return; const W=c.clientWidth, H=c.clientHeight, v0=logVista(W,H);
+  const x=cx==null?W/2:cx, y=cy==null?H/2:cy, lon=LOG.cen[0]+(x-W/2)/v0.s/LOG_RAD, ym=logYM(LOG.cen[1])+(H/2-y)/v0.s;
+  LOG.zoom=Math.max(1,Math.min(20,LOG.zoom*f)); const s1=W/(2*Math.PI)*LOG.zoom;
+  LOG.cen=[logNormLon(lon-(x-W/2)/s1/LOG_RAD),Math.max(-55,Math.min(70,logLatDe(ym-(H/2-y)/s1)))]; logDibujar();
 }
 function logGloboEventos(c){
   let arr=null, mov=false;
-  c.addEventListener('pointerdown',e=>{ arr={x:e.clientX,y:e.clientY,rot:[...LOG.rot]}; mov=false; c.setPointerCapture(e.pointerId); });
+  c.addEventListener('pointerdown',e=>{ arr={x:e.clientX,y:e.clientY,cen:[...LOG.cen],ym:logYM(LOG.cen[1])}; mov=false; c.setPointerCapture(e.pointerId); });
   c.addEventListener('pointermove',e=>{
-    if(arr){ const dx=e.clientX-arr.x, dy=e.clientY-arr.y; if(Math.abs(dx)+Math.abs(dy)>4) mov=true; LOG.rot=[arr.rot[0]-dx*0.35/LOG.zoom,Math.max(-80,Math.min(80,arr.rot[1]+dy*0.35/LOG.zoom))]; logDibujar(); }
-    const b=c.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top, h=LOG.marcas.find(m=>Math.hypot(m.x-x,m.y-y)<m.r), tip=LOG.tip;
-    c.style.cursor=h?'pointer':(arr?'grabbing':'grab');
-    if(tip){ if(h&&!arr){ tip.textContent=h.txt; tip.style.display='block'; tip.style.left=Math.min(x+12,b.width-200)+'px'; tip.style.top=(y+12)+'px'; } else tip.style.display='none'; }
+    const b=c.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
+    if(arr){ const dx=e.clientX-arr.x, dy=e.clientY-arr.y; if(Math.abs(dx)+Math.abs(dy)>4) mov=true; const s=c.clientWidth/(2*Math.PI)*LOG.zoom; LOG.cen=[logNormLon(arr.cen[0]-dx/s/LOG_RAD),Math.max(-55,Math.min(70,logLatDe(arr.ym+dy/s)))]; logDibujar(); }
+    const h=LOG.marcas.find(m=>Math.hypot(m.x-x,m.y-y)<m.r), tip=LOG.tip;
+    c.style.cursor=h?'pointer':(arr&&mov?'grabbing':'grab');
+    if(tip){ if(h&&!arr){ tip.textContent=h.txt; tip.style.display='block'; tip.style.left=Math.min(x+12,b.width-220)+'px'; tip.style.top=(y+12)+'px'; } else tip.style.display='none'; }
   });
   c.addEventListener('pointerup',e=>{
     if(arr&&!mov){ const b=c.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top, h=LOG.marcas.find(m=>Math.hypot(m.x-x,m.y-y)<m.r); if(h) logSel(h.codigo); }
     arr=null;
   });
-  c.addEventListener('wheel',e=>{ e.preventDefault(); LOG.zoom=Math.max(0.7,Math.min(2.6,LOG.zoom*(e.deltaY<0?1.1:0.9))); logDibujar(); },{passive:false});
+  c.addEventListener('wheel',e=>{ e.preventDefault(); const b=c.getBoundingClientRect(); logZoom(e.deltaY<0?1.25:0.8,e.clientX-b.left,e.clientY-b.top); },{passive:false});
+  c.addEventListener('dblclick',e=>{ const b=c.getBoundingClientRect(); logZoom(2,e.clientX-b.left,e.clientY-b.top); });
   if(!LOG.resizeOk){ LOG.resizeOk=true; window.addEventListener('resize',()=>{ if(document.getElementById('logCanvas')) logDibujar(); }); }
 }
 // ── pantalla ──
@@ -6671,7 +6717,7 @@ function logFiltrados(){
     if(LOG.ver==='activos'&&!logActivo(p)) return false;
     if(LOG.ver==='recibidos'&&logActivo(p)) return false;
     if(LOG.fab&&(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica).toUpperCase()!==LOG.fab) return false;
-    if(q&&![p.codigo,p.fabrica,p.buque,p.contenedor,p.pOrigen,p.pDestino,p.notas,...p.units.map(u=>u.idMQ+' '+u.titulo)].join(' ').toLowerCase().includes(q)) return false;
+    if(q&&![p.codigo,p.fabrica,p.buque,p.tipoCont,p.numCont,p.pOrigen,p.pDestino,p.notas,...p.units.map(u=>u.idMQ+' '+u.titulo)].join(' ').toLowerCase().includes(q)) return false;
     return true;
   }).sort((a,b)=>{ const ea=(a.ayjReal||a.ayjEst||new Date(8.64e15)), eb=(b.ayjReal||b.ayjEst||new Date(8.64e15)); return ea-eb; });
 }
@@ -6688,18 +6734,19 @@ function logRender(){
   if(LOG.error){ c.innerHTML='<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#7F1D1D;border-radius:var(--radius);padding:14px">'+_escRes(LOG.error)+' <button class="btn-sec" onclick="logCargar()">Reintentar</button></div>'; return; }
   const lista=logFiltrados(), hoy=new Date(); hoy.setHours(0,0,0,0);
   const act=LOG.pedidos.filter(logActivo), atras=act.filter(p=>logAtraso(p)>0);
-  const enRuta=act.reduce((s,p)=>s+p.units.length,0);
+  const enRuta=act.reduce((s,p)=>s+p.units.length,0), fobTot=act.reduce((s,p)=>s+(p.fob||0),0);
   const kpi=(t,n,col,s)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:22px;font-weight:800;color:'+col+'">'+n+'</div>'+(s?'<div style="font-size:11px;color:var(--text3)">'+s+'</div>':'')+'</div>';
   const cuenta=fn=>act.filter(p=>fn(logEstado(p).idx)).length;
   const fabs=[...new Set(LOG.pedidos.map(p=>(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'').toUpperCase()).filter(Boolean))].sort();
   const sel=LOG.pedidos.find(p=>p.codigo===LOG.sel);
   c.innerHTML=
-    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">'
-      +kpi('Pedidos activos',act.length,'#575756',enRuta+' máquinas en camino')+kpi('En fabricación',cuenta(i=>i<2),'#92400E','antes de zarpar')+kpi('En tránsito',cuenta(i=>i===2),'#1D4ED8','en el barco')+kpi('En puerto / aduana',cuenta(i=>i===3),'#6D28D9','por nacionalizar')+kpi('Con atraso',atras.length,atras.length?'#DC2626':'#166534','fecha estimada vencida')+'</div>'
+    '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px">'
+      +kpi('Pedidos activos',act.length,'#575756',enRuta+' máquinas en camino')+kpi('En fabricación',cuenta(i=>i<2),'#92400E','antes de zarpar')+kpi('En tránsito',cuenta(i=>i===2),'#1D4ED8','en el barco')+kpi('En puerto / aduana',cuenta(i=>i===3),'#6D28D9','por nacionalizar')+kpi('Con atraso',atras.length,atras.length?'#DC2626':'#166534','fecha estimada vencida')+kpi('FOB en camino',fobTot?'USD '+Math.round(fobTot).toLocaleString('es-CO'):'—','#1D4ED8','pedidos activos')+'</div>'
     +'<div id="logGlobo" style="position:relative;height:360px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:12px"><canvas id="logCanvas" style="width:100%;height:100%;display:block;touch-action:none;cursor:grab"></canvas><div id="logTip" style="display:none;position:absolute;background:#1F2937;color:#fff;font-size:11px;padding:5px 8px;border-radius:6px;pointer-events:none;max-width:260px"></div>'
-      +'<div style="position:absolute;left:10px;top:8px;font-size:11px;color:var(--text2)">Arrastra para girar · rueda para acercar · clic en un barco para ver el pedido</div>'
-      +'<div style="position:absolute;right:10px;top:8px;display:flex;gap:6px"><button class="btn-sec" style="font-size:11px;padding:3px 8px" onclick="LOG.zoom=1;logAnimar([-74,12],600)">📍 Colombia</button><button class="btn-sec" style="font-size:11px;padding:3px 8px" onclick="LOG.sel=null;LOG.zoom=1;logRender();logAnimar([-150,20],700)">🌏 Pacífico</button></div>'
-      +'<div id="logGloboMsg" style="position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:var(--text2)"></div></div>'
+      +'<div style="position:absolute;left:10px;top:8px;font-size:11px;color:var(--text2);background:rgba(255,255,255,.8);padding:2px 8px;border-radius:6px">Arrastra para mover · rueda para zoom · clic en un barco</div>'
+      +'<div style="position:absolute;right:10px;top:8px;display:flex;gap:6px"><button class="btn-sec" style="font-size:12px;padding:3px 9px;background:#fff" onclick="logZoom(1.6)" title="Acercar">＋</button><button class="btn-sec" style="font-size:12px;padding:3px 9px;background:#fff" onclick="logZoom(0.625)" title="Alejar">−</button><button class="btn-sec" style="font-size:11px;padding:3px 8px;background:#fff" onclick="logVer(\'colombia\')">📍 Colombia</button><button class="btn-sec" style="font-size:11px;padding:3px 8px;background:#fff" onclick="logVer(\'mundo\')">🌐 Mundo</button><button class="btn-sec" style="font-size:11px;padding:3px 8px;background:#fff" onclick="LOG.sel&&logFocus(LOG.sel)" title="Encuadrar el pedido seleccionado">🎯 Ruta</button></div>'
+      +'<div style="position:absolute;left:10px;bottom:8px;display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text2);background:rgba(255,255,255,.88);padding:3px 9px;border-radius:6px"><span><b style="color:#F59E0B">●</b> En fabricación</span><span><b style="color:#2563EB">●</b> En tránsito</span><span><b style="color:#7C3AED">●</b> En puerto</span><span><b style="color:#16A34A">●</b> Recibido</span><span><b style="color:#DC2626">●</b> Atrasado</span></div>'
+      +'<div id="logGloboMsg" style="position:absolute;right:10px;bottom:8px;text-align:right;max-width:50%;font-size:11px;color:var(--text2);background:rgba(255,255,255,.88);padding:2px 8px;border-radius:6px"></div></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
       +'<input type="text" placeholder="Buscar pedido, serial, buque, contenedor…" value="'+_escRes(LOG.q)+'" oninput="LOG.q=this.value;logRender();logFoco()" id="logQ" style="min-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">'
       +'<select onchange="LOG.fab=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todas las fábricas</option>'+fabs.map(f=>'<option'+(LOG.fab===f?' selected':'')+'>'+_escRes(f)+'</option>').join('')+'</select>'
@@ -6714,7 +6761,7 @@ function logRender(){
       return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
         +'<td><strong style="font-size:14px">'+_escRes(p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
         +'<td><span style="background:'+e.bg+';color:'+e.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(e.txt)+'</span><div>'+logPuntos(e.idx,e.especial)+'</div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700">atrasado '+at+' d</div>':'')+'</td>'
-        +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+'</td>'
+        +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
         +'<td style="font-size:12px;white-space:nowrap">'+(p.creado?logF(p.creado):'—')+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.fabEst,p.fabReal)+'</td><td style="font-size:12px">'+logCelda(p.despEst,p.despReal)+'</td><td style="font-size:12px">'+logCelda(p.zarpeEst,p.zarpeReal)+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.puertoEst,p.puertoReal)+(p.pDestino?'<div style="font-size:10px;color:var(--text2)">'+_escRes(p.pDestino)+'</div>':'')+'</td>'
@@ -6727,7 +6774,7 @@ function logRender(){
 }
 function logFoco(){ const q=document.getElementById('logQ'); if(q){ q.focus(); q.setSelectionRange(q.value.length,q.value.length); } }   // el buscador se redibuja con cada letra: se devuelve el cursor
 function logDetalle(p){
-  const datos=[['Origen',[p.ciudad,p.pOrigen].filter(Boolean).join(' · ')],['Destino',p.pDestino],['Buque',p.buque],['Contenedor',p.contenedor]].filter(x=>x[1]).map(x=>'<span style="margin-right:16px"><b style="color:var(--text2)">'+x[0]+':</b> '+_escRes(x[1])+'</span>').join('');
+  const datos=[['Origen',[p.ciudad,p.pOrigen].filter(Boolean).join(' · ')],['Destino',p.pDestino],['Buque',p.buque],['Tipo de contenedor',p.tipoCont],['N° de contenedor',p.numCont],['Precio FOB',p.fob?'USD '+Math.round(p.fob).toLocaleString('es-CO'):'']].filter(x=>x[1]).map(x=>'<span style="margin-right:16px"><b style="color:var(--text2)">'+x[0]+':</b> '+_escRes(x[1])+'</span>').join('');
   const sinCoord=(!logCoord(p.ciudad)&&!logCoord(p.pOrigen))||!logCoord(p.pDestino);
   return '<div style="font-size:12px;margin-bottom:8px">'+(datos||'<span style="color:var(--text3)">Sin datos de ruta todavía (ciudad de origen, puertos, buque, contenedor).</span>')+(p.notas?'<div style="margin-top:4px;color:var(--text2)">📝 '+_escRes(p.notas)+'</div>':'')+(sinCoord?'<div style="margin-top:4px;color:#92400E">⚠ Para ver este pedido en el globo falta reconocer el origen o el puerto de destino (escribe una ciudad/puerto conocido, ej. Shanghai, Genova, Cartagena).</div>':'')+'</div>'
     +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>'
@@ -6764,6 +6811,16 @@ async function logEscribir(id,campos){
     throw new Error((id?'PATCH ':'POST ')+r.status+': '+t.slice(0,220));
   }
 }
+// Campo de formulario: desplegable con las opciones de la columna si es de Elección (sin errores de escritura); si no, texto con sugerencias.
+// En puertos se marca con ⚠ la opción cuyo nombre el mapa no reconoce (no podrá ubicarse).
+function logCampoLista(k,valor,dlId,estilo){
+  const d=LOG.def[k], esPuerto=(k==='pOrigen'||k==='pDestino');
+  if(d&&d.choice&&Array.isArray(d.choice.choices)){
+    const ops=[...d.choice.choices]; if(valor&&!ops.some(x=>logNorm(x)===logNorm(valor))) ops.push(valor);
+    return '<select id="lgE_'+k+'" style="'+estilo+'"><option value=""></option>'+ops.map(x=>'<option value="'+_escRes(x)+'"'+(valor&&logNorm(x)===logNorm(valor)?' selected':'')+'>'+_escRes(x)+(esPuerto&&!logCoord(x)?' ⚠ sin coordenadas':'')+'</option>').join('')+'</select>';
+  }
+  return '<input type="text" id="lgE_'+k+'" value="'+_escRes(valor||'')+'"'+(dlId?' list="'+dlId+'"':'')+' style="'+estilo+'">';
+}
 function logEditar(codigo){
   const nuevo=!codigo, p=nuevo?{codigo:'',units:[],especial:''}:LOG.pedidos.find(x=>x.codigo===codigo); if(!p) return;
   const inp='padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px;width:100%;box-sizing:border-box';
@@ -6779,13 +6836,15 @@ function logEditar(codigo){
         :'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Código</label><input type="text" value="'+_escRes(p.codigo)+'" readonly style="'+inp+';background:#F3F4F6;font-weight:700"></div>'+fec('creado','Fecha de creación del pedido')+'</div>')
       +(nuevo?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fec('creado','Fecha de creación del pedido')+'<div></div></div>':'')
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+LOG_HITOS.map(hito).join('')+'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Ciudad de origen (fábrica)</label><input type="text" id="lgE_ciudad" value="'+_escRes(p.ciudad||'')+'" list="lgDL1" placeholder="Ej. Foshan" style="'+inp+'"></div>'
-        +'<div><label style="font-size:11px;font-weight:700">Puerto de origen</label><input type="text" id="lgE_pOrigen" value="'+_escRes(p.pOrigen||'')+'" list="lgDL1" placeholder="Ej. Shenzhen" style="'+inp+'"></div>'
-        +'<div><label style="font-size:11px;font-weight:700">Puerto de destino</label><input type="text" id="lgE_pDestino" value="'+_escRes(p.pDestino||'')+'" list="lgDL2" placeholder="Cartagena, Buenaventura…" style="'+inp+'"></div></div>'
-      +dl('lgDL1')+'<datalist id="lgDL2"><option value="Cartagena"><option value="Buenaventura"><option value="Barranquilla"><option value="Santa Marta"></datalist>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Ciudad de origen (fábrica)</label><input type="text" id="lgE_ciudad" value="'+_escRes(p.ciudad||'')+'" list="lgDL3" placeholder="Ej. Foshan" style="'+inp+'"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Puerto de origen</label>'+logCampoLista('pOrigen',p.pOrigen,'lgDL1',inp)+'</div>'
+        +'<div><label style="font-size:11px;font-weight:700">Puerto de destino</label>'+logCampoLista('pDestino',p.pDestino,'lgDL2',inp)+'</div></div>'
+      +dl('lgDL1')+'<datalist id="lgDL2"><option value="Cartagena"><option value="Buenaventura"><option value="Barranquilla"><option value="Santa Marta"></datalist><datalist id="lgDL3">'+['Foshan','Dongguan','Zhongshan','Linyi','Jinan','Qingdao','Hangzhou','Taizhou','Weifang','Yantai','Suzhou','Wuxi','Zhengzhou','Milano','Bologna','Pesaro','Rimini','Vicenza','Brescia','Indianapolis'].map(x=>'<option value="'+x+'">').join('')+'</datalist>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Buque</label><input type="text" id="lgE_buque" value="'+_escRes(p.buque||'')+'" style="'+inp+'"></div>'
-        +'<div><label style="font-size:11px;font-weight:700">Contenedor</label><input type="text" id="lgE_contenedor" value="'+_escRes(p.contenedor||'')+'" style="'+inp+'"></div>'
-        +'<div><label style="font-size:11px;font-weight:700">Estado especial</label><select id="lgE_especial" style="'+inp+'"><option value=""></option>'+['Cancelado','Retenido en aduana'].map(x=>'<option'+(logNorm(p.especial)===logNorm(x)?' selected':'')+'>'+x+'</option>').join('')+'</select></div></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Tipo de contenedor</label>'+logCampoLista('tipoCont',p.tipoCont,'',inp)+'</div>'
+        +'<div><label style="font-size:11px;font-weight:700">Número de contenedor</label><input type="text" id="lgE_numCont" value="'+_escRes(p.numCont||'')+'" placeholder="Ej. MSKU1234567" style="'+inp+'"></div></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Precio FOB del contenedor (USD)</label><input type="number" id="lgE_fob" min="0" step="0.01" value="'+(p.fob!=null?p.fob:'')+'" style="'+inp+'"></div>'
+        +'<div><label style="font-size:11px;font-weight:700">Estado especial</label><select id="lgE_especial" style="'+inp+'"><option value=""></option>'+['Cancelado','Retenido en aduana'].map(x=>'<option'+(logNorm(p.especial)===logNorm(x)?' selected':'')+'>'+x+'</option>').join('')+'</select></div><div></div></div>'
       +'<div><label style="font-size:11px;font-weight:700">Notas</label><textarea id="lgE_notas" rows="3" style="'+inp+'">'+_escRes(p.notas||'')+'</textarea></div>'
       +'<div style="font-size:11px;color:var(--text2)">El estado del pedido se calcula solo con el último hito que tenga <b>fecha real</b>. Borra una fecha para quitarla.</div></div>'
     +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgE_ok" onclick="logGuardar('+(nuevo?'null':'\''+p.codigo+'\'')+')">Guardar</button></div></div>';
@@ -6806,12 +6865,13 @@ async function logGuardar(codigo){
   const poner=(k,val)=>{ if(!LOG.map[k]){ if(val) avisos.push(k); return; } campos[LOG.map[k]]=val; };
   if(nuevo){ campos.Title=cod; const nf=LOG_FAB_NOMBRE[logPartes(cod).pref]; const op=logOpcion('fabrica',nf); if(LOG.map.fabrica){ if(op) campos[LOG.map.fabrica]=op; else avisos.push('Fabrica ("'+nf+'" no es una opción de la columna)'); } }
   LOG_FECHAS.forEach(k=>{ poner(k,logIso(v(k))); });
-  ['ciudad','pOrigen','pDestino','buque','contenedor'].forEach(k=>{
+  ['ciudad','pOrigen','pDestino','buque','tipoCont','numCont'].forEach(k=>{
     const val=v(k).trim(), d=LOG.def[k];
     if(d&&d.choice&&val&&!logOpcion(k,val)){ avisos.push(k+' (la columna es de Elección y "'+val+'" no está en sus opciones: cámbiala a "Una línea de texto")'); return; }
     poner(k,val?(d&&d.choice?logOpcion(k,val):val):(d&&d.choice?null:''));
   });
   poner('especial',v('especial')); poner('notas',v('notas'));
+  { const fv=v('fob').trim(); poner('fob',fv===''?null:parseFloat(fv)); }
   if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
   try{
     const r=await logEscribir(nuevo?null:LOG.pedidos.find(p=>p.codigo===cod).id,campos);
