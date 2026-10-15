@@ -720,8 +720,8 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <div style="padding:12px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex-shrink:0">
         <strong style="font-size:15px">🚢 Control logístico</strong>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="ev-tab on" type="button">1 · Pedidos a fábrica</button>
-          <button class="ev-tab" type="button" disabled style="opacity:.45;cursor:not-allowed" title="Próxima fase">2 · Ubicación en stock</button>
+          <button class="ev-tab on" id="logTab1" type="button" onclick="logTab('pedidos')">1 · Pedidos a fábrica</button>
+          <button class="ev-tab" id="logTab2" type="button" onclick="logTab('stock')">2 · Ubicación en stock</button>
           <button class="ev-tab" type="button" disabled style="opacity:.45;cursor:not-allowed" title="Próxima fase">3 · Entregas locales</button>
         </div>
         <button class="btn-sec" style="margin-left:auto" onclick="LOG.ts=0;logCargar()" title="Volver a leer de SharePoint"><i class="ti ti-refresh"></i></button>
@@ -6457,7 +6457,7 @@ async function pedidoRegistrarAhora(){
 // PEDIDO de TODAS_2025. La clave de un pedido es CÓDIGO DE FÁBRICA + NÚMERO (P01 = TWM, NX16 = Nanxing…); el cotizador arma el código con la Marca de la máquina
 // más su PEDIDO y junta las dos listas al leer (no se copia nada a TODAS_2025 salvo al "Recibir pedido en AYJ": las unidades pasan de En Importación a En Stock).
 // El estado del pedido NO se guarda: se calcula con el último hito que tenga fecha real. El barco se ubica en el globo interpolando por las fechas (no es seguimiento AIS).
-const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,cen:[-30,15],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null};
+const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,cen:[-30,15],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null,tab:'pedidos',uf:'',ut:'',ue:'',uq:'',un:60};
 // código de fábrica por Marca (editable aquí cuando haya una fábrica nueva)
 const LOG_FAB={TWM:'P',TAILOR:'P',TAILORWOOD:'P',NANXING:'NX',BALA:'BL',WOODMIZER:'WM',WM:'WM',MAGGI:'MG',FREUD:'FRE',JOWAT:'JOW',RIMA:'RM',SAFTEKNIC:'SAF'};
 const LOG_FAB_NOMBRE={P:'TWM',NX:'NANXING',BL:'BALA',WM:'WOODMIZER',MG:'MAGGI',FRE:'FREUD',JOW:'JOWAT',RM:'RIMA',SAF:'SAFTEKNIC'};
@@ -6530,7 +6530,7 @@ function logColPedido(cols){
 async function logUnidades(){
   const items=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO','RESERVADA','VENDIDA'],200);
   const cols=await columnasCatalogo();
-  const cPed=logColPedido(cols), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
+  const cPed=logColPedido(cols), cUb=buscarColCat(cols,['ubicacion']), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
   LOG.catCols={ped:cPed&&cPed.name,fd:cFD&&cFD.name,fc:cFC&&cFC.name};
   const campos=window._catCampos||{marcaField:'Marca'};
   LOG.units=items.map(i=>{
@@ -6539,7 +6539,10 @@ async function logUnidades(){
     if(!cliente&&f.ClienteLookupId&&typeof clientesData!=='undefined'){ const c=clientesData.find(x=>String(x.id)===String(f.ClienteLookupId)); cliente=c?c.titulo:''; }
     const obs=String(f.Observaciones||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(), clienteCampo=!!cliente;
     if(!cliente){ const mc=obs.match(/Cliente:\s*([^·|]+)/i); if(mc) cliente=mc[1].trim(); }   // máquinas viejas: el cliente se anotaba en Observaciones
-    return {id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,raw,pref:pt?pt.pref:(codigo.match(/^[A-Z]+/)||[''])[0],estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
+    const vUb=cUb?f[cUb.name]:(f.Ubicaci_x00f3_n||f.Ubicacion), ubicRaw=String(vUb&&typeof vUb==='object'?(vUb.LookupValue||vUb.Value||''):(vUb||'')).trim();
+    const tarRaw=f.TARIFA||f.TARIFA_SUGERIDO||0, tarifa=tarRaw?(parseFloat(String(tarRaw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0):0;
+    const tip=String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim();
+    return {ubicRaw,ubicK:logUbicDe(ubicRaw),tip,tarifa,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,raw,pref:pt?pt.pref:(codigo.match(/^[A-Z]+/)||[''])[0],estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
       num:pt?pt.num:null,codigo,fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim(),clienteCampo,obs};
   });
 }
@@ -6788,8 +6791,10 @@ function logCelda(est,real){
 function logPuntos(idx,especial){ return '<span style="display:inline-flex;gap:3px;margin-top:3px">'+LOG_HITOS.map((h,i)=>'<span title="'+h.nom+'" style="width:8px;height:8px;border-radius:50%;background:'+(i<=idx?(especial?'#DC2626':'#16A34A'):'#E5E7EB')+(i===idx+1?';outline:1.5px solid #9CA3AF':'')+'"></span>').join('')+'</span>'; }
 function logRender(){
   const c=document.getElementById('logBody'); if(!c) return;
+  logTabsUI();
   if(LOG.cargando){ c.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Leyendo pedidos a fábrica…</div>'; return; }
   if(LOG.error){ c.innerHTML='<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#7F1D1D;border-radius:var(--radius);padding:14px">'+_escRes(LOG.error)+' <button class="btn-sec" onclick="logCargar()">Reintentar</button></div>'; return; }
+  if(LOG.tab==='stock'){ logRenderStock(c); return; }
   const lista=logFiltrados(), hoy=new Date(); hoy.setHours(0,0,0,0);
   const act=LOG.pedidos.filter(logActivo), atras=act.filter(p=>logAtraso(p)>0);
   const enRuta=act.reduce((s,p)=>s+p.units.length,0), fobTot=act.reduce((s,p)=>s+(p.fob||0),0);
@@ -7019,6 +7024,133 @@ async function logRecibirOk(codigo){
     try{ if(typeof cargarMaquinas==='function') cargarMaquinas(); }catch(e){}
     await logCargar();
   }catch(e){ showToast('No se pudo recibir el pedido: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Recibir pedido'; } }
+}
+// ── UBICACIÓN DEL STOCK (nivel 2 de Logística) ───────────────────────────────────────────────────────────
+// Tablero de las máquinas que están físicamente en AYJ, por ubicación: Roble (Principal), Abarco (CAT), Guayacán (Medellín) y Zona Franca.
+// Se lee la columna Ubicación de TODAS_2025 y el texto se clasifica por palabras clave (LOG_UBIC); lo que no se reconoce se muestra aparte con sus valores reales para ajustar.
+// "Mover" cambia la ubicación en TODAS_2025 y deja anotado el traslado en Observaciones.
+const LOG_UBIC=[
+  {k:'roble',nom:'Roble',sub:'Principal',color:'#80A61B'},
+  {k:'abarco',nom:'Abarco',sub:'CAT',color:'#2563EB'},
+  {k:'guayacan',nom:'Guayacán',sub:'Medellín',color:'#D97706'},
+  {k:'zf',nom:'Zona Franca',sub:'',color:'#7C3AED'}];
+const LOG_UBIC_EXTRA={otra:{k:'otra',nom:'Otra ubicación',sub:'sin clasificar',color:'#6B7280'},sin:{k:'sin',nom:'Sin ubicación',sub:'sin dato',color:'#9CA3AF'}};
+const logUbInfo=k=>LOG_UBIC.find(x=>x.k===k)||LOG_UBIC_EXTRA[k]||LOG_UBIC_EXTRA.sin;
+function logUbicDe(txt){
+  const raw=String(txt||'').trim(); if(!raw) return 'sin';
+  const t=logNorm(raw), toks=raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').split(/[^a-z0-9]+/);
+  if(t.includes('roble')||t.includes('principal')) return 'roble';
+  if(t.includes('abarco')||toks.includes('cat')) return 'abarco';
+  if(t.includes('guayacan')||t.includes('medellin')) return 'guayacan';
+  if(t.includes('zonafranca')||t.includes('franca')||toks.includes('zf')) return 'zf';
+  return 'otra';
+}
+const logEnStock=u=>!logEnCamino(u)&&!/bajo\s*pedido/i.test(u.estadoStock)&&['DISPONIBLE','RESERVADA','VENDIDA','BAJO PEDIDO'].includes(u.estadoSel);
+const logEstU=u=>u.estadoSel==='VENDIDA'?{k:'vendida',txt:'Vendida · por entregar',c:'#B45309',bg:'#FEF3C7'}:u.estadoSel==='RESERVADA'?{k:'reservada',txt:'Reservada',c:'#1D4ED8',bg:'#DBEAFE'}:{k:'disponible',txt:'Disponible',c:'#166534',bg:'#DCFCE7'};
+const logUsd=n=>'USD '+Math.round(n||0).toLocaleString('es-CO');
+function logTab(t){ LOG.tab=t; LOG.sel=null; logRender(); }
+function logTabsUI(){ [['logTab1','pedidos'],['logTab2','stock']].forEach(([id,k])=>{ const b=document.getElementById(id); if(b) b.classList.toggle('on',LOG.tab===k); }); }
+function logDonut(partes,tam){
+  const tot=partes.reduce((s,p)=>s+p.v,0), r=tam/2-6, C=2*Math.PI*r; let off=0;
+  const arcos=tot?partes.filter(p=>p.v>0).map(p=>{ const l=p.v/tot*C, s='<circle r="'+r+'" cx="'+tam/2+'" cy="'+tam/2+'" fill="none" stroke="'+p.c+'" stroke-width="9" stroke-dasharray="'+l+' '+(C-l)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 '+tam/2+' '+tam/2+')"><title>'+p.t+': '+p.v+'</title></circle>'; off+=l; return s; }).join(''):'';
+  return '<svg width="'+tam+'" height="'+tam+'"><circle r="'+r+'" cx="'+tam/2+'" cy="'+tam/2+'" fill="none" stroke="#EEF0F2" stroke-width="9"/>'+arcos+'<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="'+Math.round(tam*0.3)+'" font-weight="800" fill="#374151">'+tot+'</text></svg>';
+}
+function logStockFiltradas(){
+  const q=(LOG.uq||'').toLowerCase().trim();
+  return LOG.units.filter(u=>logEnStock(u)&&(!LOG.uf||u.ubicK===LOG.uf)&&(!LOG.ut||(u.tip||'Sin tipología')===LOG.ut)&&(!LOG.ue||logEstU(u).k===LOG.ue)&&(!q||[u.titulo,u.idMQ,u.marca,u.tip,u.cliente,u.ubicRaw].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=>(a.tip||'').localeCompare(b.tip||'','es')||a.titulo.localeCompare(b.titulo,'es'));
+}
+function logRenderStock(c){
+  const todas=LOG.units.filter(logEnStock), orden=[...LOG_UBIC.map(x=>x.k),'otra','sin'];
+  const por={}; orden.forEach(k=>{ por[k]=todas.filter(u=>u.ubicK===k); });
+  const kpi=k=>{
+    const us=por[k], inf=logUbInfo(k), d=us.filter(u=>logEstU(u).k==='disponible').length, r=us.filter(u=>logEstU(u).k==='reservada').length, v=us.filter(u=>logEstU(u).k==='vendida').length, act=LOG.uf===k;
+    const tips={}; us.forEach(u=>{ const t=u.tip||'Sin tipología'; tips[t]=(tips[t]||0)+1; });
+    const top=Object.entries(tips).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,n])=>'<span style="background:#F3F4F6;border-radius:10px;padding:1px 8px;font-size:10px;color:#4B5563;white-space:nowrap">'+_escRes(t)+' · '+n+'</span>').join(' ');
+    return '<div onclick="logUf(\''+k+'\')" title="Ver solo esta ubicación" style="cursor:pointer;background:#fff;border:2px solid '+(act?inf.color:'var(--border)')+';border-top:5px solid '+inf.color+';border-radius:var(--radius-lg);padding:12px 14px;display:flex;gap:12px;align-items:center;'+(act?'box-shadow:0 6px 18px rgba(0,0,0,.12)':'')+'">'
+      +logDonut([{v:d,c:'#22C55E',t:'Disponibles'},{v:r,c:'#3B82F6',t:'Reservadas'},{v:v,c:'#F59E0B',t:'Vendidas por entregar'}],74)
+      +'<div style="min-width:0;flex:1"><div style="font-weight:800;font-size:15px;color:'+inf.color+'">'+inf.nom+'</div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">'+(inf.sub||'&nbsp;')+'</div>'
+      +'<div style="font-size:11px;color:var(--text2)"><span style="color:#16A34A">●</span> '+d+' disp. · <span style="color:#3B82F6">●</span> '+r+' reserv. · <span style="color:#F59E0B">●</span> '+v+' vend.</div>'
+      +'<div style="font-size:12px;font-weight:700;margin:3px 0">'+logUsd(us.reduce((s,u)=>s+u.tarifa,0))+' <span style="font-weight:400;font-size:10px;color:var(--text3)">a tarifa</span></div><div style="display:flex;gap:4px;flex-wrap:wrap">'+top+'</div></div></div>';
+  };
+  const colsVis=orden.filter(k=>por[k].length||LOG_UBIC.some(x=>x.k===k));
+  // mapa de calor: tipología × ubicación
+  const tipC={}; todas.forEach(u=>{ const t=u.tip||'Sin tipología'; tipC[t]=(tipC[t]||0)+1; });
+  const tips=Object.keys(tipC).sort((a,b)=>tipC[b]-tipC[a]), mostrar=tips.slice(0,14), resto=tips.slice(14);
+  const celda=(t,k)=>{ const n=todas.filter(u=>u.ubicK===k&&(t==='__otras'?resto.includes(u.tip||'Sin tipología'):(u.tip||'Sin tipología')===t)).length; return n; };
+  const filas=mostrar.concat(resto.length?['__otras']:[]).map(t=>({t,ns:colsVis.map(k=>celda(t,k))}));
+  const mx=Math.max(1,...filas.flatMap(f=>f.ns));
+  const heat='<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">¿Dónde está cada tipo de máquina? <span style="font-weight:400;text-transform:none">(clic en una celda para filtrar)</span></div>'
+    +'<table style="border-collapse:separate;border-spacing:3px;width:100%"><thead><tr><th></th>'+colsVis.map(k=>'<th style="font-size:11px;color:'+logUbInfo(k).color+';text-align:center;padding:2px 6px">'+logUbInfo(k).nom+'</th>').join('')+'<th style="font-size:11px;color:var(--text2)">Total</th></tr></thead><tbody>'
+    +filas.map(f=>'<tr><td style="font-size:12px;white-space:nowrap;padding-right:8px">'+(f.t==='__otras'?'Otras ('+resto.length+' tipologías)':_escRes(f.t))+'</td>'+f.ns.map((n,i)=>{ const k=colsVis[i], a=n?(0.12+0.75*n/mx):0, col=logUbInfo(k).color; return '<td onclick="'+(n&&f.t!=='__otras'?'logUc(\''+k+'\',\''+_escRes(f.t).replace(/\'/g,"\\\'")+'\')':'')+'" title="'+n+' máquina(s)" style="text-align:center;min-width:64px;height:30px;border-radius:6px;font-weight:700;font-size:12px;'+(n?'cursor:pointer;color:'+(a>0.5?'#fff':'#1F2937')+';background:'+col+Math.round(a*255).toString(16).padStart(2,'0'):'color:#D1D5DB;background:#F9FAFB')+'">'+(n||'·')+'</td>'; }).join('')+'<td style="text-align:center;font-weight:800;font-size:12px">'+f.ns.reduce((s,n)=>s+n,0)+'</td></tr>').join('')+'</tbody></table></div>';
+  const lista=logStockFiltradas(), ver=lista.slice(0,LOG.un);
+  const chip=(k,t,a,fn,c)=>'<button onclick="'+fn+'" style="border:1.5px solid '+(a?(c||'#80A61B'):'var(--border)')+';background:'+(a?(c||'#80A61B'):'#fff')+';color:'+(a?'#fff':'#374151')+';border-radius:16px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">'+t+'</button>';
+  const tiles=(arr)=>arr.map(u=>{
+    const e=logEstU(u), inf=logUbInfo(u.ubicK);
+    return '<div style="background:#fff;border:1px solid var(--border);border-top:3px solid '+inf.color+';border-radius:10px;overflow:hidden;display:flex;flex-direction:column">'
+      +'<div class="ev-foto" data-k="'+_escRes(evFotoKey(u.titulo))+'" style="height:88px;border-radius:0;font-size:24px"><span class="ev-ph">⚙</span></div>'
+      +'<div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px;flex:1"><div style="font-weight:700;font-size:13px;line-height:1.2">'+_escRes(u.titulo)+'</div><div style="font-size:10px;color:var(--text2)">'+_escRes([u.marca,u.tip].filter(Boolean).join(' · '))+'</div><div style="font-size:11px;color:var(--text2)">Serial '+_escRes(u.idMQ||'—')+'</div>'
+      +'<div style="margin-top:3px"><span style="background:'+e.bg+';color:'+e.c+';padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700">'+e.txt+'</span></div>'+(u.cliente?'<div style="font-size:11px;color:#92400E">👤 '+_escRes(u.cliente)+'</div>':'')
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px"><span style="font-size:10px;color:'+inf.color+';font-weight:700" title="'+_escRes(u.ubicRaw||'sin dato')+'">● '+inf.nom+'</span><button class="btn-sec" style="font-size:11px;padding:2px 8px" onclick="logMoverAbrir(\''+u.id+'\')">⇄ Mover</button></div></div></div>';
+  }).join('');
+  let cuerpo;
+  if(!lista.length) cuerpo='<div style="color:var(--text3);padding:16px">No hay máquinas con estos filtros.</div>';
+  else if(LOG.uf) cuerpo='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">'+tiles(ver)+'</div>';
+  else cuerpo=orden.map(k=>{ const g=ver.filter(u=>u.ubicK===k); if(!g.length) return ''; const inf=logUbInfo(k); return '<div style="margin-bottom:14px"><div style="font-weight:800;font-size:13px;color:'+inf.color+';margin:4px 0 8px;border-bottom:2px solid '+inf.color+'33;padding-bottom:3px">● '+inf.nom+(inf.sub?' <span style="font-weight:400;color:var(--text2)">· '+inf.sub+'</span>':'')+' <span style="font-weight:400;color:var(--text2)">('+lista.filter(u=>u.ubicK===k).length+')</span></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">'+tiles(g)+'</div></div>'; }).join('');
+  const raros={}; todas.filter(u=>u.ubicK==='otra').forEach(u=>{ raros[u.ubicRaw]=(raros[u.ubicRaw]||0)+1; });
+  const aviso=Object.keys(raros).length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ Hay máquinas con una Ubicación que no corresponde a Roble, Abarco, Guayacán ni Zona Franca: <b>'+Object.entries(raros).map(([t,n])=>_escRes(t)+' ('+n+')').join(' · ')+'</b>. Muévelas a la ubicación correcta con ⇄ Mover.</div>':'';
+  c.innerHTML=aviso
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:12px">'+LOG_UBIC.map(x=>kpi(x.k)).join('')+(por.otra.length?kpi('otra'):'')+(por.sin.length?kpi('sin'):'')+'</div>'
+    +heat
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+      +chip('','Todas ('+todas.length+')',!LOG.uf,"logUf('')")+LOG_UBIC.map(x=>chip(x.k,x.nom+' ('+por[x.k].length+')',LOG.uf===x.k,"logUf('"+x.k+"')",x.color)).join('')
+      +'<span style="width:10px"></span>'+chip('','Todos los estados',!LOG.ue,"logUe('')")+[['disponible','Disponibles'],['reservada','Reservadas'],['vendida','Vendidas']].map(([k,t])=>chip(k,t,LOG.ue===k,"logUe('"+k+"')",'#575756')).join('')
+      +(LOG.ut?'<button onclick="LOG.ut=\'\';logRender()" style="border:1.5px solid #80A61B;background:#F0F7E1;border-radius:16px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit">Tipología: <b>'+_escRes(LOG.ut)+'</b> ✕</button>':'')
+      +'<span style="flex:1"></span><input type="text" id="logUq" placeholder="Buscar máquina, serial, cliente…" value="'+_escRes(LOG.uq)+'" oninput="LOG.uq=this.value;LOG.un=60;logRender();logFocoU()" style="min-width:230px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"></div>'
+    +'<div style="font-size:11px;color:var(--text2);margin-bottom:8px">'+lista.length+' máquina(s) en stock'+(lista.length>ver.length?' · mostrando '+ver.length:'')+'. Se cuentan las que ya están físicamente en AYJ (no las que vienen en camino: esas están en "Pedidos a fábrica").</div>'
+    +cuerpo+(lista.length>ver.length?'<div style="text-align:center;margin:10px"><button class="btn-sec" onclick="LOG.un+=60;logRender()">Ver más ('+(lista.length-ver.length)+' restantes)</button></div>':'');
+  if(typeof evPintarFotos==='function') evPintarFotos();
+}
+function logUf(k){ LOG.uf=LOG.uf===k?'':k; LOG.un=60; logRender(); }
+function logUe(v){ LOG.ue=LOG.ue===v?'':v; LOG.un=60; logRender(); }
+function logUc(k,t){ LOG.uf=k; LOG.ut=t; LOG.un=60; logRender(); }
+function logFocoU(){ const q=document.getElementById('logUq'); if(q){ q.focus(); q.setSelectionRange(q.value.length,q.value.length); } }
+// ── mover de ubicación ──
+function logUbicValor(col,k){
+  const inf=logUbInfo(k);
+  if(col&&col.choice&&Array.isArray(col.choice.choices)){ const op=col.choice.choices.find(o=>logUbicDe(o)===k); if(op) return op; throw new Error('La columna Ubicación no tiene una opción para '+inf.nom); }
+  const frec={}; LOG.units.forEach(u=>{ if(u.ubicK===k&&u.ubicRaw) frec[u.ubicRaw]=(frec[u.ubicRaw]||0)+1; });
+  return Object.keys(frec).sort((a,b)=>frec[b]-frec[a])[0]||inf.nom+(inf.sub?' ('+inf.sub+')':'');
+}
+function logMoverAbrir(id){
+  const u=LOG.units.find(x=>String(x.id)===String(id)); if(!u) return; LOG.mv=u;
+  const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:420px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:8px">⇄ Mover de ubicación</div>'
+    +'<div style="font-size:13px;margin-bottom:10px"><strong>'+_escRes(u.titulo)+'</strong><div style="color:var(--text2);font-size:12px">Serial '+_escRes(u.idMQ||'—')+' · hoy en <b style="color:'+logUbInfo(u.ubicK).color+'">'+logUbInfo(u.ubicK).nom+'</b>'+(u.ubicRaw?' <span style="color:var(--text3)">("'+_escRes(u.ubicRaw)+'")</span>':'')+'</div></div>'
+    +LOG_UBIC.map(x=>'<label style="display:flex;gap:8px;align-items:center;padding:7px 10px;border:1.5px solid '+(u.ubicK===x.k?x.color:'var(--border)')+';border-left:5px solid '+x.color+';border-radius:8px;margin-bottom:6px;cursor:pointer"><input type="radio" name="lgMv" value="'+x.k+'"'+(u.ubicK===x.k?' disabled':'')+'><b style="color:'+x.color+'">'+x.nom+'</b><span style="color:var(--text2);font-size:12px">'+(x.sub||'')+'</span>'+(u.ubicK===x.k?'<span style="margin-left:auto;font-size:11px;color:var(--text3)">ubicación actual</span>':'')+'</label>').join('')
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin:10px 0 12px"><input type="checkbox" id="lgMv_nota" checked> Anotar el traslado en Observaciones (fecha y quién lo hizo)</label>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgMv_ok" onclick="logMoverOk()">Mover</button></div></div>';
+  document.body.appendChild(m);
+}
+async function logMoverOk(){
+  const u=LOG.mv, sel=document.querySelector('input[name="lgMv"]:checked'), btn=document.getElementById('lgMv_ok');
+  if(!u||!sel){ showToast('Elige la nueva ubicación','error'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Moviendo…'; }
+  try{
+    const cols=await columnasCatalogo(), c=buscarColCat(cols,['ubicacion']);
+    if(!c) throw new Error('No encontré la columna Ubicación en TODAS_2025');
+    if(!(c.text||c.choice)) throw new Error('La columna Ubicación es de un tipo que la app no puede escribir');
+    const valor=logUbicValor(c,sel.value), campos={[c.name]:valor}, ant=logUbInfo(u.ubicK).nom, nue=logUbInfo(sel.value).nom;
+    if(document.getElementById('lgMv_nota')?.checked){
+      const previa=String(u.obsRaw||'').trim(), hoy=new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}), quien=(typeof currentUserName!=='undefined'&&currentUserName)||'';
+      campos.Observaciones=(previa?previa+' | ':'')+'Traslado '+ant+' → '+nue+' '+hoy+(quien?' ('+quien+')':'');
+    }
+    const desc=await patchUnidadResiliente(u.id,campos);
+    u.ubicRaw=valor; u.ubicK=sel.value; if(campos.Observaciones){ u.obsRaw=campos.Observaciones; }
+    document.getElementById('logModal')?.remove();
+    showToast(desc.length?'⚠ Se movió a '+nue+', pero no se pudo guardar: '+desc.join(', '):'✓ '+u.titulo+' → '+nue,desc.length?'error':'success');
+    logRender();
+  }catch(e){ showToast('No se pudo mover: '+e.message,'error'); if(btn){ btn.disabled=false; btn.textContent='Mover'; } }
 }
 // ── REPORTE DE PEDIDOS (por demanda) ──────────────────────────────────────────────────────────────────
 // Para que Logística comunique al equipo: (1) reporte imprimible / PDF con novedades, fechas estimadas y reales, ruta, máquinas y notas;
