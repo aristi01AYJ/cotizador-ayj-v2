@@ -6486,6 +6486,8 @@ function rolFijar(texto,modulos){
   ROL.menus=todo?null:new Set(modulos.flatMap(m=>ROL_MODULOS[m].menus));
   const prim=orden.find(m=>modulos.includes(m)); ROL.inicioV=prim?ROL_MODULOS[prim].inicio:'nueva';
 }
+// la matriz la administra la Gerencia General; si la persona no se identificó en USUARIOS_APP (correo distinto, lista sin crear) también se ofrece, porque en ese caso ve todo
+function rolAdmin(){ return ROL.gg||(!ROL.encontrado&&ROL.fuente!=='enlace'); }
 function rolPermite(v){ return !ROL.vistas||ROL.vistas.has(v); }
 function rolInicio(){ return ROL.inicioV||'nueva'; }
 function rolAplicar(){
@@ -6493,7 +6495,7 @@ function rolAplicar(){
   const chip=document.getElementById('userChip');
   if(chip) chip.title='Rol: '+ROL.nombre+' · módulos: '+ROL.modulos.filter(m=>!ROL_MODULOS[m].futuro).join(', ')+(ROL.fuente==='lista'&&!ROL.encontrado?' (por defecto: ningún correo de tu cuenta aparece en USUARIOS_APP)':ROL.fuente==='enlace'?' (forzado por enlace)':'')+(ROL.correos.length?' · correos de tu cuenta: '+ROL.correos.join(', '):'');
   const nav=document.getElementById('mainNav'); if(!nav) return;
-  nav.querySelectorAll('button[id^="nav"]').forEach(b=>{ b.style.display=b.id==='navRoles'?(ROL.gg?'':'none'):(!ROL.menus||ROL.menus.has(b.id)?'':'none'); });
+  nav.querySelectorAll('button[id^="nav"]').forEach(b=>{ b.style.display=b.id==='navRoles'?(rolAdmin()?'':'none'):(!ROL.menus||ROL.menus.has(b.id)?'':'none'); });
   nav.querySelectorAll('.nav-group').forEach(g=>{ g.style.display=[...g.querySelectorAll('.nav-menu button')].some(b=>b.style.display!=='none')?'':'none'; });
 }
 const rolTextoDe=f=>{ const e=Object.entries(f||{}).find(([k])=>/^rol/i.test(k)); return String((f&&f.Rol)||(e&&e[1])||'').trim(); };
@@ -6537,7 +6539,7 @@ async function rolCargar(account){
 }
 // ── matriz de roles × módulos (solo Gerente General) ──
 async function rolesAbrir(){
-  if(!ROL.gg){ showToast('Solo la Gerencia General puede cambiar los roles y módulos','error'); return; }
+  if(!rolAdmin()){ showToast('Solo la Gerencia General puede cambiar los roles y módulos','error'); return; }
   const m=document.createElement('div'); m.id='rolModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
   m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:900px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">🛡 Roles y módulos</strong><button onclick="document.getElementById(\'rolModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div><div id="rolCuerpo" style="padding:14px 18px;overflow-y:auto;flex:1"><div class="loading-list"><span class="spinner dark"></span> Leyendo roles…</div></div><div id="rolPie" style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"></div></div>';
   document.body.appendChild(m);
