@@ -6473,8 +6473,9 @@ const LOG_LUG={shanghai:[121.47,31.23],ningbo:[121.55,29.87],qingdao:[120.38,36.
   foshan:[113.12,23.02],dongguan:[113.75,23.02],zhongshan:[113.39,22.52],hangzhou:[120.16,30.27],taizhou:[121.42,28.66],linyi:[118.35,35.1],jinan:[117.0,36.65],weifang:[119.16,36.7],yantai:[121.45,37.46],suzhou:[120.58,31.3],wuxi:[120.31,31.49],zhengzhou:[113.63,34.75],
   genova:[8.93,44.41],genoa:[8.93,44.41],laspezia:[9.82,44.1],milan:[9.19,45.46],milano:[9.19,45.46],bologna:[11.34,44.49],pesaro:[12.91,43.91],rimini:[12.57,44.06],vicenza:[11.55,45.55],brescia:[10.22,45.54],barcelona:[2.17,41.35],valencia:[-0.32,39.45],hamburg:[9.97,53.54],rotterdam:[4.14,51.95],antwerp:[4.4,51.27],
   houston:[-95.27,29.73],miami:[-80.18,25.78],charleston:[-79.93,32.78],savannah:[-81.09,32.08],newyork:[-74.04,40.67],nuevayork:[-74.04,40.67],newark:[-74.15,40.68],indianapolis:[-86.16,39.77],losangeles:[-118.27,33.74],longbeach:[-118.2,33.75],manzanillo:[-104.32,19.05],
+  mersin:[34.64,36.8],istanbul:[28.9,41.0],estambul:[28.9,41.0],ambarli:[28.68,40.96],izmir:[27.14,38.44],aliaga:[26.96,38.8],gemlik:[29.15,40.43],kocaeli:[29.92,40.77],derince:[29.82,40.75],iskenderun:[36.18,36.59],bursa:[29.06,40.18],ankara:[32.85,39.93],adana:[35.32,37.0],kayseri:[35.48,38.73],konya:[32.48,37.87],manisa:[27.43,38.61],eskisehir:[30.52,39.77],gaziantep:[37.38,37.07],
   cartagena:[-75.5,10.39],buenaventura:[-77.03,3.88],barranquilla:[-74.8,10.96],santamarta:[-74.21,11.24],bogota:[-74.1,4.65],medellin:[-75.57,6.25],cali:[-76.53,3.45]};
-const LOG_PUERTOS_ORIGEN=['Shanghai','Ningbo','Qingdao','Shenzhen','Yantian','Guangzhou','Nansha','Xiamen','Tianjin','Dalian','Hong Kong','Genova','La Spezia','Barcelona','Valencia','Hamburg','Rotterdam','Houston','Miami','Charleston','Savannah','New York','Los Angeles'];
+const LOG_PUERTOS_ORIGEN=['Shanghai','Ningbo','Qingdao','Shenzhen','Yantian','Guangzhou','Nansha','Xiamen','Tianjin','Dalian','Hong Kong','Genova','La Spezia','Mersin','Istanbul','Izmir','Gemlik','Iskenderun','Barcelona','Valencia','Hamburg','Rotterdam','Houston','Miami','Charleston','Savannah','New York','Los Angeles'];
 function logNorm(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,''); }
 function logCoord(txt){
   const k=logNorm(txt); if(!k) return null;
@@ -6574,7 +6575,15 @@ function logPuntosMar(po,pd){
   const car=pd[1]>9&&pd[0]>-78.5, asia=po[0]>60, med=po[0]>-15&&po[0]<45&&po[1]>30, norte=med&&po[1]>47, usaEste=po[0]<-60&&po[0]>-85&&po[1]>24, golfo=po[0]<=-85&&po[0]>-100&&po[1]>24&&po[1]<31, usaOeste=po[0]<=-100&&po[1]>25;
   const w=[po], pasoPanama=()=>{ w.push(LOG_PANAMA.colon,LOG_PANAMA.balboa); };
   if(asia){ w.push([160,30],[-150,25]); if(car){ w.push([-105,9],LOG_PANAMA.balboa,LOG_PANAMA.colon); } else w.push([-100,5]); }
-  else if(med){ w.push(norte?[-4.5,49.6]:[-5.6,35.95]); w.push([-45,26]); if(!car) pasoPanama(); }
+  else if(med){
+    if(po[0]>=24&&po[0]<=37&&po[1]>=35&&po[1]<=42){   // Turquía y Mediterráneo oriental: salida por mar abierto (no cruza Grecia, Italia ni Sicilia)
+      if(po[1]>39.5&&po[0]<31) w.push([26.2,40.1]);          // Mármara (Estambul, Gemlik, Kocaeli) → Dardanelos
+      else if(po[0]>=33) w.push([33.0,35.9]);                // Mersin / Iskenderun
+      else w.push([26.4,37.0]);                              // Egeo (Izmir, Aliaga)
+      w.push([25.5,34.4],[14.5,35.0],[11.6,37.4],[6.0,38.2]);   // sur de Creta → sur de Malta → canal de Sicilia → costa de Argelia
+    }
+    w.push(norte?[-4.5,49.6]:[-5.6,35.95]); w.push([-45,26]); if(!car) pasoPanama();
+  }
   else if(golfo){ w.push([-86,22]); if(!car) pasoPanama(); }
   else if(usaEste){ if(!car) pasoPanama(); }
   else if(usaOeste){ w.push([-110,15]); if(car){ w.push(LOG_PANAMA.balboa,LOG_PANAMA.colon); } }
