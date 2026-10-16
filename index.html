@@ -479,7 +479,12 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         </div>
         <div class="field-group" style="margin:0">
           <label style="font-size:10px">Instalación</label>
-          <label style="font-size:12px;display:flex;gap:5px;align-items:center;padding:5px 0;cursor:pointer" title="La instalación, el montaje y la puesta en marcha van incluidos en toda oferta, sin importar la modalidad de entrega. Marca esta casilla solo si los hará el cliente por su cuenta."><input type="checkbox" id="instNoChk"> Por cuenta del cliente (no incluida)</label>
+          <select id="instSel" onchange="onInstChange(this.value)" title="Aparte de la modalidad de entrega: por defecto la instalación, el montaje y la puesta en marcha van incluidos" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+            <option value="incluida">Incluida</option>
+            <option value="no">No incluida (por cuenta del cliente)</option>
+            <option value="__custom_inst__">✏️ Personalizar...</option>
+          </select>
+          <div id="instLabel" style="font-size:10px;color:var(--text2);margin-top:2px;display:none;max-width:240px"></div>
         </div>
         <div class="field-group" style="margin:0">
           <label style="font-size:10px">Posible cierre</label>
@@ -1212,8 +1217,8 @@ function guardarEntregaPersonalizada(){
 }
 // ── Modalidad de entrega de la oferta ──
 // Define DÓNDE y bajo qué condiciones se entrega la máquina (distinto de «Tiempo de entrega»): cambia el texto de «Entrega» y las exclusiones del PDF.
-// La INSTALACIÓN va siempre incluida, sin importar la modalidad, salvo que se marque «Instalación por cuenta del cliente (no incluida)» (casilla aparte: instNoChk).
-// Se guarda en la columna ModalidadEntrega de Cotizaciones (texto): cliente | ayj | fob|Puerto | cif|Puerto | otra||texto, con el sufijo #sinInst si la instalación no va incluida. Sin valor = la de siempre.
+// La INSTALACIÓN es un campo aparte (instSel), independiente de la modalidad: por defecto va incluida; también puede ir «No incluida (por cuenta del cliente)» o con un texto personalizado.
+// Se guarda en la columna ModalidadEntrega de Cotizaciones (texto): cliente | ayj | fob|Puerto | cif|Puerto | otra||texto, más el sufijo #sinInst (no incluida) o #inst=texto (personalizada). Sin valor = la de siempre.
 const MOD_INST_BASE='Personal especializado AYJ con colaboración del COMPRADOR. Si en 15 días desde la entrega física no se puede instalar por causas del COMPRADOR, se da por entregado y se pagan los saldos.';
 const MOD_INST_NO='Por cuenta del COMPRADOR: la instalación, el montaje y la puesta en marcha no están incluidos en esta oferta. Pueden cotizarse por separado con personal especializado de AYJ.';
 const MODALIDADES={
@@ -1223,38 +1228,42 @@ const MODALIDADES={
   cif:{nom:'CIF — Puerto local, sin nacionalizar',entrega:'Venta CIF (Incoterms® 2020), puerto de destino{P}, sin nacionalizar: el precio incluye la máquina, el flete marítimo y el seguro hasta el puerto de destino. El riesgo pasa al COMPRADOR cuando la máquina es embarcada en el puerto de origen. La nacionalización (aranceles, IVA y trámites aduaneros), el descargue y el transporte desde el puerto están a cargo del COMPRADOR.',excl:['Nacionalización: aranceles, IVA y trámites aduaneros','Descargue y transporte desde el puerto de destino']}
 };
 function modalidadParse(s){
-  let t=String(s||''), sinInst=false;
-  if(t.endsWith('#sinInst')){ sinInst=true; t=t.slice(0,-8); }
+  let t=String(s||''), inst='incluida', instTexto='';
+  const mi=t.match(/#inst=([\s\S]*)$/);
+  if(mi){ inst='otra'; instTexto=mi[1]; t=t.slice(0,mi.index); }
+  else if(t.endsWith('#sinInst')){ inst='no'; t=t.slice(0,-8); }
   const p=t.split('|'), k=p[0]||'cliente';
-  if(k==='otra'){ if(p[1]==='0') sinInst=true; return {k,sinInst,texto:p.slice(2).join('|')}; }   // «otra|0|texto»: formato anterior (0 = sin instalación)
-  if(k==='fob'||k==='cif') return {k,sinInst,puerto:p[1]||''};
-  return {k:MODALIDADES[k]?k:'cliente',sinInst};
+  if(k==='otra'){ if(p[1]==='0'&&inst==='incluida') inst='no'; return {k,inst,instTexto,texto:p.slice(2).join('|')}; }   // «otra|0|texto»: formato anterior (0 = sin instalación)
+  if(k==='fob'||k==='cif') return {k,inst,instTexto,puerto:p[1]||''};
+  return {k:MODALIDADES[k]?k:'cliente',inst,instTexto};
 }
+function instActual(){ const v=(document.getElementById('instSel')||{}).value||'incluida'; return v==='__custom_inst__'?{inst:'otra',instTexto:window._instTexto||''}:{inst:v==='no'?'no':'incluida',instTexto:''}; }
 function modalidadActual(){
-  const sel=document.getElementById('modalidadSel'), k=sel?sel.value:'cliente', sinInst=!!(document.getElementById('instNoChk')||{}).checked;
-  if(k==='__custom_mod__') return {k:'otra',sinInst,texto:window._modTexto||''};
-  if(k==='fob'||k==='cif') return {k,sinInst,puerto:((document.getElementById('modalidadPuerto')||{}).value||'').trim()};
-  return {k:MODALIDADES[k]?k:'cliente',sinInst};
+  const sel=document.getElementById('modalidadSel'), k=sel?sel.value:'cliente', ins=instActual();
+  if(k==='__custom_mod__') return {k:'otra',...ins,texto:window._modTexto||''};
+  if(k==='fob'||k==='cif') return {k,...ins,puerto:((document.getElementById('modalidadPuerto')||{}).value||'').trim()};
+  return {k:MODALIDADES[k]?k:'cliente',...ins};
 }
 function modalidadSerializar(){
   const m=modalidadActual(); let t;
   if(m.k==='otra') t='otra||'+String(m.texto).replace(/\|/g,'/');
   else if(m.puerto!==undefined) t=m.k+(m.puerto?'|'+m.puerto.replace(/\|/g,'/'):'');
   else t=m.k;
-  return t+(m.sinInst?'#sinInst':'');
+  return t+(m.inst==='no'?'#sinInst':m.inst==='otra'&&m.instTexto?'#inst='+String(m.instTexto).replace(/[#|]/g,'/'):'');
 }
 function modalidadTextos(m){
   if(typeof m==='string') m=modalidadParse(m);
   m=m||{k:'cliente'};
-  const inst=m.sinInst?MOD_INST_NO:MOD_INST_BASE, exInst=m.sinInst?['Instalación, montaje y puesta en marcha (por cuenta del COMPRADOR)']:[];
+  const inst=m.inst==='no'?MOD_INST_NO:(m.inst==='otra'&&m.instTexto?_escRes(m.instTexto):MOD_INST_BASE), exInst=m.inst==='no'?['Instalación, montaje y puesta en marcha (por cuenta del COMPRADOR)']:[];
+  const sinFrase=m.inst==='no'||(m.inst==='otra'&&!!m.instTexto);   // la fila Entrega no debe prometer montaje si la instalación no es la estándar
   if(m.k==='otra') return {entrega:_escRes(m.texto||'A convenir'),instalacion:inst,excl:exInst};
   const b=MODALIDADES[m.k]||MODALIDADES.cliente, pu=m.puerto?' ('+_escRes(m.puerto)+')':'';
-  return {entrega:(m.sinInst&&b.entregaSin?b.entregaSin:b.entrega).replace('{P}',pu),instalacion:inst,excl:[...b.excl,...exInst]};
+  return {entrega:(sinFrase&&b.entregaSin?b.entregaSin:b.entrega).replace('{P}',pu),instalacion:inst,excl:[...b.excl,...exInst]};
 }
 function modalidadReset(){
   const s=document.getElementById('modalidadSel'); if(s) s.value='cliente';
-  const ni=document.getElementById('instNoChk'); if(ni) ni.checked=false;
-  window._modTexto='';
+  const is=document.getElementById('instSel'), il=document.getElementById('instLabel'); if(is) is.value='incluida'; if(il){ il.style.display='none'; il.textContent=''; }
+  window._modTexto=''; window._instTexto='';
   const pw=document.getElementById('modalidadPuertoWrap'), pi=document.getElementById('modalidadPuerto'), l=document.getElementById('modalidadLabel');
   if(pw) pw.style.display='none'; if(pi) pi.value=''; if(l){ l.style.display='none'; l.textContent=''; }
 }
@@ -1263,7 +1272,7 @@ function modalidadRestaurar(str){
   modalidadReset();
   if(m.k==='otra'){ s.value='__custom_mod__'; window._modTexto=m.texto; }
   else s.value=m.k;
-  const ni=document.getElementById('instNoChk'); if(ni) ni.checked=!!m.sinInst;
+  const is=document.getElementById('instSel'); if(is){ window._instTexto=m.instTexto||''; is.value=m.inst==='no'?'no':(m.inst==='otra'?'__custom_inst__':'incluida'); onInstChange(is.value,true); }
   onModalidadChange(s.value,true);
   if(m.puerto){ const pi=document.getElementById('modalidadPuerto'); if(pi) pi.value=m.puerto; }
 }
@@ -1282,7 +1291,7 @@ function onModalidadChange(v,silencio){
 function modalidadPersonalizar(){
   const m=document.createElement('div'); m.id='modalModalidad'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:520;display:flex;align-items:center;justify-content:center;padding:12px';
   m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:520px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:6px">Modalidad de entrega personalizada</div>'
-    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Escribe cómo y dónde se entrega la máquina. Este texto saldrá tal cual en la fila «Entrega» de la oferta. La instalación va incluida salvo que marques «Instalación por cuenta del cliente».</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Escribe cómo y dónde se entrega la máquina. Este texto saldrá tal cual en la fila «Entrega» de la oferta. La instalación se define aparte, en el campo «Instalación».</div>'
     +'<textarea id="modPTexto" rows="4" placeholder="Ej: Entrega en la planta del cliente en Cali, descargue por AYJ…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px;margin-bottom:12px">'+_escRes(window._modTexto||'')+'</textarea>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="modalidadPCancelar()">Cancelar</button><button class="btn-primary" onclick="modalidadPAplicar()">Aplicar</button></div></div>';
   document.body.appendChild(m); setTimeout(()=>{ const t=document.getElementById('modPTexto'); if(t) t.focus(); },50);
@@ -1292,6 +1301,25 @@ function modalidadPAplicar(){
   const t=(document.getElementById('modPTexto').value||'').trim(); if(!t){ showToast('Escribe la modalidad de entrega','error'); return; }
   window._modTexto=t;
   document.getElementById('modalModalidad')?.remove(); onModalidadChange('__custom_mod__',true); showToast('✓ Modalidad de entrega aplicada','success');
+}
+// ── Instalación (campo aparte de la modalidad) ──
+function onInstChange(v,silencio){
+  const l=document.getElementById('instLabel');
+  if(v==='__custom_inst__'&&!silencio){ instPersonalizar(); return; }
+  if(l){ if(v==='__custom_inst__'&&window._instTexto){ l.style.display='block'; l.textContent=window._instTexto; } else { l.style.display='none'; l.textContent=''; } }
+}
+function instPersonalizar(){
+  const m=document.createElement('div'); m.id='modalInst'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:520;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:520px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:6px">Instalación personalizada</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Este texto saldrá tal cual en la fila «Instalación» de la oferta (por ejemplo, incluida solo en cierta ciudad, o con viáticos por cuenta del cliente).</div>'
+    +'<textarea id="instPTexto" rows="4" placeholder="Ej: Instalación incluida en Bogotá; viáticos y alojamiento del personal por cuenta del COMPRADOR…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px;margin-bottom:12px">'+_escRes(window._instTexto||'')+'</textarea>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="instPCancelar()">Cancelar</button><button class="btn-primary" onclick="instPAplicar()">Aplicar</button></div></div>';
+  document.body.appendChild(m); setTimeout(()=>{ const t=document.getElementById('instPTexto'); if(t) t.focus(); },50);
+}
+function instPCancelar(){ document.getElementById('modalInst')?.remove(); if(!window._instTexto){ const s=document.getElementById('instSel'); if(s) s.value='incluida'; onInstChange('incluida',true); } }
+function instPAplicar(){
+  const t=(document.getElementById('instPTexto').value||'').trim(); if(!t){ showToast('Escribe el texto de la instalación','error'); return; }
+  window._instTexto=t; document.getElementById('modalInst')?.remove(); onInstChange('__custom_inst__',true); showToast('✓ Instalación personalizada aplicada','success');
 }
 function getEntrega(){
   const sel=document.getElementById('entregaSel').value;
