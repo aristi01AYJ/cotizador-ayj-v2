@@ -781,6 +781,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <div class="field-group"><label>Marca</label><select id="vvMarca" onchange="VV.marca=this.value;vvRender()" style="min-width:140px"><option value="">Todas las marcas</option></select></div>
         <div class="field-group"><label>Año</label><select id="vvAnio" onchange="VV.anio=this.value;vvRender()" style="min-width:110px;display:none"><option value="">Todos los años</option></select></div>
         <div class="field-group" style="margin-left:auto"><label>Asesor</label><select id="vvAsesor" onchange="VV.asesor=this.value;vvRender()" style="min-width:160px"><option value="">Todos los asesores</option></select></div>
+        <button class="btn-primary" id="vvRepBtn" onclick="vvReporteAbrir()" title="Reporte de las máquinas en stock sin entregar y su estado (Alistamiento / Lista)">📄 Reporte</button>
         <button class="btn-sec" onclick="vvCsv()" title="Descargar lo que se ve en pantalla"><i class="ti ti-download"></i> CSV</button>
         <button class="btn-sec" onclick="vvMigrarClientes()" title="Guarda en la columna Cliente los clientes que antes se anotaban en Observaciones"><i class="ti ti-user-check"></i> Clientes de Observaciones</button>
         <button class="btn-sec" onclick="vvRefrescar()" title="Volver a leer de LISTS"><i class="ti ti-refresh"></i></button>
@@ -7748,8 +7749,8 @@ async function logRecibirOk(codigo){
     if(cE&&cE.choice&&Array.isArray(cE.choice.choices)){ const op=cE.choice.choices.find(x=>/^en\s*stock$/i.test(String(x).trim())); if(op) valor=op; else if(enImpo.length) throw new Error('La columna ESTADO no tiene la opción "En Stock"'); }
     const kUb=document.getElementById('lgR_ub')?.value; let patchUb=null;
     if(kUb&&enImpo.length){ const cu=buscarColCat(cols,['ubicacion']); if(!cu||!(cu.text||cu.choice)) throw new Error('No puedo escribir la columna Ubicación de TODAS_2025'); patchUb={[cu.name]:logUbicValor(cu,kUb)}; }
-    const fallos=[]; let i=0;
-    async function trabajar(){ while(i<enImpo.length){ const u=enImpo[i++]; try{ await patchUnidadResiliente(u.id,{ESTADO:valor,...(patchUb||{})}); u.estadoStock=valor; if(patchUb){ u.ubicRaw=Object.values(patchUb)[0]; u.ubicK=kUb; } }catch(e){ fallos.push((u.idMQ||u.titulo)+': '+e.message); } } }
+    const fallos=[], ee=typeof vvEstEntValor==='function'?vvEstEntValor(cols,'Alistamiento'):null; let i=0;   // ee: columna EstadoEntrega (si existe) → las vendidas que llegan pasan a «Alistamiento»
+    async function trabajar(){ while(i<enImpo.length){ const u=enImpo[i++]; try{ await patchUnidadResiliente(u.id,{ESTADO:valor,...(patchUb||{}),...(ee&&u.estadoSel==='VENDIDA'?{[ee.name]:ee.valor}:{})}); u.estadoStock=valor; if(patchUb){ u.ubicRaw=Object.values(patchUb)[0]; u.ubicK=kUb; } }catch(e){ fallos.push((u.idMQ||u.titulo)+': '+e.message); } } }
     await Promise.all([trabajar(),trabajar(),trabajar(),trabajar()]);
     if(fallos.length) throw new Error(fallos.length+' máquina(s) no se pudieron actualizar ('+fallos[0]+'). El pedido NO se marcó como recibido: reintenta.');
     if(LOG.map.ayjReal){ const r=await logEscribir(p.id,{[LOG.map.ayjReal]:logIso(f)}); if(r.descartadas.length) showToast('No se pudo guardar la fecha de llegada: columna '+r.descartadas.join(', '),'error'); }
@@ -8028,6 +8029,8 @@ async function vrCargar(){
     const items=await cargarItemsCatalogo(['VENDIDA','ENTREGADA'],200);
     const campos=window._catCampos||{marcaField:'Marca',tipologiaField:'Tipologia'};
     const tarifaDe=f=>{ const raw=f.TARIFA||f.TARIFA_SUGERIDO||0; if(!raw) return 0; return parseFloat(String(raw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0; };
+    const colsC=await columnasCatalogo();
+    VR.cols={pr:buscarColCat(colsC,['prioridad','urgencia','urgenciaentrega','urgenciadeentrega']),ee:buscarColCat(colsC,['estadoentrega','estadodeentrega','estadoalistamiento','alistamiento','preparacion']),fd:buscarColCat(colsC,['fechadisponible','fechadedisponibilidad','fechadisponibilidad'])};
     const filas=items.map(i=>{
       const f=i.fields||{};
       let cliente=typeof f.Cliente==='string'?f.Cliente:((f.Cliente&&(f.Cliente.LookupValue||f.Cliente.Title))||'');
@@ -8042,7 +8045,9 @@ async function vrCargar(){
       if(estadoFila==='ENTREGADA'&&me) fr=me[1]+'T12:00:00';
       const eS=String(f.ESTADO||'').trim(), vU=f.Ubicaci_x00f3_n||f.Ubicacion, uRaw=String(vU&&typeof vU==='object'?(vU.LookupValue||vU.Value||''):(vU||'')).trim(), uK=typeof logUbicDe==='function'?logUbicDe(uRaw):'';
       const donde=(/importa|fabrica/i.test(eS)||uK==='imp')?'camino':(/bajo\s*pedido/i.test(eS)||uK==='bp')?'pedido':'stock';   // stock = ya está físicamente en AYJ
-      return {estadoStock:eS,ubicRaw:uRaw,ubicK:uK,donde,obs,clienteCampo,clienteObs,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
+      const gv=c=>{ const v=c?f[c.name]:undefined; return String(v&&typeof v==='object'?(v.LookupValue||v.Value||''):(v==null?'':v)).trim(); };
+      const prio=gv(VR.cols.pr), estEnt=gv(VR.cols.ee), fDisp=VR.cols.fd&&f[VR.cols.fd.name]?new Date(f[VR.cols.fd.name]):null;   // prioridad, estado de preparación y fecha estimada de disponibilidad
+      return {prio,estEnt,fDisp,estadoStock:eS,ubicRaw:uRaw,ubicK:uK,donde,obs,clienteCampo,clienteObs,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca:String(f[campos.marcaField]||f.Marca||f.Marca0||'').trim(),
         tip:String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim(),estado:String(f.ESTADO_||'').trim().toUpperCase(),cliente:String(cliente||'').trim(),vendedor:'',
         pedido:String(f.PEDIDOSYNERGY||'').trim(),cot:m?m[0].toUpperCase():'',tarifa:tarifaDe(f),fecha:fr?new Date(fr):null};
     });
@@ -8104,10 +8109,11 @@ function vrRender(){
 
 // ── INVENTARIO: "Por entregar" (VENDIDA) y "Vendidas y entregadas" (VENDIDA + ENTREGADA) ──
 // Una sola vista (#ventasView) con dos modos; comparte con Inteligencia → Ventas reales los datos de VR (se releen si pasaron >5 min). Fecha = columna Modificado.
-const VV={modo:'pend',q:'',asesor:null,anio:'',marca:'',listo:false,donde:''};   // donde: '' | stock | camino | pedido   // asesor: null = aún sin elegir (por defecto, el del usuario); '' = todos
-function vvAbrir(modo){ VV.modo=modo; VV.q=''; VV.anio=''; VV.marca=''; VV.donde=''; VV.listo=false; const b=document.getElementById('vvBuscar'); if(b) b.value=''; switchView('ventas'); }
+const VV={modo:'pend',q:'',asesor:null,anio:'',marca:'',listo:false,donde:'',prep:''};   // donde: '' | stock | camino | pedido   // asesor: null = aún sin elegir (por defecto, el del usuario); '' = todos
+function vvAbrir(modo){ VV.modo=modo; VV.q=''; VV.anio=''; VV.marca=''; VV.donde=''; VV.prep=''; VV.listo=false; const b=document.getElementById('vvBuscar'); if(b) b.value=''; switchView('ventas'); }
 async function vvPrepara(){
   vvRender();
+  if(typeof clientesData!=='undefined'&&!clientesData.length&&typeof cargarClientes==='function'){ try{ await cargarClientes(); }catch(e){} }   // la ciudad del cliente sale de la lista Clientes
   const viejo=!VR.rows||!VR.ts||(Date.now()-VR.ts>300000);
   if(viejo&&!VR.cargando) await vrCargar();
   VV.listo=true; vvOpciones(); vvRender();
@@ -8131,13 +8137,14 @@ function vvFiltradas(sinDonde){
   return rows.filter(r=>{
     if(VV.modo==='pend'&&r.estado!=='VENDIDA') return false;
     if(!sinDonde&&VV.modo==='pend'&&VV.donde&&r.donde!==VV.donde) return false;
+    if(!sinDonde&&VV.modo==='pend'&&VV.prep&&(VV.prep==='sin'?vvPrep(r)!=='':vvPrep(r)!==VV.prep)) return false;
     if(VV.asesor&&asesorLabel(r.vendedor)!==VV.asesor) return false;
     if(VV.marca&&r.marca!==VV.marca) return false;
     if(VV.anio&&(r.fecha?String(r.fecha.getFullYear()):'Sin fecha')!==VV.anio) return false;
     if(q&&![r.titulo,r.idMQ,r.cliente,r.vendedor,r.pedido,r.cot,r.marca,r.tip,r.obs].join(' ').toLowerCase().includes(q)) return false;
     return true;
   }).map(r=>({...r,dias:r.fecha?Math.floor((Date.now()-r.fecha)/86400000):null}))
-    .sort((a,b)=>VV.modo==='pend'?((({stock:0,camino:1,pedido:2})[a.donde]-({stock:0,camino:1,pedido:2})[b.donde])||((b.dias??-1)-(a.dias??-1))):((b.fecha||0)-(a.fecha||0)));   // por entregar: primero las que ya están en stock
+    .sort((a,b)=>VV.modo==='pend'?((({stock:0,camino:1,pedido:2})[a.donde]-({stock:0,camino:1,pedido:2})[b.donde])||((typeof logPrioRank==='function'?logPrioRank(a.prio):3)-(typeof logPrioRank==='function'?logPrioRank(b.prio):3))||((b.dias??-1)-(a.dias??-1))):((b.fecha||0)-(a.fecha||0)));   // por entregar: primero las que ya están en stock
 }
 // «Dónde está»: en stock (con su bodega: Roble, Abarco, Guayacán, Zona Franca) · en camino (importación / fabricación) · por pedir
 function vvDonde(r){
@@ -8150,6 +8157,7 @@ function vvDonde(r){
 function vvRender(){
   const body=document.getElementById('vvBody'), kp=document.getElementById('vvKpis'), ti=document.getElementById('vvTitulo'); if(!body) return;
   if(ti) ti.textContent=VV.modo==='pend'?'🚚 Vendidas — pendientes de entregar':'📦 Vendidas y entregadas';
+  { const rb=document.getElementById('vvRepBtn'); if(rb) rb.style.display=VV.modo==='pend'?'':'none'; }
   if(VR.cargando||(!VR.rows&&!VR.error)){ kp.innerHTML=''; body.innerHTML='<div class="loading-list"><span class="spinner dark"></span> Leyendo las máquinas vendidas de LISTS…</div>'; return; }
   if(VR.error){ kp.innerHTML=''; body.innerHTML='<div style="color:var(--red)">Error: '+_escRes(VR.error)+' <button class="btn-sec" onclick="vvRefrescar()">Reintentar</button></div>'; return; }
   const d=vvFiltradas(), pend=d.filter(r=>r.estado==='VENDIDA'), ent=d.filter(r=>r.estado==='ENTREGADA');
@@ -8158,19 +8166,22 @@ function vvRender(){
   const kpi=(t,n,c,s)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:24px;font-weight:800;color:'+c+'">'+n+'</div>'+(s?'<div style="font-size:11px;color:var(--text3)">'+s+'</div>':'')+'</div>';
   const valor='USD '+Math.round(d.reduce((s,r)=>s+r.tarifa,0)).toLocaleString('es-CO');
   kp.innerHTML=VV.modo==='pend'
-    ?kpi('Por entregar',vBase.length,'#B45309','máquinas vendidas')+kpi('En stock · listas para entregar',nStock,'#166534','ya están en AYJ')+kpi('En camino',nCamino,'#1D4ED8','importación / fabricación')+kpi('Más de 30 días',vBase.filter(r=>r.dias>30).length,'#B45309','desde la venta')+kpi('Valor a tarifa',valor,'#1D4ED8','precio de lista')
+    ?kpi('Por entregar',vBase.length,'#B45309','máquinas vendidas')+kpi('En stock · listas para entregar',nStock,'#166534','ya están en AYJ')+kpi('En camino',nCamino,'#1D4ED8','importación / fabricación')+kpi('Listas para entregar',vBase.filter(r=>vvPrep(r)==='Lista').length,'#166534','alistamiento terminado')+kpi('Valor a tarifa',valor,'#1D4ED8','precio de lista')
     :kpi('Unidades',d.length,'#575756','vendidas + entregadas')+kpi('Por entregar',pend.length,'#B45309','todavía en curso')+kpi('Entregadas',ent.length,'#166534','')+kpi('Valor a tarifa',valor,'#1D4ED8','precio de lista');
   const chip=e=>e==='ENTREGADA'?'<span style="background:#DCFCE7;color:#166534;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">Entregada</span>':'<span style="background:#FEF3C7;color:#92400E;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">Por entregar</span>';
   const MAX=300, ver=d.slice(0,MAX);
   const boton=(k,t)=>'<button type="button" onclick="VV.donde=\''+k+'\';vvRender()" style="cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;border:1.5px solid '+(VV.donde===k?'#166534':'var(--border)')+';background:'+(VV.donde===k?'#166534':'#fff')+';color:'+(VV.donde===k?'#fff':'var(--text)')+'">'+t+'</button>';
-  const filtroDonde=VV.modo==='pend'?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+boton('','Todas ('+vBase.length+')')+boton('stock','🏭 En stock · listas para entregar ('+nStock+')')+boton('camino','🚢 En camino ('+nCamino+')')+(nPedido?boton('pedido','Por pedir ('+nPedido+')'):'')+'</div>':'';
+  const botonP=(k,t)=>'<button type="button" onclick="VV.prep=\''+k+'\';vvRender()" style="cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:16px;border:1.5px solid '+(VV.prep===k?'#1D4ED8':'var(--border)')+';background:'+(VV.prep===k?'#1D4ED8':'#fff')+';color:'+(VV.prep===k?'#fff':'var(--text)')+'">'+t+'</button>';
+  const nP=p=>vBase.filter(r=>vvPrep(r)===p).length;
+  const filtroDonde=VV.modo==='pend'?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+boton('','Todas ('+vBase.length+')')+boton('stock','🏭 En stock · listas para entregar ('+nStock+')')+boton('camino','🚢 En camino ('+nCamino+')')+(nPedido?boton('pedido','Por pedir ('+nPedido+')'):'')+'</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><span style="font-size:12px;font-weight:700;color:var(--text2)">Preparación:</span>'+botonP('','Todas')+botonP('Importación','Importación ('+nP('Importación')+')')+botonP('Alistamiento','Alistamiento ('+nP('Alistamiento')+')')+botonP('Lista','Lista ('+nP('Lista')+')')+botonP('sin','Sin definir ('+nP('')+')')+'</div>':'';
   body.innerHTML=filtroDonde+'<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Fecha de venta/entrega = columna <b>Modificado</b> de LISTS · '+d.length+' máquina(s)'+(d.length>MAX?' (se muestran las primeras '+MAX+'; usa los filtros o el CSV)':'')+'</div>'
-    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Dónde está</th><th>Cliente</th><th>Asesor</th><th>Pedido / Cotización</th>'+(VV.modo==='pend'?'':'<th>Estado</th>')+'<th>Observaciones</th><th>Fecha</th><th style="text-align:right">Días</th><th></th></tr></thead><tbody>'
-    +(ver.map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ||'—')+'</td><td>'+vvDonde(r)+'</td><td style="font-size:12px;cursor:pointer" onclick="vvCliente(\''+r.id+'\')" title="'+(r.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(r.cliente?'<span'+(r.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(r.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td><td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td>'
+    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Dónde está</th>'+(VV.modo==='pend'?'<th>Preparación</th><th>Disponible para entrega</th><th>Prioridad</th>':'')+'<th>Cliente</th>'+(VV.modo==='pend'?'<th>Ciudad</th>':'')+'<th>Asesor</th><th>Pedido / Cotización</th>'+(VV.modo==='pend'?'':'<th>Estado</th>')+'<th>Observaciones</th><th>Fecha</th><th style="text-align:right">Días</th><th></th></tr></thead><tbody>'
+    +(ver.map(r=>'<tr><td><strong>'+_escRes(r.titulo)+'</strong><div style="font-size:10px;color:var(--text2)">'+_escRes([r.marca,r.tip].filter(Boolean).join(' · '))+'</div></td><td style="font-size:12px">'+_escRes(r.idMQ||'—')+'</td><td>'+vvDonde(r)+'</td>'+(VV.modo==='pend'?'<td>'+vvCeldaPrep(r)+'</td><td>'+vvCeldaDisp(r)+'</td><td>'+vvCeldaPrio(r)+'</td>':'')+'<td style="font-size:12px;cursor:pointer" onclick="vvCliente(\''+r.id+'\')" title="'+(r.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(r.cliente?'<span'+(r.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(r.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td>'+(VV.modo==='pend'?'<td style="font-size:12px">'+_escRes(vvCiudad(r)||'—')+'</td>':'')+'<td style="font-size:12px">'+_escRes(asesorLabel(r.vendedor))+'</td><td style="font-size:12px">'+_escRes(r.pedido||'—')+(r.cot?'<div style="font-size:10px;color:var(--text3)">'+_escRes(r.cot)+'</div>':'')+'</td>'
       +(VV.modo==='pend'?'':'<td>'+chip(r.estado)+'</td>')
       +'<td style="font-size:11px;color:var(--text2)"><div style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escRes(r.obs)+'">'+_escRes(r.obs||'—')+'</div></td>'
       +'<td style="font-size:12px;white-space:nowrap">'+(r.fecha?r.fecha.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—')+'</td><td style="text-align:right;font-weight:700;color:'+(r.estado!=='VENDIDA'||r.dias==null?'var(--text3)':r.dias>60?'#DC2626':r.dias>30?'#B45309':'inherit')+'">'+(r.dias==null?'—':r.dias)+'</td>'
-      +'<td style="white-space:nowrap">'+(r.estado==='VENDIDA'?'<button class="btn-sec" onclick="vvEntregar(\''+r.id+'\')" title="Marcar esta máquina como ENTREGADA y registrar la fecha" style="border-color:#16A34A;color:#166534;font-size:12px;padding:3px 9px">✓ Entregada</button> ':'')+'<a href="https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(r.id)+'" target="_blank" title="Abrir este registro en SharePoint" style="color:var(--text2);font-size:15px"><i class="ti ti-external-link"></i></a></td></tr>').join('')||'<tr><td colspan="10" style="padding:14px;color:var(--text3)">'+(VV.modo==='pend'?'No hay máquinas vendidas pendientes de entrega con estos filtros.':'No hay máquinas con estos filtros.')+'</td></tr>')
+      +'<td style="white-space:nowrap">'+(r.estado==='VENDIDA'?'<button class="btn-sec" onclick="vvEntregar(\''+r.id+'\')" title="Marcar esta máquina como ENTREGADA y registrar la fecha" style="border-color:#16A34A;color:#166534;font-size:12px;padding:3px 9px">✓ Entregada</button> ':'')+'<a href="https://'+SP_HOST+'/sites/'+SP_SITE+'/Lists/TODAS_2025/DispForm.aspx?ID='+encodeURIComponent(r.id)+'" target="_blank" title="Abrir este registro en SharePoint" style="color:var(--text2);font-size:15px"><i class="ti ti-external-link"></i></a></td></tr>').join('')||'<tr><td colspan="'+(VV.modo==='pend'?14:10)+'" style="padding:14px;color:var(--text3)">'+(VV.modo==='pend'?'No hay máquinas vendidas pendientes de entrega con estos filtros.':'No hay máquinas con estos filtros.')+'</td></tr>')
     +'</tbody></table>';
 }
 // Botón "✓ Entregada": VENDIDA → ENTREGADA en LISTS con la fecha de entrega (hoy por defecto). Además de que SharePoint actualiza "Modificado",
@@ -8211,7 +8222,7 @@ async function vvEntregarOk(id){
 }
 function vvCsv(){
   const d=vvFiltradas(); const lim=v=>String(v==null?'':v).replace(/[;\r\n]+/g,' ').trim();
-  const csv=['Máquina;Marca;Tipología;Serial;Dónde está;Ubicación;Cliente;Asesor;Pedido;Cotización;Estado;Observaciones;Fecha (Modificado);Días'].concat(d.map(r=>[r.titulo,r.marca,r.tip,r.idMQ,({stock:'En stock',camino:/fabrica/i.test(r.estadoStock)?'En fabricación':'En importación',pedido:'Por pedir'})[r.donde]||'',r.ubicRaw,r.cliente,asesorLabel(r.vendedor),r.pedido,r.cot,r.estado,r.obs,r.fecha?r.fecha.toLocaleDateString('es-CO'):'',r.dias==null?'':r.dias].map(lim).join(';'))).join('\n');
+  const csv=['Máquina;Marca;Tipología;Serial;Dónde está;Ubicación;Preparación;Disponible para entrega (est.);Prioridad;Cliente;Ciudad;Asesor;Pedido;Cotización;Estado;Observaciones;Fecha (Modificado);Días'].concat(d.map(r=>[r.titulo,r.marca,r.tip,r.idMQ,({stock:'En stock',camino:/fabrica/i.test(r.estadoStock)?'En fabricación':'En importación',pedido:'Por pedir'})[r.donde]||'',r.ubicRaw,vvPrep(r)||'Sin definir',r.fDisp&&!isNaN(r.fDisp)?r.fDisp.toLocaleDateString('es-CO'):'',r.prio,r.cliente,vvCiudad(r),asesorLabel(r.vendedor),r.pedido,r.cot,r.estado,r.obs,r.fecha?r.fecha.toLocaleDateString('es-CO'):'',r.dias==null?'':r.dias].map(lim).join(';'))).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download=(VV.modo==='pend'?'vendidas-por-entregar':'vendidas-y-entregadas')+'.csv';
   document.body.appendChild(a); a.click(); a.remove(); showToast(d.length+' máquinas → '+a.download,'success');
 }
@@ -8326,6 +8337,133 @@ async function trmSparkCargar(){
   catch(e){ console.warn('[AYJ] TRM: no se pudo cargar el historial de 30 días:',e.message); const el=document.getElementById('trmSpark'); if(el) el.innerHTML=''; }
 }
 
+// ── POR ENTREGAR: FOCO ───────────────────────────────────────────────────────────────────────────────────────
+// Inventario ▸ Por entregar es la pantalla de trabajo del equipo técnico. Por cada máquina vendida sin entregar muestra: prioridad (editable), preparación (Importación · Alistamiento · Lista, editable),
+// fecha estimada de disponibilidad para entrega (en días, editable, para las que vienen en camino), ciudad del cliente y dónde está. Más un reporte de lo que está en stock sin entregar.
+// Columnas de TODAS_2025 (se detectan por nombre): PRIORIDAD (Elección: ALTA/MEDIA/BAJA), EstadoEntrega (Elección: Importación/Alistamiento/Lista) y Fecha disponible (fecha).
+const VV_PREP=['Importación','Alistamiento','Lista'];
+const vvNorm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z]/g,'');
+const vvHoy=()=>{ const h=new Date(); h.setHours(12,0,0,0); return h; };
+// preparación efectiva: lo que viene en camino es «Importación»; lo que está en stock es lo marcado (Alistamiento / Lista) o «sin definir»
+function vvPrep(r){ if(r.donde==='camino') return 'Importación'; const k=vvNorm(r.estEnt); return k==='lista'?'Lista':k==='alistamiento'?'Alistamiento':''; }
+function vvCiudad(r){ const c=(typeof clientesData!=='undefined'?clientesData:[]).find(x=>_kTitulo(x.titulo)===_kTitulo(r.cliente)); return c?c.ciudad:''; }
+const vvEstColor=p=>p==='Lista'?['#166534','#DCFCE7']:p==='Alistamiento'?['#92400E','#FEF3C7']:p==='Importación'?['#1E40AF','#DBEAFE']:['#6B7280','#F3F4F6'];
+function vvColNombre(k){ return VR.cols&&VR.cols[k]?VR.cols[k].name:''; }
+function vvOpcionDe(col,txt){ if(!col) return null; if(col.choice&&Array.isArray(col.choice.choices)){ return col.choice.choices.find(x=>vvNorm(x)===vvNorm(txt))||null; } return txt; }
+// para «Recibir pedido» (Logística): marca Alistamiento en las máquinas vendidas que llegan
+function vvEstEntValor(cols,txt){ const c=buscarColCat(cols,['estadoentrega','estadodeentrega','estadoalistamiento','alistamiento','preparacion']); const v=c?vvOpcionDe(c,txt):null; return c&&v?{name:c.name,valor:v}:null; }
+// ── celdas de la tabla ──
+function vvDiasDisp(r){ if(!r.fDisp||isNaN(r.fDisp)) return null; return Math.round((r.fDisp-vvHoy())/86400000); }
+function vvCeldaPrep(r){
+  const p=vvPrep(r), [c,bg]=vvEstColor(p), sinCol=!vvColNombre('ee');
+  const op=(v,t)=>'<option value="'+v+'"'+(p===v?' selected':'')+'>'+t+'</option>';
+  return '<select '+(sinCol?'disabled title="Falta la columna EstadoEntrega en TODAS_2025 (Elección: Importación, Alistamiento, Lista)" ':'title="Estado de preparación para la entrega" ')+'onchange="vvEstEnt(\''+r.id+'\',this.value)" style="font-size:12px;font-weight:700;padding:3px 6px;border-radius:12px;border:1px solid '+c+';background:'+bg+';color:'+c+';font-family:inherit;cursor:pointer">'+(p===''?'<option value="" selected>— Definir —</option>':'')+op('Importación','Importación')+op('Alistamiento','Alistamiento')+op('Lista','Lista')+'</select>';
+}
+function vvCeldaDisp(r){
+  if(r.donde!=='camino') return '<span style="color:var(--text3)">—</span>';
+  const d=vvDiasDisp(r), clic=' style="cursor:pointer" onclick="vvDisp(\''+r.id+'\')" title="Clic para estimar en cuántos días estará disponible para entrega"';
+  if(d==null) return '<span'+clic+'><span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px;white-space:nowrap">＋ estimar días</span></span>';
+  const col=d<0?'#DC2626':d<=15?'#166534':'inherit';
+  return '<div'+clic+' style="cursor:pointer;white-space:nowrap"><b style="color:'+col+'">'+(d<0?'vencida hace '+(-d)+' d':d===0?'hoy':'en '+d+' d')+'</b> ✎<div style="font-size:10px;color:var(--text3)">'+r.fDisp.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'2-digit'})+'</div></div>';
+}
+function vvCeldaPrio(r){ return '<span style="cursor:pointer" onclick="vvPrio(\''+r.id+'\')" title="Clic para cambiar la prioridad">'+(r.prio?logPrioHTML(r.prio):'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</span>'; }
+// ── editar prioridad ──
+function vvPrioOpciones(){ const c=VR.cols&&VR.cols.pr, ops=c&&c.choice&&Array.isArray(c.choice.choices)?c.choice.choices:[]; return ops.length?ops:['ALTA','MEDIA','BAJA']; }
+function vvPrio(id){
+  const r=(VR.rows||[]).find(x=>String(x.id)===String(id)); if(!r) return;
+  if(!vvColNombre('pr')){ showToast('No encontré la columna PRIORIDAD en TODAS_2025','error'); return; }
+  const m=document.createElement('div'); m.id='vvModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:380px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700">Prioridad de entrega</div><div style="font-size:12px;color:var(--text2);margin:4px 0 12px">'+_escRes(r.titulo)+(r.idMQ?' · '+_escRes(r.idMQ):'')+(r.cliente?' · '+_escRes(r.cliente):'')+'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'+vvPrioOpciones().map((o,i)=>'<button type="button" onclick="vvPrioOk(\''+r.id+'\','+i+')" style="cursor:pointer;border:2px solid '+(vvNorm(o)===vvNorm(r.prio)?'#575756':'transparent')+';background:none;border-radius:14px;padding:2px">'+logPrioHTML(o)+'</button>').join('')+'<button type="button" class="btn-sec" style="font-size:12px;padding:3px 10px" onclick="vvPrioOk(\''+r.id+'\',-1)">Sin prioridad</button></div>'
+    +'<div style="display:flex;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'vvModal\').remove()">Cancelar</button></div></div>';
+  document.body.appendChild(m);
+}
+async function vvPrioOk(id,i){
+  const r=(VR.rows||[]).find(x=>String(x.id)===String(id)); if(!r) return; const val=i<0?null:vvPrioOpciones()[i];
+  try{ const d=await patchUnidadResiliente(r.id,{[vvColNombre('pr')]:val}); if(d.length) throw new Error('la columna '+d.join(', ')+' no existe'); r.prio=val||''; document.getElementById('vvModal')?.remove(); showToast('✓ Prioridad de '+r.titulo+': '+(val||'sin prioridad'),'success'); vvRender(); }
+  catch(e){ showToast('No se pudo cambiar la prioridad: '+e.message,'error'); }
+}
+// ── editar preparación (Importación · Alistamiento · Lista) ──
+async function vvEstEnt(id,val){
+  const r=(VR.rows||[]).find(x=>String(x.id)===String(id)); if(!r||!val) return;
+  const col=VR.cols&&VR.cols.ee; if(!col){ showToast('Falta la columna EstadoEntrega en TODAS_2025','error'); vvRender(); return; }
+  const op=vvOpcionDe(col,val); if(!op){ showToast('A la columna '+(col.displayName||col.name)+' le falta la opción «'+val+'»: agrégala en SharePoint','error'); vvRender(); return; }
+  try{ const d=await patchUnidadResiliente(r.id,{[col.name]:op}); if(d.length) throw new Error('la columna '+d.join(', ')+' no existe'); r.estEnt=op; showToast('✓ '+r.titulo+': '+val,'success'); }
+  catch(e){ showToast('No se pudo guardar: '+e.message,'error'); }
+  vvRender();
+}
+// ── estimar días para estar disponible para entrega (máquinas que vienen en camino) → columna «Fecha disponible» ──
+function vvDisp(id){
+  const r=(VR.rows||[]).find(x=>String(x.id)===String(id)); if(!r) return;
+  if(!vvColNombre('fd')){ showToast('No encontré la columna «Fecha disponible» en TODAS_2025','error'); return; }
+  const d=vvDiasDisp(r), m=document.createElement('div'); m.id='vvModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:400px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700">Disponible para entrega</div><div style="font-size:12px;color:var(--text2);margin:4px 0 12px">'+_escRes(r.titulo)+(r.idMQ?' · '+_escRes(r.idMQ):'')+(r.pedido?' · pedido '+_escRes(r.pedido):'')+'</div>'
+    +'<label style="font-size:12px;font-weight:700">¿En cuántos días estará disponible para entrega?</label><input type="number" id="vvDias" min="0" value="'+(d!=null&&d>=0?d:'')+'" placeholder="Ej. 45" oninput="vvDispFecha()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 8px;font-family:inherit">'
+    +'<label style="font-size:12px;font-weight:700">o la fecha</label><input type="date" id="vvFecha" value="'+(r.fDisp&&!isNaN(r.fDisp)?logInput(r.fDisp):'')+'" onchange="document.getElementById(\'vvDias\').value=Math.round((new Date(this.value+\'T12:00:00\')-vvHoy())/86400000)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 8px;font-family:inherit">'
+    +'<div style="font-size:11px;color:var(--text2);margin-bottom:12px">Se guarda en la columna <b>Fecha disponible</b> de TODAS_2025 (la que ya usa el equipo para la llegada estimada).</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'vvModal\').remove()">Cancelar</button><button class="btn-primary" onclick="vvDispOk(\''+r.id+'\')">Guardar</button></div></div>';
+  document.body.appendChild(m); setTimeout(()=>{ const i=document.getElementById('vvDias'); if(i) i.focus(); },50);
+}
+function vvDispFecha(){ const n=parseInt(document.getElementById('vvDias').value); const f=document.getElementById('vvFecha'); if(!isNaN(n)&&f) f.value=logInput(new Date(vvHoy().getTime()+n*86400000)); }
+async function vvDispOk(id){
+  const r=(VR.rows||[]).find(x=>String(x.id)===String(id)); if(!r) return; const n=parseInt(document.getElementById('vvDias').value), fv=document.getElementById('vvFecha').value;
+  const fecha=fv?new Date(fv+'T12:00:00'):(!isNaN(n)?new Date(vvHoy().getTime()+n*86400000):null); if(!fecha){ showToast('Escribe los días o elige la fecha','error'); return; }
+  try{ const d=await patchUnidadResiliente(r.id,{[vvColNombre('fd')]:logIso(logInput(fecha))}); if(d.length) throw new Error('la columna '+d.join(', ')+' no existe'); r.fDisp=new Date(logIso(logInput(fecha))); document.getElementById('vvModal')?.remove(); showToast('✓ '+r.titulo+': disponible en '+Math.round((r.fDisp-vvHoy())/86400000)+' días','success'); vvRender(); }
+  catch(e){ showToast('No se pudo guardar: '+e.message,'error'); }
+}
+// ── reporte: máquinas en stock sin entregar y su estado ──
+function vvReporteAbrir(){
+  const m=document.createElement('div'); m.id='vvModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
+  const n=(VR.rows||[]).filter(r=>r.estado==='VENDIDA'&&r.donde==='stock').length, c=(VR.rows||[]).filter(r=>r.estado==='VENDIDA'&&r.donde==='camino').length;
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:460px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:10px">📄 Reporte: máquinas en stock sin entregar</div>'
+    +'<div style="font-size:13px;margin-bottom:10px"><b>'+n+'</b> máquina(s) vendidas que ya están en AYJ y todavía no se entregan, con su estado de preparación (Alistamiento / Lista), prioridad, cliente y ciudad.</div>'
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-bottom:12px"><input type="checkbox" id="vvRcam" checked> Incluir también las que vienen en camino ('+c+'), con los días estimados para estar disponibles</label>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'vvModal\').remove()">Cancelar</button><button class="btn-sec" onclick="vvReporteTexto()">📋 Copiar texto</button><button class="btn-primary" onclick="vvReporteVer()">📄 Abrir reporte</button></div></div>';
+  document.body.appendChild(m);
+}
+function vvReporteDatos(){
+  const camino=!document.getElementById('vvRcam')||document.getElementById('vvRcam').checked, hoy=vvHoy();
+  const base=(VR.rows||[]).filter(r=>r.estado==='VENDIDA').map(r=>({...r,dias:r.fecha?Math.floor((Date.now()-r.fecha)/86400000):null,prep:vvPrep(r),dd:vvDiasDisp(r)}));
+  const rk=x=>typeof logPrioRank==='function'?logPrioRank(x.prio):3, pr={Lista:0,Alistamiento:1,'':2};
+  const stock=base.filter(r=>r.donde==='stock').sort((a,b)=>(rk(a)-rk(b))||(pr[a.prep]-pr[b.prep])||((b.dias??-1)-(a.dias??-1)));
+  const cam=camino?base.filter(r=>r.donde==='camino').sort((a,b)=>(a.dd==null)-(b.dd==null)||((a.dd??0)-(b.dd??0))):[];
+  return {stock,cam,camino,hoy};
+}
+function vvReporteHTML(){
+  const {stock,cam,camino}=vvReporteDatos(), esc=_escRes, ahora=new Date();
+  const cnt=p=>stock.filter(r=>r.prep===p).length;
+  const chipP=p=>{ const [c,bg]=vvEstColor(p); return '<span class="chip" style="background:'+bg+';color:'+c+'">'+esc(p||'Sin definir')+'</span>'; };
+  const prio=r=>r.prio?'<b style="color:'+(vvNorm(r.prio)==='alta'?'#B91C1C':vvNorm(r.prio)==='media'?'#92400E':'#166534')+'">'+esc(r.prio)+'</b>':'<span class="s">—</span>';
+  const filaS=r=>'<tr><td>'+prio(r)+'</td><td><b>'+esc(r.titulo)+'</b><div class="s">'+esc(r.marca||'')+'</div></td><td>'+esc(r.idMQ||'—')+'</td><td>'+esc((typeof logUbInfo==='function'&&r.ubicK&&!["sin","otra"].includes(r.ubicK)?logUbInfo(r.ubicK).nom:r.ubicRaw)||'—')+'</td><td>'+chipP(r.prep)+'</td><td>'+esc(r.cliente||'—')+'<div class="s">'+esc(vvCiudad(r))+'</div></td><td>'+esc(asesorLabel(r.vendedor))+'</td><td style="text-align:right">'+(r.dias==null?'—':r.dias)+'</td><td class="s2">'+esc(r.obs||'')+'</td></tr>';
+  const filaC=r=>'<tr><td>'+prio(r)+'</td><td><b>'+esc(r.titulo)+'</b><div class="s">'+esc(r.marca||'')+'</div></td><td>'+esc(r.idMQ||'—')+'</td><td>'+esc(r.pedido||'—')+'</td><td>'+(r.dd==null?'<span class="s">sin estimar</span>':'<b style="color:'+(r.dd<0?'#B91C1C':'#166534')+'">'+(r.dd<0?'vencida hace '+(-r.dd)+' d':r.dd===0?'hoy':'en '+r.dd+' d')+'</b><div class="s">'+r.fDisp.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'})+'</div>')+'</td><td>'+esc(r.cliente||'—')+'<div class="s">'+esc(vvCiudad(r))+'</div></td><td>'+esc(asesorLabel(r.vendedor))+'</td><td style="text-align:right">'+(r.dias==null?'—':r.dias)+'</td></tr>';
+  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Máquinas en stock sin entregar — AYJ</title><style>'
+    +'@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:18px;font-size:12px}'
+    +'.top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #80A61B;padding-bottom:8px;margin-bottom:12px}.top h1{font-size:18px;margin:0}.s{font-size:10px;color:#777}.s2{font-size:11px;color:#555}'
+    +'.k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.k div{border:1px solid #ddd;border-radius:8px;padding:6px 10px}.k b{font-size:20px;display:block}.k span{font-size:10px;text-transform:uppercase;color:#666}'
+    +'h2{font-size:13px;margin:14px 0 6px}table{width:100%;border-collapse:collapse}th{background:#F3F4F6;text-align:left;font-size:10px;text-transform:uppercase;padding:6px;border-bottom:2px solid #ccc}td{padding:6px;border-bottom:1px solid #e5e5e5;vertical-align:top}'
+    +'.chip{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}.pie{margin-top:12px;font-size:10px;color:#777}.bar{position:fixed;top:8px;right:12px;display:flex;gap:6px}.bar button{padding:6px 12px;border:1px solid #80A61B;background:#80A61B;color:#fff;border-radius:6px;cursor:pointer;font-weight:700}.bar button.b{background:#fff;color:#3F5A0A}'
+    +'@media print{.bar{display:none}body{padding:0}tr{page-break-inside:avoid}}</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 Imprimir / guardar PDF</button><button class="b" onclick="window.close()">Cerrar</button></div>'
+    +'<div class="top"><div><h1>Máquinas en stock sin entregar</h1><div class="s">AYJ Maquinaria · generado el '+ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+' '+ahora.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})+(typeof currentUserName!=='undefined'&&currentUserName?' · '+esc(currentUserName):'')+'</div></div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:40px" onerror="this.style.display=\'none\'"></div>'
+    +'<div class="k"><div><b>'+stock.length+'</b><span>En stock sin entregar</span></div><div><b style="color:#166534">'+cnt('Lista')+'</b><span>Listas para entregar</span></div><div><b style="color:#92400E">'+cnt('Alistamiento')+'</b><span>En alistamiento</span></div><div><b style="color:#6B7280">'+cnt('')+'</b><span>Sin definir</span></div></div>'
+    +'<h2>En stock — vendidas sin entregar</h2><table><thead><tr><th>Prioridad</th><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente / ciudad</th><th>Asesor</th><th style="text-align:right">Días desde la venta</th><th>Observaciones</th></tr></thead><tbody>'+(stock.map(filaS).join('')||'<tr><td colspan="9" style="padding:12px;color:#777">No hay máquinas en stock pendientes de entrega.</td></tr>')+'</tbody></table>'
+    +(camino?'<h2>En camino — vendidas, disponibles para entrega en…</h2><table><thead><tr><th>Prioridad</th><th>Máquina</th><th>Serial</th><th>Pedido</th><th>Disponible para entrega (est.)</th><th>Cliente / ciudad</th><th>Asesor</th><th style="text-align:right">Días desde la venta</th></tr></thead><tbody>'+(cam.map(filaC).join('')||'<tr><td colspan="8" style="padding:12px;color:#777">No hay máquinas vendidas en camino.</td></tr>')+'</tbody></table>':'')
+    +'<div class="pie">Estado: Alistamiento = se está preparando · Lista = lista para entregar. Orden: prioridad (ALTA primero), luego las listas y las de más días desde la venta.</div></body></html>';
+}
+function vvReporteVer(){
+  const w=window.open('','_blank'); if(!w){ showToast('El navegador bloqueó la ventana del reporte: permite las ventanas emergentes para este sitio','error'); return; }
+  w.document.write(vvReporteHTML()); w.document.close(); document.getElementById('vvModal')?.remove();
+}
+async function vvReporteTexto(){
+  const {stock,cam,camino}=vvReporteDatos(), L=['MÁQUINAS EN STOCK SIN ENTREGAR — AYJ · '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),'En stock: '+stock.length+' · Listas: '+stock.filter(r=>r.prep==='Lista').length+' · En alistamiento: '+stock.filter(r=>r.prep==='Alistamiento').length+' · Sin definir: '+stock.filter(r=>!r.prep).length,''];
+  stock.forEach(r=>L.push('• '+(r.prio?'['+r.prio+'] ':'')+r.titulo+(r.idMQ?' ('+r.idMQ+')':'')+' — '+(r.prep||'Sin definir')+' · '+(r.cliente||'sin cliente')+(vvCiudad(r)?' ('+vvCiudad(r)+')':'')+' · '+asesorLabel(r.vendedor)+(r.dias!=null?' · '+r.dias+' d desde la venta':'')));
+  if(!stock.length) L.push('No hay máquinas en stock pendientes de entrega.');
+  if(camino){ L.push('','EN CAMINO (vendidas):'); cam.forEach(r=>L.push('• '+(r.prio?'['+r.prio+'] ':'')+r.titulo+(r.idMQ?' ('+r.idMQ+')':'')+' — '+(r.dd==null?'sin estimar':r.dd<0?'vencida hace '+(-r.dd)+' d':'disponible en '+r.dd+' d ('+r.fDisp.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})+')')+' · '+(r.cliente||'sin cliente')+(vvCiudad(r)?' ('+vvCiudad(r)+')':''))); if(!cam.length) L.push('Ninguna.'); }
+  const t=L.join('\n');
+  try{ await navigator.clipboard.writeText(t); }
+  catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand('copy'); }catch(x){ showToast('No se pudo copiar el texto','error'); a.remove(); return; } a.remove(); }
+  document.getElementById('vvModal')?.remove(); showToast('Texto copiado: pégalo en Teams, WhatsApp o un correo','success');
+}
 // ── ENLACES WEB: escribir en TODAS_2025 ──────────────────────────────────────────────────────────────────────
 // Más ▾ → «Enlaces web»: propone, para cada máquina sin enlace, la ficha de la web que el cotizador encuentra por su código de modelo (webAutoDe) y, tras revisar y marcar,
 // la escribe en la columna LinkWeb de TODAS_2025 (hipervínculo o texto) en todas las filas de esa máquina que estén vacías. No toca los enlaces que ya existen (salvo que se marque «reemplazar»).
