@@ -6566,7 +6566,6 @@ async function rolesGuardar(){
     const cdef=(cs.value||[]).find(x=>rolNorm(x.displayName)==='modulos'||rolNorm(x.name)==='modulos');
     if(!cdef) throw new Error('No encontré la columna Modulos en la lista ROLES_APP');
     if(!cdef.choice) throw new Error('La columna Modulos debe ser de tipo Elección (hoy es de otro tipo).');
-    if(!cdef.choice.allowMultipleValues) throw new Error('A la columna Modulos hay que activarle "Permitir selecciones múltiples" (Configuración de la columna).');
     const col=cdef.name, opc=cdef.choice.choices||[], tr={}, usados=[...new Set(filas.flatMap(f=>f.mods))];
     usados.forEach(m=>{ const o=opc.find(x=>rolNorm(x)===rolNorm(m)); if(o) tr[m]=o; });
     const falt=usados.filter(m=>!tr[m]); if(falt.length) throw new Error('A la columna Modulos le faltan estas opciones: '+falt.join(', ')+'. Agrégalas (Configuración de la columna) y vuelve a guardar.');
