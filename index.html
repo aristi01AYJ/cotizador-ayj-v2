@@ -9529,7 +9529,6 @@ function renderEventoCarrito(){
       +'<div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-top:4px"><span>Total</span><span>'+fmtUSD(t.total)+'</span></div>'
       +'<div style="font-size:11px;color:var(--text2);text-align:right">Antes de IVA · COP '+Math.round(t.total*trm).toLocaleString('es-CO')+'</div>'
       +(t.ahorro>0?'<div style="text-align:right;font-size:12px;color:#166534;font-weight:700">El cliente ahorra '+fmtUSD(t.ahorro)+'</div>':'')
-      +(EV.admin?'<div style="margin-top:4px;font-size:12px;font-weight:700;color:'+(t.margen>=35?'#166534':t.margen>=(parseFloat(e.margenMin)||0)?'#92400E':'#DC2626')+'">Margen: '+t.margen.toFixed(1)+'%</div>':'')
       +(t.bajoMinimo&&EV.cart.length&&EV.admin?'<div style="margin-top:4px;font-size:11px;color:#B91C1C;background:#FEE2E2;border-radius:6px;padding:5px 8px">⚠ Precio por debajo del mínimo permitido: requiere autorización del administrador.</div>':'')
       +'<button id="evBtnGenerar" class="btn-primary" style="width:100%;margin-top:8px;padding:13px;font-size:15px;position:sticky;bottom:4px;box-shadow:0 -8px 10px var(--bg)" onclick="evGenerarOferta()"'+(EV.cart.length?'':' disabled')+'><i class="ti ti-file-type-pdf"></i> Generar oferta (PDF)</button>'
       +(EV.admin&&EV.cart.length?'<button class="btn-sec" style="width:100%;margin-top:6px" onclick="evPasarAOferta()"><i class="ti ti-edit"></i> Editar en Nueva Oferta</button>':'')
