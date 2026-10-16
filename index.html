@@ -127,6 +127,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .content{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .content-top{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#fff;flex-shrink:0}
 .field-group{display:flex;flex-direction:column;gap:3px}
+.content-top.ct2{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px;align-items:end}
+.ct-a,.ct-b{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;min-width:0}
+.ct-right{grid-column:2;grid-row:1 / span 2;align-self:start;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .field-group label{font-size:11px;color:var(--text2);font-weight:500}
 .field-group input,.field-group select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;background:#fff;min-width:130px}
 .oferta-badge{margin-left:auto;align-self:center;background:var(--green-light);color:var(--green-dark);font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;white-space:nowrap}
@@ -235,6 +238,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   .content{display:none;width:100%;flex-direction:column;height:100%;overflow:hidden}
   .content.mobile-active{display:flex}
   .content-top{flex-shrink:0;padding:6px 10px;gap:6px;overflow-y:auto;max-height:200px;-webkit-overflow-scrolling:touch}
+  .content-top.ct2{display:flex}.ct-a,.ct-b{width:100%}.ct-right{margin-left:auto;grid-row:auto}
   .field-group{width:calc(50% - 3px);min-width:0}
   .field-group input,.field-group select{min-width:0;width:100%}
   .oferta-badge{font-size:11px;padding:4px 10px}
@@ -381,7 +385,8 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       </div>
     </div>
     <div class="content" id="nuevaView">
-      <div class="content-top">
+      <div class="content-top ct2">
+        <div class="ct-a">
         <div class="field-group">
           <label>Cliente</label>
           <div style="display:flex;gap:6px;align-items:center">
@@ -389,13 +394,33 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             <datalist id="clientesList"></datalist>
             <button onclick="abrirModalCliente()" title="Nuevo cliente" style="padding:6px 10px;border:1px solid var(--green);border-radius:var(--radius);background:none;color:var(--green-dark);cursor:pointer;font-size:13px;white-space:nowrap"><i class="ti ti-user-plus"></i></button>
           </div>
-          <div id="clienteInfo" style="font-size:11px;color:var(--text2);margin-top:3px;display:none"></div>
-          <div id="contactoWrap" style="display:none;margin-top:4px">
-            <select id="contactoSel" onchange="onContactoSeleccionado()" style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;color:var(--text)">
+        </div>
+          <div id="contactoWrap" style="display:none;min-width:250px;max-width:380px;flex:0 1 340px">
+            <select id="contactoSel" onchange="onContactoSeleccionado()" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;color:var(--text);background:#fff">
               <option value="">— Seleccionar contacto —</option>
             </select>
           </div>
+          <div id="clienteInfo" style="font-size:11px;color:var(--text2);line-height:1.4;max-width:360px;display:none"></div>
         </div>
+        <div class="ct-right">
+          <div style="display:flex;gap:5px">
+            <button id="modoCOPBtn" onclick="toggleModoCOPBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
+              <span id="modoCOPIcon">💲</span> <span id="modoCOPTxt">Ver COP</span>
+            </button>
+            <button id="modoUSDBtn" onclick="toggleModoUSDBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
+              <span>🇺🇸</span> <span id="modoUSDTxt">Ver USD</span>
+            </button>
+          </div>
+          <input type="checkbox" id="modoCOPChk" onchange="toggleModoCOP(this.checked)" style="display:none">
+          <div class="oferta-badge" id="ofertaNum">COT-2026-001</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:10px;color:var(--text2);white-space:nowrap">ID Synergy</label>
+            <input type="text" id="idSynergyInput" placeholder="Opcional..." maxlength="20"
+              style="width:100px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit;text-align:center"
+              oninput="actualizarNumOferta()">
+          </div>
+        </div>
+        <div class="ct-b">
         <div class="field-group">
           <label>Vendedor</label>
           <select id="vendedorSel" title="Asesor responsable de esta oferta (por defecto, tú). Puedes crearla a nombre de otro asesor." style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:#f0f9f5;color:var(--green-dark);font-weight:500;min-width:130px;max-width:220px;font-family:inherit"><option value="">—</option></select>
@@ -451,23 +476,6 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             <input type="date" id="segCustomInput" onchange="actualizarCierreLabel()" style="display:none">
           </div>
         </div>
-        <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <div style="display:flex;gap:5px">
-            <button id="modoCOPBtn" onclick="toggleModoCOPBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
-              <span id="modoCOPIcon">💲</span> <span id="modoCOPTxt">Ver COP</span>
-            </button>
-            <button id="modoUSDBtn" onclick="toggleModoUSDBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
-              <span>🇺🇸</span> <span id="modoUSDTxt">Ver USD</span>
-            </button>
-          </div>
-          <input type="checkbox" id="modoCOPChk" onchange="toggleModoCOP(this.checked)" style="display:none">
-          <div class="oferta-badge" id="ofertaNum">COT-2026-001</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <label style="font-size:10px;color:var(--text2);white-space:nowrap">ID Synergy</label>
-            <input type="text" id="idSynergyInput" placeholder="Opcional..." maxlength="20"
-              style="width:100px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit;text-align:center"
-              oninput="actualizarNumOferta()">
-          </div>
         </div>
       </div>
       <!-- BARRA FIJA: Validez, Entrega, Voltaje, Observaciones -->
