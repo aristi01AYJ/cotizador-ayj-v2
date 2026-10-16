@@ -2078,6 +2078,7 @@ async function cargarMaquinas(){
         ubicacion:(f.Ubicaci_x00f3_n||f.Ubicacion||'').trim(),
         descripcion:(f.Descripci_x00f3_n||f.Descripcion||f.Descripci_n||'').trim(),
         fichaTecnica,
+        linkWeb:(()=>{const v=f.LinkWeb||f.Link_x0020_Web||f.EnlaceWeb||f.PaginaWeb||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),   // enlace manual a la ficha en la web (columna LinkWeb, hipervínculo)
         ytVideo:(()=>{const v=f.YTvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
         observaciones:(f.Observaciones||'').trim(),
         fotoRuta:(typeof evListsRutaDe==='function'?evListsRutaDe(f.Foto):''),   // foto guardada en la columna Foto de LISTS (respaldo del catálogo)
@@ -2088,6 +2089,7 @@ async function cargarMaquinas(){
         stockIlimitado:f.StockIlimitado===true||f.StockIlimitado===1||String(f.StockIlimitado||'').trim().toLowerCase()==='true'||String(f.StockIlimitado||'').trim().toLowerCase()==='sí'||String(f.StockIlimitado||'').trim().toLowerCase()==='si',
       };
     }).filter(m=>m.estadoDisp==='DISPONIBLE'||m.estadoDisp==='BAJO PEDIDO');
+    webRegistrarManuales(rawMaquinas);
     // Las RESERVADAS no entran al catálogo vendible; alimentan la pestaña "Reservadas" y sus recordatorios.
     try{ await cargarReservadasDe(todos,{marcaField,tipologiaField,hastaField}); }
     catch(eRes){ console.warn('[AYJ] No se pudieron preparar las máquinas reservadas (el catálogo sigue normal):',eRes.message); }
@@ -2296,7 +2298,7 @@ function buildGrupoCard(g){
   const importBadge=!esHerramienta&&g.importCount>0
     ?'<span class="stock-badge importacion"><i class="ti ti-ship" style="font-size:10px"></i> En Impo: '+g.importCount+'</span>'
     :'';
-  div.innerHTML=`<div class="grupo-header"><div class="grupo-top"><div style="min-width:0"><div class="grupo-name">${g.title}</div><div class="grupo-marca">${g.marca}${g.modelo?' · '+g.modelo:''}${g.tipologia?' · '+g.tipologia:''}</div></div><div class="grupo-precio"><div style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:4px;">${g.fichaTecnica?`<a href="${g.fichaTecnica}" target="_blank" style="color:var(--red);font-size:15px;" title="Ver ficha técnica"><i class="ti ti-file-type-pdf"></i></a>`:''}${g.ytVideo?`<a href="${g.ytVideo}" target="_blank" style="color:#FF0000;font-size:15px;" title="Ver video"><i class="ti ti-brand-youtube"></i></a>`:''}</div><div class="precio-usd">${fmtUSD(g.tarifa)}</div><div class="precio-cop">${fmtCOP(g.tarifa)}</div></div></div><div class="stock-row">${stockBadge} ${importBadge}</div></div>${acciones.length?`<div class="grupo-actions">${acciones.join('')}</div>`:''}`;
+  div.innerHTML=`<div class="grupo-header"><div class="grupo-top"><div style="min-width:0"><div class="grupo-name">${g.title}</div><div class="grupo-marca">${g.marca}${g.modelo?' · '+g.modelo:''}${g.tipologia?' · '+g.tipologia:''}</div></div><div class="grupo-precio"><div style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:4px;">${g.fichaTecnica?`<a href="${g.fichaTecnica}" target="_blank" style="color:var(--red);font-size:15px;" title="Ver ficha técnica"><i class="ti ti-file-type-pdf"></i></a>`:''}${g.ytVideo?`<a href="${g.ytVideo}" target="_blank" style="color:#FF0000;font-size:15px;" title="Ver video"><i class="ti ti-brand-youtube"></i></a>`:''}${webIconoDe(g.title,g.modelo)}</div><div class="precio-usd">${fmtUSD(g.tarifa)}</div><div class="precio-cop">${fmtCOP(g.tarifa)}</div></div></div><div class="stock-row">${stockBadge} ${importBadge}</div></div>${acciones.length?`<div class="grupo-actions">${acciones.join('')}</div>`:''}`;
   return div;
 }
 
@@ -2315,7 +2317,8 @@ function buildBpCard(m){
   const div=document.createElement('div');div.className='bp-card'+(inCart?' en-carrito':'');
   const pdfIcon=m.fichaTecnica?`<a href="${m.fichaTecnica}" target="_blank" style="color:var(--red);font-size:15px;" title="Ver ficha técnica"><i class="ti ti-file-type-pdf"></i></a>`:'';
   const ytIcon=m.ytVideo?`<a href="${m.ytVideo}" target="_blank" style="color:#FF0000;font-size:15px;" title="Ver video en YouTube"><i class="ti ti-brand-youtube"></i></a>`:'';
-  const iconos=(pdfIcon||ytIcon)?`<div style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:4px;">${pdfIcon}${ytIcon}</div>`:'';
+  const webIcon=webIconoDe(m.title,m.modelo);
+  const iconos=(pdfIcon||ytIcon||webIcon)?`<div style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:4px;">${pdfIcon}${ytIcon}${webIcon}</div>`:'';
   div.innerHTML=`<div class="bp-top"><div style="min-width:0"><div class="bp-name">${m.title}</div><div class="bp-sub">${m.marca}${m.modelo?' · '+m.modelo:''}${m.tipologia?' · '+m.tipologia:''}</div><span class="bp-badge">Bajo Pedido</span></div><div class="grupo-precio">${iconos}<div class="precio-usd">${fmtUSD(m.tarifa)}</div><div class="precio-cop">${fmtCOP(m.tarifa)}</div></div></div><button class="btn-add-bp ${inCart?'remove':''}" onclick="toggleBP('${m.id}')"><i class="ti ti-${inCart?'x':'truck'}"></i> ${inCart?'Quitar Bajo Pedido':'Bajo Pedido'}</button>`;
   return div;
 }
@@ -2348,6 +2351,7 @@ function renderCarrito(){
   carrito.forEach((item,i)=>{
     const pdfCell=item.fichaTecnica?`<a class="btn-pdf" href="${item.fichaTecnica}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--red);white-space:nowrap;"><i class="ti ti-file-type-pdf" style="font-size:14px"></i> Ver Ficha Técnica</a>`:'';
     const ytCell=item.ytVideo?`<a class="btn-pdf" href="${item.ytVideo}" target="_blank" title="Ver video en YouTube" style="color:#FF0000"><i class="ti ti-brand-youtube"></i></a>`:'';
+    const webCell=webIconoDe(item.nombre,item.modelo,'btn-pdf');
     const badge=item.tipo==='stock'&&item.stockCount===1&&!item.stockIlimitado
       ?'<span class="item-tipo-badge" style="background:#FEE2E2;color:#991B1B;font-weight:700">🔥 ÚLTIMA UNIDAD</span>'
       :item.tipo==='stock'
@@ -2368,7 +2372,7 @@ function renderCarrito(){
     tr.innerHTML=`<td style="color:var(--text3);font-size:12px">${i+1}</td>`
       +`<td><div class="item-name">${item.origen==='liquidador'?'<span title="Liquidador" style="font-size:10px;background:#EFF6FF;color:#1E3A8A;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">🔧 LIQ</span>':'<span title="Tarifa catálogo" style="font-size:10px;background:#F0FDF4;color:#065F46;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:700">💲 TAR</span>'}${item.nombre}</div><div class="item-sub">${item.marca}${item.modelo?' · '+item.modelo:''}</div>${esIncluido?`<span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:1px 6px;border-radius:6px;font-weight:600">📎 Incluido en: ${padreNombre||'—'}</span>`:''} ${badge}</td>`
       +`<td style="vertical-align:middle"><span class="item-tipo-badge" style="background:var(--bg);color:var(--text2);font-size:10px">${item.tipologia||'—'}</span></td>`
-      +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">${pdfCell}${ytCell}</td>`
+      +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">${pdfCell}${ytCell}${webCell}</td>`
       +`<td style="text-align:center;vertical-align:middle;white-space:nowrap">`
         +`<div style="display:flex;align-items:center;gap:3px;justify-content:center">`
           +`<button onclick="cambiarCantCarrito(${i},-1)" style="width:20px;height:20px;border:1px solid var(--border);border-radius:3px;background:#fff;cursor:pointer;font-size:12px;line-height:1;font-family:inherit">−</button>`
@@ -3586,12 +3590,13 @@ function generarPDF(d, soloRetornar=false){
       +(item.marca||item.modelo?'<div style="font-size:11px;color:#777;margin-top:2px;">'+(item.marca||'')+(item.modelo?' · '+item.modelo:'')+'</div>':'')
       +(item.tipologia?'<div style="font-size:11px;color:#777;margin-top:3px;font-weight:500;">'+item.tipologia+'</div>':'')
       +(esIncluido?'<div style="margin-top:4px;"><span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-weight:600;">📎 Incluido'+(padreItem?' en '+padreItem.nombre:'')+'</span></div>':'')
-    +(item.fichaTecnica||item.ytVideo||tipoLabel?
+    +(item.fichaTecnica||item.ytVideo||webLinkDe(item.nombre,item.modelo)||tipoLabel?
       '<div style="margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
       +(item.fichaTecnica?'<a href="'+item.fichaTecnica+'" target="_blank" style="font-size:10px;color:#c0392b;text-decoration:none;display:inline-flex;align-items:center;gap:2px;border:1px solid #f5c6c6;border-radius:4px;padding:1px 6px;background:#fff8f8"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Ficha Técnica</a>':'')
       +(item.fichaTecnica&&item.ytVideo?'<span style="color:#ccc;font-size:10px">|</span>':'')
       +(item.ytVideo?'<a href="'+item.ytVideo+'" target="_blank" style="font-size:10px;color:#FF0000;text-decoration:none;display:inline-flex;align-items:center;gap:2px;border:1px solid #ffd0d0;border-radius:4px;padding:1px 6px;background:#fff8f8"><svg width="10" height="10" viewBox="0 0 24 24" fill="#FF0000"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58a2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.96-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg> Video</a>':'')
-      +((item.fichaTecnica||item.ytVideo)&&tipoLabel?'<span style="color:#ccc;font-size:10px">|</span>':'')
+      +(webLinkDe(item.nombre,item.modelo)?((item.fichaTecnica||item.ytVideo)?'<span style="color:#ccc;font-size:10px">|</span>':'')+'<a href="'+webLinkDe(item.nombre,item.modelo)+'" target="_blank" style="font-size:10px;color:#3F5A0A;text-decoration:none;display:inline-flex;align-items:center;gap:3px;border:1px solid #d3e6a3;border-radius:4px;padding:1px 6px;background:#f6faea"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg> Ver en la web</a>':'')
+      +((item.fichaTecnica||item.ytVideo||webLinkDe(item.nombre,item.modelo))&&tipoLabel?'<span style="color:#ccc;font-size:10px">|</span>':'')
       +'<span style="font-size:10px;padding:1px 8px;border-radius:20px;background:'+tipoBg+';color:'+tipoColor+';font-weight:500;">'+tipoLabel+'</span>'
       +'</div>'
       :'')
@@ -8300,6 +8305,41 @@ async function trmSparkCargar(){
   catch(e){ console.warn('[AYJ] TRM: no se pudo cargar el historial de 30 días:',e.message); const el=document.getElementById('trmSpark'); if(el) el.innerHTML=''; }
 }
 
+// ── ENLACE A LA WEB DE CADA MÁQUINA ───────────────────────────────────────────────────────────────────────
+// Cada máquina del cotizador enlaza con su ficha en la página web: https://www.ayj.com.co/maquinas/<slug>/ (icono 🌐 en el catálogo y el carrito, y «Ver en la web» en el PDF de la oferta).
+// 1) Enlace manual: columna de hipervínculo «LinkWeb» de TODAS_2025 (gana siempre). 2) Automático: el título/modelo de la máquina se cruza con los códigos de modelo del índice WEB_MAQ
+//    (código de modelo idéntico; si hay varias fichas con el mismo código gana la de nombre más corto; y si el código solo difiere por un sufijo corto de letras, como EP3 ~ EP3HP, se enlaza únicamente cuando hay una sola ficha candidata).
+// WEB_MAQ se genera con _AYJ_Cotizadores/_comparacion-web/generar-indice-web.cjs (71 máquinas, 2026-10-16). Regenerarlo cuando se publiquen máquinas nuevas en la web.
+const WEB_BASE='https://www.ayj.com.co/maquinas/';
+const WEB_MAQ=[["enchapadora-fe670a","Enchapadora FE670A",["fe670a"]],["centro-de-taladrado-nanxing-nd512ts","Centro de Taladrado - Nanxing - ND512TS",["nd512ts"]],["sistema-de-extraccion-twm-ep15hp-pro","Sistema de Extracción - TWM - EP15HP PRO",["ep15hp"]],["sistema-de-extraccion-twm-ep10hp-pro","Sistema de Extracción - TWM - EP10HP PRO",["ep10hp"]],["sistema-de-extraccion-twm-ep10hp","Sistema de Extracción - TWM - EP10HP",["ep10hp"]],["centro-de-mecanizado-twm-au1625atc-led","Centro de Mecanizado - TWM - AU1625ATC-LED",["au1625atcled"]],["centro-de-mecanizado-twm-au1825atc-led","Centro de Mecanizado - TWM - AU1825ATC-LED",["au1825atcled"]],["cnc_au1825le","Centro de Mecanizado - TWM - AU1825ATC-LE",["au1825atcle"]],["centro-de-taladrado-nanxing-nd712dl-dual","Centro de Taladrado - Nanxing - ND712DPL DUAL",["nd712dpl"]],["centro-de-taladrado-nanxing-nd712dl","Centro de Taladrado - Nanxing - ND712DL",["nd712dl"]],["centro-de-taladrado-nanxing-ncb612dtx","Centro de Taladrado - Nanxing - NCB612DTX",["ncb612dtx"]],["seccionadora-nanxing-npl380d","Seccionadora - Nanxing - NPL380D",["npl380d"]],["enchapadora-nb8","Enchapadora NB8PCHG",["nb8pchg"]],["enchapadora-nb7cjn","Enchapadora NB7CJN",["nb7cjn"]],["enchapadora-nb536","Enchapadora NB536",["nb536"]],["seccionadora-pasante_mj280","Seccionadora Pasante MJ280",["mj280"]],["cepillo4caras","Cepillo 4 Caras MB404S",["mb404s"]],["enchapadora-nb6jn","Enchapadora NB6JN",["nb6jn"]],["enchapadora-45-nb7x","Enchapadora 45 - NB7X",["nb7x"]],["seccionadora-horizontal-cnc-mj330","Seccionadora Horizontal CNC- MJ330",["mj330"]],["sierra-vertical-dpm2241","Sierra Vertical - Bala - DPM2241E_2025",["dpm2241e"]],["briquetadora-de-madera-weima-c140","Briquetadora de Madera - Weima - C140",["c140"]],["trituradora-de-madera-weima-wl4","Trituradora de Madera - Weima - WL4",["wl4"]],["trituradoras-de-madera-weima-wl500-reduccion-del-tamano-del-desperdicio-ayj-maquinaria","Trituradora de Madera - Weima - WL500",["wl500"]],["moldurera-leadermac-compact-523","Moldurera Leadermac - Compact - 523",["523"]],["moldurera-para-madera-leadermac-platinum","Moldurera Leadermac - Platinum - 623",["623"]],["sierra-multiple-kuangyung-mrs-350-copia","Sierra Multiple - KuangYung - MRS 350",["350"]],["sierra-multiple-kuangyung-mrs155","Sierra Multiple - KuangYung - MRS 155",["155"]],["medidor-de-humedad-merlin-hm9-ws25","Medidor de Humedad - Merlin - HM9 WS25",["hm9","ws25","116540013"]],["sistema-de-extraccion-twm-ep7hp","Sistema de Extracción - TWM - EP7HP",["ep7hp"]],["sistema-de-extraccion-twm-ep5hp","Sistema de Extracción - TWM - EP5HP",["ep5hp"]],["extractor-de-polvo-de-3-hp","Sistema de Extracción - TWM - EP3HP",["ep3hp"]],["cepillo-4-caras-woodmizer-mp360","Cepillo 4 Caras - Woodmizer - MP360",["mp360"]],["centro-de-taladrado-nanxing_ncb612s","Centro de Taladrado - Nanxing - NCB612S",["ncb612s"]],["seccionadora-nanxing-npc330","Seccionadora - Nanxing - NPC330",["npc330"]],["tronzadora-cursal-tvm500","Tronzadora - Cursal - TVM500",["tvm500"]],["sierra-radial-twm-mj900","Sierra Radial - TWM - MJ900",["mj900"]],["taladro-multiple-boring-system-323","Taladro Múltiple Boring System 323",["323"]],["sierra-de-banco-ts113","Sierra de Banco - TS113 - Mesa deslizante",["ts113"]],["embisagradora-eb02","Embisagradora EB02",["eb02"]],["embisagradora-eb01","Embisagradora EB01 - Tailor Wood",["eb01"]],["trompo-tp45-i","Trompo TP45-I",["tp45i"]],["trompo-tp45","Trompo TP45",["tp45"]],["lijadoras-de-banda-angosta-lb400r","Lijadoras de Banda Angosta LB400R",["lb400r"]],["lijadoras-manual-de-banda-lb2028","Lijadoras Manual LB2028",["lb2028"]],["lijadoras-manual-lb2617","Lijadoras Manual LB2617",["lb2617"]],["enchapadora-de-cantos-manual-m45","Enchapadora de Cantos Manual M45",["m45"]],["sierra-escuadradora-ts32","Sierra Escuadradora TS32",["ts32"]],["sierra-escuadradora-ts16","Sierra Escuadradora TS16",["ts16"]],["canteadoras-woodmizer-eg200","Canteadoras Woodmizer EG200",["eg200"]],["reaserradero-woodmizer-hr1000","Reaserradero Woodmizer HR1000",["hr1000"]],["reaserradero-woodmizer-hr700","Reaserradero Woodmizer HR700",["hr700"]],["reaserradero-woodmizer-hr500","Reaserradero Woodmizer HR500",["hr500"]],["reaserradero-woodmizer-hr300","Reaserradero Woodmizer HR300",["hr300"]],["reaserradero-woodmizer-hr130","Reaserradero Woodmizer HR130",["hr130"]],["aserrio-woodmizer-wm1000","Aserrío Woodmizer WM1000",["wm1000"]],["aserrio-woodmizer-lt70","Aserrío Woodmizer LT70",["lt70"]],["aserrio-woodmizer-lx450","Aserrío Woodmizer LX450",["lx450"]],["aserrio-woodmizer-lx55","Aserrío Woodmizer LX55",["lx55"]],["afilador-woodmizer-bms500","Afilador Woodmizer BMS500",["bms500"]],["triscador-doble-woodmizer-bmt200","Triscador Doble Woodmizer BMT200",["bmt200"]],["triscador-doble-woodmizer-bmt250","Triscador Doble Woodmizer BMT250",["bmt250"]],["triscador-doble-woodmizer-bmt150","Triscador Doble Woodmizer BMT150",["bmt150"]],["triscador-woodmizer-bmt100","Triscador Woodmizer BMT100",["bmt100"]],["afilador-y-triscador-woodmizer-bmst50","Afilador y Triscador Woodmizer BMST50",["bmst50"]],["afilador-woodmizer-bms250","Afilador Woodmizer BMS250",["bms250"]],["aserrio-woodmizer-lt40hd","Aserrío Woodmizer LT40HD",["lt40hd"]],["aserrio-woodmizer-lt40","Aserrío Woodmizer LT40",["lt40"]],["aserrio-woodmizer-lx150","Aserrío Woodmizer LX150",["lx150"]],["aserrio-woodmizer-lt15wide","Aserrío Woodmizer LT15 ANCHO",["lt15"]],["aserrio-woodmizer-lt15","Aserrío Woodmizer LT15",["lt15"]]];
+const WEB_MAN={}, WEB_CACHE={};
+const _webNorm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const _webPal=t=>_webNorm(t).split(/[\s_()|,;:]+/).map(w=>w.replace(/[^a-z0-9]/g,'')).filter(Boolean);
+const _webUni=w=>/^\d+([.,]\d+)?(hp|v|mm|kw|hz|kg|w|lt|l|t|m|cm|ph|a)$/.test(w);
+const _webMod=w=>w.length>=3&&!_webUni(w)&&((/[0-9]/.test(w)&&/[a-z]/.test(w))||(/^[0-9]{3,}$/.test(w)&&!/^20\d\d$/.test(w)));
+function webLinkDe(titulo,modelo){
+  const k=_webNorm(titulo).trim(); if(!k) return '';
+  if(WEB_MAN[k]) return WEB_MAN[k];
+  if(WEB_CACHE[k]!==undefined) return WEB_CACHE[k];
+  const toks=[...new Set(_webPal(titulo).concat(_webPal(modelo)).filter(_webMod))]; let url='';
+  if(toks.length){
+    // 1) código de modelo idéntico: gana quien comparte más códigos; si empatan, la ficha de nombre más corto (el modelo base, no la variante «ANCHO», «PLUS»…)
+    let mejor=0, elegido=null;
+    WEB_MAQ.forEach(w=>{ const n=w[2].filter(t=>toks.includes(t)).length; if(n>mejor||(n&&n===mejor&&w[1].length<elegido[1].length)){ mejor=n; elegido=w; } });
+    if(mejor) url=WEB_BASE+elegido[0]+'/';
+    else{
+      // 2) código casi igual (EP3 ~ EP3HP: uno es el otro más un sufijo corto de letras): solo si hay una única ficha candidata
+      const cand=WEB_MAQ.filter(w=>w[2].some(t=>toks.some(c=>(t.startsWith(c)&&/^[a-z]{1,3}$/.test(t.slice(c.length)))||(c.startsWith(t)&&/^[a-z]{1,3}$/.test(c.slice(t.length))))));
+      if(cand.length===1) url=WEB_BASE+cand[0][0]+'/';
+    }
+  }
+  WEB_CACHE[k]=url; return url;
+}
+function webIconoDe(titulo,modelo,clase){
+  const u=webLinkDe(titulo,modelo); if(!u) return '';
+  return '<a '+(clase?'class="'+clase+'" ':'')+'href="'+u+'" target="_blank" rel="noopener" style="color:var(--green-dark);font-size:15px" title="Ver la máquina en la página web de AYJ"><i class="ti ti-world"></i></a>';
+}
+function webRegistrarManuales(maquinas){ maquinas.forEach(m=>{ if(m.linkWeb) WEB_MAN[_webNorm(m.title).trim()]=m.linkWeb; }); Object.keys(WEB_CACHE).forEach(k=>delete WEB_CACHE[k]); }
 // ── UNIR CLIENTES DUPLICADOS ──────────────────────────────────────────────────────────────────────────────
 // Clientes ▸ «Unir duplicados»: detecta clientes repetidos (mismo NIT, mismo nombre sin S.A.S./tildes, nombres parecidos, mismo correo o teléfono), deja elegir cuál queda como
 // PRINCIPAL y pasa a él lo que cuelga de los demás: ofertas (columna Cliente de Cotizaciones y de las otras listas Cotizaciones_*), máquinas (columna Cliente de TODAS_2025)
