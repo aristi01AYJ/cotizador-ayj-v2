@@ -396,7 +396,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
     <div class="content" id="nuevaView">
       <div class="cab-oferta">
         <div class="cab-titulo">COMERCIAL<span>|</span>OFERTAS</div>
-        <div class="cab-fila"><div class="cab-et">Cliente</div><div class="cab-cuerpo">
+        <div class="cab-fila"><div class="cab-cuerpo">
         <div class="field-group">
           <label>Cliente</label>
           <div style="display:flex;gap:6px;align-items:center">
@@ -412,7 +412,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </div>
           <div id="clienteInfo" style="font-size:11px;color:var(--text2);line-height:1.4;max-width:360px;display:none"></div>
         </div></div>
-        <div class="cab-fila"><div class="cab-et">Oferta</div><div class="cab-cuerpo">
+        <div class="cab-fila"><div class="cab-cuerpo">
         <div class="field-group">
           <label>Vendedor</label>
           <select id="vendedorSel" title="Asesor responsable de esta oferta (por defecto, tú). Puedes crearla a nombre de otro asesor." style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:#f0f9f5;color:var(--green-dark);font-weight:500;min-width:130px;max-width:220px;font-family:inherit"><option value="">—</option></select>
@@ -464,7 +464,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </div>
           </div>
         </div></div>
-        <div class="cab-fila"><div class="cab-et">Condiciones</div><div class="cab-cuerpo">
+        <div class="cab-fila"><div class="cab-cuerpo">
         <div class="field-group">
           <label>Condición de pago</label>
           <div style="display:flex;gap:6px;align-items:center">
@@ -542,7 +542,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <input type="text" id="voltajeCustom" placeholder="Especifica el voltaje..." style="display:none;margin-top:3px;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;width:100%">
         </div>
         </div></div>
-        <div class="cab-fila"><div class="cab-et">Notas</div><div class="cab-cuerpo">
+        <div class="cab-fila"><div class="cab-cuerpo">
         <div class="field-group" style="flex:1 1 100%;min-width:200px">
           <label>Observaciones</label>
           <input type="text" id="obsInput" placeholder="📝 Notas para el cliente..." style="width:100%;padding:5px 8px;border:1px solid #F59E0B;border-radius:var(--radius);font-size:12px;font-family:inherit;background:#fffdf5">
@@ -1714,7 +1714,8 @@ async function onClienteSeleccionado(nombreCliente){
 
 function onContactoSeleccionado(){
   const sel=document.getElementById('contactoSel');
-  if(!sel||sel.value==='') return;
+  if(sel&&sel.value===''){ const ie=document.getElementById('clienteInfo'); if(ie) ie.querySelectorAll('[data-cto]').forEach(n=>n.remove()); return; }   // sin contacto elegido: se quitan sus líneas
+  if(!sel) return;
   const c=sel._contactos?.[parseInt(sel.value)];
   if(!c) return;
   // Rellenar campos de clienteInfo si existen
@@ -1724,17 +1725,14 @@ function onContactoSeleccionado(){
   if(emailEl) emailEl.value=c.email;
   if(telEl) telEl.value=c.telefono;
   if(cargoEl) cargoEl.value=c.cargo;
-  // Actualizar el clienteInfo display
+  // Actualizar el clienteInfo: las líneas del contacto llevan data-cto y se reemplazan todas juntas (antes se acumulaban los correos y teléfonos de los contactos anteriores)
   const infoEl=document.getElementById('clienteInfo');
   if(infoEl&&c.nombre){
-    const current=infoEl.innerHTML;
-    // Inyectar contacto seleccionado en el info
-    const linea=`<div style="margin-top:2px"><strong>Contacto:</strong> ${c.nombre}${c.cargo?' · '+c.cargo:''}</div>`
-      +(c.email?`<div>${c.email}</div>`:'')
-      +(c.telefono?`<div>${c.telefono}</div>`:'');
-    // Reemplazar si ya hay una línea de contacto
-    if(current.includes('Contacto:')) infoEl.innerHTML=current.replace(/<div[^>]*>.*?Contacto:.*?<\/div>/s, linea);
-    else infoEl.innerHTML+=linea;
+    infoEl.querySelectorAll('[data-cto]').forEach(n=>n.remove());
+    infoEl.style.display='block';
+    infoEl.insertAdjacentHTML('beforeend','<div data-cto="1" style="margin-top:2px"><strong>Contacto:</strong> '+_escRes(c.nombre)+(c.cargo?' · '+_escRes(c.cargo):'')+'</div>'
+      +(c.email?'<div data-cto="1">'+_escRes(c.email)+'</div>':'')
+      +(c.telefono?'<div data-cto="1">'+_escRes(c.telefono)+'</div>':''));
   }
 }
 
