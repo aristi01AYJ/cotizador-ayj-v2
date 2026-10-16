@@ -6996,6 +6996,7 @@ async function logPrioOk(uid,i){
   }catch(e){ showToast('No se pudo cambiar la urgencia: '+e.message,'error'); }
 }
 // ── Reporte para el cliente: sus máquinas y en qué estado va cada una ──
+const LOG_DIAS_ENTREGA=7;   // días calendario entre la llegada a AYJ y la entrega al cliente (estimación del reporte; cámbialo aquí)
 const LOG_EST_CLI=['En fabricación','Lista y embarcada, en camino a Colombia','En Colombia: nacionalización y transporte a AYJ','Disponible en AYJ'];
 function logEstCli(u){
   const p=u.codigo?LOG.pedidos.find(x=>x.codigo===u.codigo):null, enStock=/stock/i.test(u.estadoStock||'');
@@ -7010,7 +7011,8 @@ function logRepClienteDatos(nombre,o){
   us.sort((a,b)=>(a.e.idx<0?9:a.e.idx)-(b.e.idx<0?9:b.e.idx)||(+(a.e.eta||8.64e15))-(+(b.e.eta||8.64e15))||String(a.u.titulo).localeCompare(String(b.u.titulo),'es'));
   const eta=e=>e.idx===3||e.idx<0?'':e.eta?(e.eta<hoy?'por confirmar':logF(e.eta)):'por confirmar';
   const vend=[...new Set(us.map(x=>x.u.vendedor).filter(Boolean))];
-  return {us,eta,vend,hoy};
+  const etaCli=e=>{ if(e.idx<0||e.idx===3) return ''; return e.eta&&e.eta>=hoy?logF(new Date(e.eta.getTime()+LOG_DIAS_ENTREGA*86400000)):'por confirmar'; };
+  return {us,eta,etaCli,vend,hoy};
 }
 function logRepClienteOpc(){ const v=id=>document.getElementById(id); return {cli:v('lgRc_cli')?v('lgRc_cli').value:'',stock:!v('lgRc_stock')||v('lgRc_stock').checked,ped:!v('lgRc_ped')||v('lgRc_ped').checked,asesor:!v('lgRc_ase')||v('lgRc_ase').checked}; }
 function logRepClienteAbrir(){
@@ -7026,13 +7028,13 @@ function logRepClienteAbrir(){
   document.body.appendChild(m);
 }
 function logRepClienteHTML(nombre,o){
-  const esc=_escRes, {us,eta,vend}=logRepClienteDatos(nombre,o), ahora=new Date();
+  const esc=_escRes, {us,eta,etaCli,vend}=logRepClienteDatos(nombre,o), ahora=new Date();
   const col=['#92400E','#1E40AF','#5B21B6','#166534'], bg=['#FEF3C7','#DBEAFE','#EDE9FE','#DCFCE7'], barc=['#F59E0B','#2563EB','#7C3AED','#16A34A'];
   const cuenta=i=>us.filter(x=>x.e.idx===i).length;
   const res=[['En fabricación',0],['En camino a Colombia',1],['En Colombia, hacia AYJ',2],['En AYJ, listas para entrega',3]].map(([t,i])=>'<div><b>'+cuenta(i)+'</b><span>'+t+'</span></div>').join('');
   const filas=us.map(({u,e})=>'<tr><td><b>'+esc(u.titulo)+'</b>'+(u.idMQ?'<div class="s">'+esc(u.idMQ)+'</div>':'')+'</td>'+(o.ped?'<td>'+esc(e.ped||'—')+'</td>':'')
     +'<td><span class="chip" style="background:'+(e.idx<0?'#F3F4F6':bg[e.idx])+';color:'+(e.idx<0?'#4B5563':col[e.idx])+'">'+esc(e.txt)+'</span></td>'
-    +'<td><div class="bar2"><i style="width:'+Math.round(e.pct*100)+'%;background:'+(e.idx<0?'#9CA3AF':barc[e.idx])+'"></i></div><div class="s">'+Math.round(e.pct*100)+'%</div></td><td>'+(eta(e)?esc(eta(e)):'<span class="s">—</span>')+'</td></tr>').join('')
+    +'<td><div class="bar2"><i style="width:'+Math.round(e.pct*100)+'%;background:'+(e.idx<0?'#9CA3AF':barc[e.idx])+'"></i></div><div class="s">'+Math.round(e.pct*100)+'%</div></td><td>'+(e.idx<0?'<span class="s">—</span>':e.idx===3?'<div>Llegada a AYJ: <b>ya está en AYJ</b></div><div>Cliente: <b>a coordinar con su asesor</b></div>':'<div>Llegada a AYJ: <b>'+esc(eta(e))+'</b></div><div>Cliente (aprox.): <b>'+esc(etaCli(e))+'</b></div>')+'</td></tr>').join('')
     ||'<tr><td colspan="5" style="padding:14px;color:#777">No hay máquinas de este cliente con esos criterios.</td></tr>';
   return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Estado de sus máquinas — '+esc(nombre)+'</title><style>'
     +'@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:20px;font-size:13px}'
@@ -7045,8 +7047,8 @@ function logRepClienteHTML(nombre,o){
     +'<div class="barra"><button onclick="window.print()">🖨 Imprimir / guardar PDF</button><button class="b" onclick="window.close()">Cerrar</button></div>'
     +'<div class="top"><div><h1>Estado de sus máquinas</h1><div class="s"><b>'+esc(nombre)+'</b> · AYJ Maquinaria · '+ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+(o.asesor&&vend.length?' · Su asesor: '+esc(vend.join(' / ')):'')+'</div></div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:42px" onerror="this.style.display=\'none\'"></div>'
     +'<div class="k">'+res+'</div>'
-    +'<table><thead><tr><th>Máquina</th>'+(o.ped?'<th>Pedido</th>':'')+'<th>Estado</th><th>Avance</th><th>Llegada estimada a AYJ</th></tr></thead><tbody>'+filas+'</tbody></table>'
-    +'<div class="pie">Las fechas de llegada son estimadas y pueden cambiar por la fábrica, la naviera o los trámites de aduana. Le avisaremos cualquier novedad. Para cualquier duda, comuníquese con su asesor en AYJ Maquinaria.</div></body></html>';
+    +'<table><thead><tr><th>Máquina</th>'+(o.ped?'<th>Pedido</th>':'')+'<th>Estado</th><th>Avance</th><th>Entrega estimada</th></tr></thead><tbody>'+filas+'</tbody></table>'
+    +'<div class="pie">Las fechas de llegada son estimadas y pueden cambiar por la fábrica, la naviera o los trámites de aduana. La fecha de entrega al cliente es aproximada y se coordina con su asesor. Le avisaremos cualquier novedad. Para cualquier duda, comuníquese con su asesor en AYJ Maquinaria.</div></body></html>';
 }
 function logRepClienteVer(){
   const o=logRepClienteOpc(); if(!o.cli){ showToast('Elige el cliente','error'); return; }
@@ -7055,11 +7057,11 @@ function logRepClienteVer(){
 }
 async function logRepClienteTexto(){
   const o=logRepClienteOpc(); if(!o.cli){ showToast('Elige el cliente','error'); return; }
-  const {us,eta,vend}=logRepClienteDatos(o.cli,o);
+  const {us,eta,etaCli,vend}=logRepClienteDatos(o.cli,o);
   const L=['ESTADO DE SUS MÁQUINAS — '+o.cli,'AYJ Maquinaria · '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+(o.asesor&&vend.length?' · Su asesor: '+vend.join(' / '):''),''];
-  us.forEach(({u,e})=>{ const fe=eta(e); L.push('• '+u.titulo+(u.idMQ?' ('+u.idMQ+')':'')+(o.ped&&e.ped?' · pedido '+e.ped:'')+'\n   '+e.txt+(e.idx>=0&&e.idx<3?' · avance '+Math.round(e.pct*100)+'%':'')+(fe?' · llegada estimada a AYJ: '+fe:'')); });
+  us.forEach(({u,e})=>{ const fe=eta(e); L.push('• '+u.titulo+(u.idMQ?' ('+u.idMQ+')':'')+(o.ped&&e.ped?' · pedido '+e.ped:'')+'\n   '+e.txt+(e.idx>=0&&e.idx<3?' · avance '+Math.round(e.pct*100)+'%':'')+(fe?' · llegada a AYJ: '+fe+' · entrega al cliente (aprox.): '+etaCli(e):'')); });
   if(!us.length) L.push('No hay máquinas de este cliente con esos criterios.');
-  L.push('','Las fechas son estimadas y pueden cambiar por la fábrica, la naviera o la aduana. Le avisaremos cualquier novedad.');
+  L.push('','Las fechas son estimadas y pueden cambiar por la fábrica, la naviera o la aduana; la entrega al cliente se coordina con su asesor. Le avisaremos cualquier novedad.');
   const t=L.join('\n');
   try{ await navigator.clipboard.writeText(t); }
   catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand('copy'); }catch(x){ showToast('No se pudo copiar el texto','error'); a.remove(); return; } a.remove(); }
@@ -7564,7 +7566,7 @@ function logRecibir(codigo){
     +'<div style="font-size:13px;margin-bottom:10px">Se registra la <b>llegada real a AYJ</b> y las <b>'+enImpo.length+' máquina(s) en camino</b> (En Importación / En Fabricación) de este pedido pasan a <b>En Stock</b> en TODAS_2025:</div>'
     +'<div style="max-height:120px;overflow:auto;font-size:12px;color:var(--text2);margin-bottom:10px">'+(enImpo.map(u=>_escRes(u.titulo+' · '+(u.idMQ||'sin serial'))).join('<br>')||'Ninguna máquina está marcada En Importación ni En Fabricación (solo se registra la fecha).')+'</div>'
     +'<label style="font-size:12px;font-weight:700">Fecha de llegada a AYJ</label><input type="date" id="lgR_f" value="'+hoy+'" max="'+hoy+'" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 12px;font-family:inherit">'
-    +'<label style="font-size:12px;font-weight:700">Ubicación de las máquinas al llegar</label><select id="lgR_ub" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 12px;font-family:inherit"><option value="">No cambiar la ubicación</option>'+LOG_UBIC.map(x=>'<option value="'+x.k+'"'+(x.k==='roble'?' selected':'')+'>'+x.nom+(x.sub?' ('+x.sub+')':'')+'</option>').join('')+'</select>'
+    +'<label style="font-size:12px;font-weight:700">Ubicación de las máquinas al llegar <span style="font-weight:400;color:var(--text2)">(por defecto, Bodega Abarco)</span></label><select id="lgR_ub" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);margin:4px 0 12px;font-family:inherit"><option value="">No cambiar la ubicación</option>'+LOG_UBIC.map(x=>'<option value="'+x.k+'"'+(x.k==='abarco'?' selected':'')+'>'+x.nom+(x.sub?' ('+x.sub+')':'')+'</option>').join('')+'</select>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgR_ok" onclick="logRecibirOk(\''+codigo+'\')">Recibir pedido</button></div></div>';
   document.body.appendChild(m);
 }
