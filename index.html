@@ -2033,14 +2033,15 @@ function renderReservadas(){
 async function cargarMaquinas(){
   if(!siteId||!listIdMaquinas){document.getElementById('maqList').innerHTML='<div class="loading-list">Lista no encontrada</div>';return;}
   try{
-    let marcaField='Marca', tipologiaField='Tipologia', hastaField='RESERVADAHASTA_x003a_';
+    let marcaField='Marca', tipologiaField='Tipologia', hastaField='RESERVADAHASTA_x003a_', linkWebField='LinkWeb';
     try{
       const cols=await graphGet(`/sites/${siteId}/lists/${listIdMaquinas}/columns?$select=name,displayName`);
       cols.value.forEach(c=>{
         const dn=(c.displayName||'').toLowerCase().trim(); // guardado contra displayName undefined/columnas de sistema
         if(dn==='marca') marcaField=c.name;
         if(dn==='tipologia'||dn==='tipología') tipologiaField=c.name;
-        if(dn.replace(/[^a-z]/g,'')==='reservadahasta') hastaField=c.name;   // "RESERVADA HASTA:" (el nombre interno lleva _x003a_ por los dos puntos)
+        if(dn.replace(/[^a-z]/g,'')==='reservadahasta') hastaField=c.name;
+        { const nn=dn.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,''); if(nn.includes('web')&&!/ficha|video|yt/.test(nn)) linkWebField=c.name; }   // enlace manual a la ficha en la web (LinkWeb, Enlace Web, Página Web…)   // "RESERVADA HASTA:" (el nombre interno lleva _x003a_ por los dos puntos)
       });
     }catch(e){console.warn('[AYJ] No se pudo leer /columns para detectar el nombre interno de Tipología — usando fallbacks fijos:',e.message);}
 
@@ -2078,7 +2079,7 @@ async function cargarMaquinas(){
         ubicacion:(f.Ubicaci_x00f3_n||f.Ubicacion||'').trim(),
         descripcion:(f.Descripci_x00f3_n||f.Descripcion||f.Descripci_n||'').trim(),
         fichaTecnica,
-        linkWeb:(()=>{const v=f.LinkWeb||f.Link_x0020_Web||f.EnlaceWeb||f.PaginaWeb||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),   // enlace manual a la ficha en la web (columna LinkWeb, hipervínculo)
+        linkWeb:(()=>{const v=f[linkWebField]||f.LinkWeb||f.Link_x0020_Web||f.EnlaceWeb||f.PaginaWeb||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),   // enlace manual a la ficha en la web (columna LinkWeb, hipervínculo)
         ytVideo:(()=>{const v=f.YTvideo||null;return v?(typeof v==='object'?(v.Url||''):String(v).trim()):'';})(),
         observaciones:(f.Observaciones||'').trim(),
         fotoRuta:(typeof evListsRutaDe==='function'?evListsRutaDe(f.Foto):''),   // foto guardada en la columna Foto de LISTS (respaldo del catálogo)
