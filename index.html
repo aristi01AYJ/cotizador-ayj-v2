@@ -130,6 +130,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .content-top.ct2{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px;align-items:end}
 .ct-a,.ct-b{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;min-width:0}
 .ct-right{grid-column:2;grid-row:1 / span 2;align-self:start;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.cab-oferta{background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.cab-titulo{padding:8px 20px 0;font-size:11px;font-weight:800;letter-spacing:1.2px;color:var(--text2)}
+.cab-titulo span{color:var(--text3);font-weight:400;margin:0 5px}
+.cab-fila{display:flex;gap:14px;align-items:center;padding:9px 20px;border-top:1px solid var(--border)}
+.cab-titulo+.cab-fila{border-top:0}
+.cab-et{flex:0 0 96px;font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--green-dark)}
+.cab-cuerpo{flex:1;display:flex;gap:10px 14px;align-items:flex-end;flex-wrap:wrap;min-width:0}
+.cab-der{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .field-group label{font-size:11px;color:var(--text2);font-weight:500}
 .field-group input,.field-group select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;background:#fff;min-width:130px}
 .oferta-badge{margin-left:auto;align-self:center;background:var(--green-light);color:var(--green-dark);font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;white-space:nowrap}
@@ -239,6 +247,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   .content.mobile-active{display:flex}
   .content-top{flex-shrink:0;padding:6px 10px;gap:6px;overflow-y:auto;max-height:200px;-webkit-overflow-scrolling:touch}
   .content-top.ct2{display:flex}.ct-a,.ct-b{width:100%}.ct-right{margin-left:auto;grid-row:auto}
+  .cab-oferta{max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch}.cab-fila{flex-direction:column;align-items:stretch;gap:4px;padding:6px 10px}.cab-et{flex:none}.cab-titulo{padding:6px 10px 0}.cab-der{margin-left:0}
   .field-group{width:calc(50% - 3px);min-width:0}
   .field-group input,.field-group select{min-width:0;width:100%}
   .oferta-badge{font-size:11px;padding:4px 10px}
@@ -385,8 +394,9 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       </div>
     </div>
     <div class="content" id="nuevaView">
-      <div class="content-top ct2">
-        <div class="ct-a">
+      <div class="cab-oferta">
+        <div class="cab-titulo">COMERCIAL<span>|</span>OFERTAS</div>
+        <div class="cab-fila"><div class="cab-et">Cliente</div><div class="cab-cuerpo">
         <div class="field-group">
           <label>Cliente</label>
           <div style="display:flex;gap:6px;align-items:center">
@@ -401,52 +411,11 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             </select>
           </div>
           <div id="clienteInfo" style="font-size:11px;color:var(--text2);line-height:1.4;max-width:360px;display:none"></div>
-        </div>
-        <div class="ct-right">
-          <div style="display:flex;gap:5px">
-            <button id="modoCOPBtn" onclick="toggleModoCOPBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
-              <span id="modoCOPIcon">💲</span> <span id="modoCOPTxt">Ver COP</span>
-            </button>
-            <button id="modoUSDBtn" onclick="toggleModoUSDBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
-              <span>🇺🇸</span> <span id="modoUSDTxt">Ver USD</span>
-            </button>
-          </div>
-          <input type="checkbox" id="modoCOPChk" onchange="toggleModoCOP(this.checked)" style="display:none">
-          <div class="oferta-badge" id="ofertaNum">COT-2026-001</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <label style="font-size:10px;color:var(--text2);white-space:nowrap">ID Synergy</label>
-            <input type="text" id="idSynergyInput" placeholder="Opcional..." maxlength="20"
-              style="width:100px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit;text-align:center"
-              oninput="actualizarNumOferta()">
-          </div>
-        </div>
-        <div class="ct-b">
+        </div></div>
+        <div class="cab-fila"><div class="cab-et">Oferta</div><div class="cab-cuerpo">
         <div class="field-group">
           <label>Vendedor</label>
           <select id="vendedorSel" title="Asesor responsable de esta oferta (por defecto, tú). Puedes crearla a nombre de otro asesor." style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:#f0f9f5;color:var(--green-dark);font-weight:500;min-width:130px;max-width:220px;font-family:inherit"><option value="">—</option></select>
-        </div>
-        <div class="field-group">
-          <label>Condición de pago</label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <select id="condPagoSel" onchange="onCondPagoChange(this.value)" style="min-width:200px">
-              <option value="100% Anticipado">100% Anticipado</option>
-              <option value="50% Anticipo / 50% Antes de entrega">50% Anticipo / 50% Antes de entrega</option>
-              <option value="30% Anticipo / 70% Antes de entrega" selected>30% Anticipo / 70% Antes de entrega</option>
-              <option value="30% Anticipo / 40% Máquina lista / 30% Puerto">30% / 40% Máquina lista / 30% Puerto</option>
-              <option value="__custom__">✏️ Personalizar...</option>
-            </select>
-            <div id="condPagoLabel" style="font-size:11px;color:var(--text2);display:none"></div>
-          </div>
-        </div>
-        <div class="field-group">
-          <label>Garantía</label>
-          <select id="garantiaSel" onchange="onGarantiaChange(this.value)">
-            <option value="12m">12 meses o 2.000 horas</option>
-            <option value="24m">24 meses o 4.000 horas</option>
-            <option value="6m">6 meses — Máquina Usada</option>
-            <option value="__custom_garantia__">✏️ Personalizar...</option>
-          </select>
-          <input type="text" id="garantiaCustomInput" placeholder="Ej: 3 meses, sin garantía..." style="display:none;margin-top:4px;width:100%;padding:4px 8px;border:1px solid #F59E0B;border-radius:var(--radius);font-size:12px;font-family:inherit;background:#fffbf0" oninput="window._garantiaPersonalizada=this.value">
         </div>
         <div class="field-group" style="position:relative">
           <label>Posible cierre</label>
@@ -476,19 +445,58 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             <input type="date" id="segCustomInput" onchange="actualizarCierreLabel()" style="display:none">
           </div>
         </div>
+          <div class="cab-der">
+          <div class="oferta-badge" id="ofertaNum">COT-2026-001</div>
+          <div style="display:flex;gap:5px">
+            <button id="modoCOPBtn" onclick="toggleModoCOPBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
+              <span id="modoCOPIcon">💲</span> <span id="modoCOPTxt">Ver COP</span>
+            </button>
+            <button id="modoUSDBtn" onclick="toggleModoUSDBtn()" style="font-size:11px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:all 0.15s">
+              <span>🇺🇸</span> <span id="modoUSDTxt">Ver USD</span>
+            </button>
+          </div>
+          <input type="checkbox" id="modoCOPChk" onchange="toggleModoCOP(this.checked)" style="display:none">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:10px;color:var(--text2);white-space:nowrap">ID Synergy</label>
+            <input type="text" id="idSynergyInput" placeholder="Opcional..." maxlength="20"
+              style="width:100px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit;text-align:center"
+              oninput="actualizarNumOferta()">
+          </div>
+          </div>
+        </div></div>
+        <div class="cab-fila"><div class="cab-et">Condiciones</div><div class="cab-cuerpo">
+        <div class="field-group">
+          <label>Condición de pago</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="condPagoSel" onchange="onCondPagoChange(this.value)" style="min-width:200px">
+              <option value="100% Anticipado">100% Anticipado</option>
+              <option value="50% Anticipo / 50% Antes de entrega">50% Anticipo / 50% Antes de entrega</option>
+              <option value="30% Anticipo / 70% Antes de entrega" selected>30% Anticipo / 70% Antes de entrega</option>
+              <option value="30% Anticipo / 40% Máquina lista / 30% Puerto">30% / 40% Máquina lista / 30% Puerto</option>
+              <option value="__custom__">✏️ Personalizar...</option>
+            </select>
+            <div id="condPagoLabel" style="font-size:11px;color:var(--text2);display:none"></div>
+          </div>
         </div>
-      </div>
-      <!-- BARRA FIJA: Validez, Entrega, Voltaje, Observaciones -->
-      <div style="padding:8px 14px;border-bottom:1px solid var(--border);background:#f8f9fa;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0">
-        <div class="field-group" style="margin:0">
-          <label style="font-size:10px">Validez oferta</label>
+        <div class="field-group">
+          <label>Garantía</label>
+          <select id="garantiaSel" onchange="onGarantiaChange(this.value)">
+            <option value="12m">12 meses o 2.000 horas</option>
+            <option value="24m">24 meses o 4.000 horas</option>
+            <option value="6m">6 meses — Máquina Usada</option>
+            <option value="__custom_garantia__">✏️ Personalizar...</option>
+          </select>
+          <input type="text" id="garantiaCustomInput" placeholder="Ej: 3 meses, sin garantía..." style="display:none;margin-top:4px;width:100%;padding:4px 8px;border:1px solid #F59E0B;border-radius:var(--radius);font-size:12px;font-family:inherit;background:#fffbf0" oninput="window._garantiaPersonalizada=this.value">
+        </div>
+        <div class="field-group">
+          <label>Validez oferta</label>
           <span style="font-size:12px;color:var(--text2);padding:4px 0;display:block">15 días</span>
           <input type="hidden" id="validezSel" value="15 días">
         </div>
-        <div class="field-group" style="margin:0">
-          <label style="font-size:10px">Tiempo de entrega</label>
+        <div class="field-group">
+          <label>Tiempo de entrega</label>
           <div style="display:flex;gap:4px;align-items:center">
-            <select id="entregaSel" onchange="onEntregaChange(this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+            <select id="entregaSel" onchange="onEntregaChange(this.value)">
               <option value="Inmediato Salvo venta">Inmediato Salvo venta</option>
               <option value="30 días">30 días</option>
               <option value="60 días">60 días</option>
@@ -499,10 +507,10 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </div>
           <div id="entregaLabel" style="font-size:10px;color:var(--text2);margin-top:2px;display:none"></div>
         </div>
-        <div class="field-group" style="margin:0">
-          <label style="font-size:10px">Modalidad de entrega</label>
+        <div class="field-group">
+          <label>Modalidad de entrega</label>
           <div style="display:flex;gap:4px;align-items:center">
-            <select id="modalidadSel" onchange="onModalidadChange(this.value)" title="Dónde y cómo se entrega la máquina: cambia los textos «Entrega» e «Instalación» de la oferta" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+            <select id="modalidadSel" onchange="onModalidadChange(this.value)" title="Dónde y cómo se entrega la máquina: cambia los textos «Entrega» e «Instalación» de la oferta">
               <option value="cliente">En instalaciones del cliente</option>
               <option value="ayj">En instalaciones de AYJ (el cliente recoge)</option>
               <option value="fob">FOB — Puerto de origen</option>
@@ -513,18 +521,18 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </div>
           <div id="modalidadLabel" style="font-size:10px;color:var(--text2);margin-top:2px;display:none;max-width:260px"></div>
         </div>
-        <div class="field-group" style="margin:0">
-          <label style="font-size:10px">Instalación</label>
-          <select id="instSel" onchange="onInstChange(this.value)" title="Aparte de la modalidad de entrega: por defecto la instalación, el montaje y la puesta en marcha van incluidos" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
+        <div class="field-group">
+          <label>Instalación</label>
+          <select id="instSel" onchange="onInstChange(this.value)" title="Aparte de la modalidad de entrega: por defecto la instalación, el montaje y la puesta en marcha van incluidos">
             <option value="incluida">Incluida</option>
             <option value="no">No incluida (por cuenta del cliente)</option>
             <option value="__custom_inst__">✏️ Personalizar...</option>
           </select>
           <div id="instLabel" style="font-size:10px;color:var(--text2);margin-top:2px;display:none;max-width:240px"></div>
         </div>
-        <div class="field-group" style="margin:0">
-          <label style="font-size:10px">Voltaje requerido</label>
-          <select id="voltajeSel" onchange="onVoltajeChange(this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;min-width:180px">
+        <div class="field-group">
+          <label>Voltaje requerido</label>
+          <select id="voltajeSel" onchange="onVoltajeChange(this.value)">
             <option value="No requiere — Máquina a Combustible">No requiere — Combustible</option>
             <option value="110V — 1 Fase — 60Hz">110V — 1 Fase — 60Hz</option>
             <option value="220V — 3 Fases — 60Hz" selected>220V — 3 Fases — 60Hz</option>
@@ -533,10 +541,13 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </select>
           <input type="text" id="voltajeCustom" placeholder="Especifica el voltaje..." style="display:none;margin-top:3px;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;width:100%">
         </div>
-        <div class="field-group" style="margin:0;flex:1 1 100%;min-width:200px">
-          <label style="font-size:10px">Observaciones</label>
+        </div></div>
+        <div class="cab-fila"><div class="cab-et">Notas</div><div class="cab-cuerpo">
+        <div class="field-group" style="flex:1 1 100%;min-width:200px">
+          <label>Observaciones</label>
           <input type="text" id="obsInput" placeholder="📝 Notas para el cliente..." style="width:100%;padding:5px 8px;border:1px solid #F59E0B;border-radius:var(--radius);font-size:12px;font-family:inherit;background:#fffdf5">
         </div>
+        </div></div>
       </div>
       <div class="cot-area">
         <div class="empty-state" id="emptyState">
