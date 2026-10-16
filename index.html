@@ -810,6 +810,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         </label>
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="btn-sec" onclick="cargarClientes(true)"><i class="ti ti-refresh"></i></button>
+          <button class="btn-sec" id="btnUnirClientes" onclick="ucAbrir()" title="Detecta clientes repetidos y los une en uno solo: sus ofertas, máquinas y contactos pasan al cliente principal"><i class="ti ti-git-merge"></i> Unir duplicados</button>
           <button class="btn-primary" onclick="abrirModalCliente()"><i class="ti ti-user-plus"></i> Nuevo Cliente</button>
         </div>
       </div>
@@ -8147,6 +8148,220 @@ async function trmSparkCargar(){
   catch(e){ console.warn('[AYJ] TRM: no se pudo cargar el historial de 30 días:',e.message); const el=document.getElementById('trmSpark'); if(el) el.innerHTML=''; }
 }
 
+// ── UNIR CLIENTES DUPLICADOS ──────────────────────────────────────────────────────────────────────────────
+// Clientes ▸ «Unir duplicados»: detecta clientes repetidos (mismo NIT, mismo nombre sin S.A.S./tildes, nombres parecidos, mismo correo o teléfono), deja elegir cuál queda como
+// PRINCIPAL y pasa a él lo que cuelga de los demás: ofertas (columna Cliente de Cotizaciones y de las otras listas Cotizaciones_*), máquinas (columna Cliente de TODAS_2025)
+// y contactos (lista Contactos). Los datos que le falten al principal (NIT, correo, teléfono…) se completan con los del duplicado. Solo si todo salió bien se eliminan los
+// duplicados de la lista Clientes (SharePoint los guarda en la papelera de reciclaje). Es una operación delicada: siempre muestra el impacto y pide confirmar.
+const UC={grupos:[],datos:null,cargando:false,cols:null,manual:false};
+const ucPermiso=()=>typeof ROL==='undefined'||!ROL.encontrado||ROL.gg||/gerente/i.test(ROL.nombre||'');
+function ucNorm(t){
+  let s=String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  s=s.replace(/(^|[^a-z0-9])s\.?\s*a\.?\s*s\.?(?![a-z0-9])/g,' ').replace(/(^|[^a-z0-9])s\.?\s*a\.?(?![a-z0-9])/g,' ').replace(/(^|[^a-z0-9])s\.?\s*en\s*c\.?(?![a-z0-9])/g,' ')
+   .replace(/(^|[^a-z0-9])(ltda|limitada|cia|e\.?\s*u\.?|eu|srl|inc|llc|corp)\.?(?![a-z0-9])/g,' ').replace(/&/g,' y ');
+  return s.replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(w=>w&&!['de','la','el','los','las','del','y','e'].includes(w)).join(' ');
+}
+const ucNit=t=>{ const d=String(t||'').split('-')[0].replace(/\D/g,''); return d.length>=6?d:''; };
+const ucTel=t=>{ const d=String(t||'').replace(/\D/g,''); return d.length>=7?d.slice(-10):''; };
+function ucLev(a,b){ if(a===b) return 0; const m=a.length,n=b.length; if(!m||!n) return Math.max(m,n); let prev=Array.from({length:n+1},(_,j)=>j); for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); prev=cur; } return prev[n]; }
+// ── detección ──
+function ucDetectar(){
+  const cl=clientesData.map(c=>({c,n:ucNorm(c.titulo),nit:ucNit(c.nit),em:String(c.email||'').toLowerCase().trim(),tel:ucTel(c.telefono)}));
+  const padre=cl.map((_,i)=>i), razon=cl.map(()=>new Set());
+  const raiz=i=>{ while(padre[i]!==i){ padre[i]=padre[padre[i]]; i=padre[i]; } return i; };
+  const unir=(i,j,r)=>{ const a=raiz(i), b=raiz(j); if(a!==b){ padre[b]=a; r.forEach(x=>razon[a].add(x)); razon[b].forEach(x=>razon[a].add(x)); } else r.forEach(x=>razon[a].add(x)); };
+  const cubos={}, poner=(k,i)=>{ if(k) (cubos[k]=cubos[k]||[]).push(i); };
+  cl.forEach((x,i)=>{ const tk=x.n.split(' ').filter(Boolean); poner('t0:'+tk[0],i); if(tk.length>1) poner('tz:'+tk[tk.length-1],i); poner('nit:'+x.nit,i); poner('em:'+x.em,i); poner('tel:'+x.tel,i); poner('n:'+x.n,i); });
+  Object.keys(cubos).forEach(k=>{
+    const ids=[...new Set(cubos[k])]; if(ids.length<2||ids.length>150) return;
+    for(let a=0;a<ids.length;a++) for(let b=a+1;b<ids.length;b++){
+      const x=cl[ids[a]], y=cl[ids[b]], r=[];
+      if(x.nit&&y.nit&&(x.nit===y.nit||(Math.abs(x.nit.length-y.nit.length)===1&&(x.nit.startsWith(y.nit)||y.nit.startsWith(x.nit))))) r.push('Mismo NIT');
+      if(x.n&&x.n===y.n) r.push('Mismo nombre');
+      else if(x.n.length>=6&&y.n.length>=6){
+        const tx=x.n.split(' '), ty=y.n.split(' '), [corto,largo]=tx.length<=ty.length?[tx,ty]:[ty,tx];
+        if(corto.length>=2&&corto.every(w=>largo.includes(w))) r.push('Uno contiene al otro');
+        else if(1-ucLev(x.n,y.n)/Math.max(x.n.length,y.n.length)>=0.88) r.push('Nombre parecido');
+        else if(JSON.stringify([...tx].sort())===JSON.stringify([...ty].sort())) r.push('Mismo nombre');
+      }
+      if(x.em&&x.em===y.em) r.push('Mismo correo');
+      if(x.tel&&x.tel===y.tel) r.push('Mismo teléfono');
+      if(r.length) unir(ids[a],ids[b],r);
+    }
+  });
+  const g={}; cl.forEach((x,i)=>{ const r=raiz(i); (g[r]=g[r]||[]).push(i); });
+  const fuerte=r=>r.has('Mismo NIT')||r.has('Mismo nombre');
+  return Object.keys(g).filter(r=>g[r].length>1).map(r=>({miembros:g[r].map(i=>cl[i].c),razones:[...razon[+r]],fuerte:fuerte(razon[+r]),sel:{},principal:null}))
+    .sort((a,b)=>(b.fuerte-a.fuerte)||(b.miembros.length-a.miembros.length)||a.miembros[0].titulo.localeCompare(b.miembros[0].titulo,'es'));
+}
+const ucScore=c=>['nombre','empresa','email','telefono','ciudad','nit','asesor'].reduce((s,k)=>s+(c[k]?1:0),0);
+// ── conteo de lo que cuelga de cada cliente (solo lectura) ──
+async function ucItems(url,sel){
+  try{ return await graphGetAll(url+(sel?'&$expand=fields($select='+sel+')':'&$expand=fields')); }
+  catch(e){ if(!sel) throw e; return await graphGetAll(url+'&$expand=fields'); }
+}
+async function ucCargarDatos(){
+  if(UC.datos) return UC.datos;
+  const D={cot:[],cat:null,ctc:null,errores:[]};
+  const listas=window._listasSitio||(await graphGet('/sites/'+siteId+'/lists?$select=id,displayName')).value||[];
+  for(const l of listas.filter(x=>/^cotizaciones(_|$)/i.test(String(x.displayName||'').trim()))){
+    try{
+      const cs=(await graphGet('/sites/'+siteId+'/lists/'+l.id+'/columns?$top=200')).value||[], c=cs.find(x=>!x.readOnly&&x.text&&(_nrmP(x.name)==='cliente'||_nrmP(x.displayName)==='cliente'));
+      if(!c) continue;
+      const its=await ucItems('/sites/'+siteId+'/lists/'+l.id+'/items?$top=500',c.name);
+      D.cot.push({id:l.id,nombre:l.displayName,col:c.name,items:its.map(i=>({id:i.id,v:String((i.fields||{})[c.name]||'').trim()}))});
+    }catch(e){ D.errores.push(l.displayName+': '+e.message); }
+  }
+  try{
+    const cols=await columnasCatalogo(), c=buscarColCat(cols,['cliente','clientefinal','nombrecliente','clientes']);
+    if(c){ const k=c.lookup?c.name+'LookupId':c.name; const its=await ucItems('/sites/'+siteId+'/lists/'+listIdMaquinas+'/items?$top=500',k);
+      D.cat={col:c.name,lookup:!!c.lookup,items:its.map(i=>({id:i.id,v:String((i.fields||{})[k]??'').trim()}))}; }
+  }catch(e){ D.errores.push('TODAS_2025: '+e.message); }
+  try{
+    await cargarListaContactos();
+    if(listIdContactos){ const its=await ucItems('/sites/'+siteIdComercial+'/lists/'+listIdContactos+'/items?$top=500','Title,Cliente');
+      D.ctc={items:its.map(i=>({id:i.id,v:String((i.fields||{}).Cliente||'').trim()}))}; }
+  }catch(e){ D.errores.push('Contactos: '+e.message); }
+  UC.datos=D; return D;
+}
+function ucConteo(c){
+  const D=UC.datos; if(!D) return {of:'…',maq:'…',ct:'…'};
+  const t=_kTitulo(c.titulo);
+  return {of:D.cot.reduce((s,l)=>s+l.items.filter(i=>_kTitulo(i.v)===t).length,0),
+    maq:D.cat?D.cat.items.filter(i=>D.cat.lookup?String(i.v)===String(c.id):_kTitulo(i.v)===t).length:0,
+    ct:D.ctc?D.ctc.items.filter(i=>_kTitulo(i.v)===t).length:0};
+}
+// ── pantalla ──
+async function ucAbrir(){
+  if(!ucPermiso()){ showToast('Unir clientes lo hacen los gerentes','error'); return; }
+  const m=document.createElement('div'); m.id='ucModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:1000px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">🔗 Unir clientes duplicados</strong><button onclick="document.getElementById(\'ucModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div><div id="ucCuerpo" style="padding:14px 18px;overflow-y:auto;flex:1"><div class="loading-list"><span class="spinner dark"></span> Leyendo clientes…</div></div></div>';
+  document.body.appendChild(m);
+  try{
+    UC.datos=null; await cargarClientes(true);
+    UC.grupos=ucDetectar(); ucPintar();
+    ucCargarDatos().then(()=>{ UC.grupos.forEach(ucPrincipalPorDefecto); ucPintar(); }).catch(e=>{ UC.datos={cot:[],cat:null,ctc:null,errores:[e.message]}; ucPintar(); });
+  }catch(e){ document.getElementById('ucCuerpo').innerHTML='<div style="color:var(--red)">No se pudieron leer los clientes: '+_escRes(e.message)+'</div>'; }
+}
+function ucPrincipalPorDefecto(g){
+  if(g.principal&&g.miembros.some(c=>c.id===g.principal)) return;
+  const peso=c=>ucScore(c)*10+(UC.datos?(()=>{ const k=ucConteo(c); return Math.min(9,k.of+k.maq+k.ct); })():0);
+  g.principal=[...g.miembros].sort((a,b)=>peso(b)-peso(a)||(+a.id)-(+b.id))[0].id;
+  g.miembros.forEach(c=>{ if(g.sel[c.id]===undefined) g.sel[c.id]=g.fuerte&&c.id!==g.principal; });   // los grupos dudosos (nombre parecido, mismo correo…) vienen sin marcar
+}
+function ucPintar(){
+  const cu=document.getElementById('ucCuerpo'); if(!cu) return;
+  UC.grupos.forEach(ucPrincipalPorDefecto);
+  const nFuertes=UC.grupos.filter(g=>g.fuerte).length;
+  const cab='<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Revisé <b>'+clientesData.length+'</b> clientes y encontré <b>'+UC.grupos.length+'</b> grupo(s) con posibles duplicados ('+nFuertes+' casi seguros: mismo NIT o mismo nombre). En cada grupo elige el cliente que se queda (<b>principal</b>) y marca los que se van a unir a él. Las ofertas, máquinas y contactos de los demás pasan al principal y, al final, los duplicados se eliminan.'
+    +(UC.datos?(UC.datos.errores.length?'<div style="color:#B45309;margin-top:4px">⚠ No se pudo contar todo: '+_escRes(UC.datos.errores.join(' · '))+'</div>':''):'<div style="color:var(--text3);margin-top:4px">Contando ofertas, máquinas y contactos de cada cliente…</div>')+'</div>'
+    +'<div style="margin-bottom:10px"><button class="btn-sec" onclick="ucManual()">＋ Unir dos clientes que no aparecen aquí</button></div>';
+  const man=UC.manual?ucManualHTML():'';
+  const tarjetas=UC.grupos.map((g,gi)=>{
+    const ps=g.principal, selN=g.miembros.filter(c=>g.sel[c.id]&&c.id!==ps).length;
+    return '<div style="border:1px solid var(--border);border-left:4px solid '+(g.fuerte?'#16A34A':'#F59E0B')+';border-radius:var(--radius);padding:10px 12px;margin-bottom:10px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b style="font-size:13px">'+_escRes(g.miembros.find(c=>c.id===ps).titulo)+'</b>'
+      +g.razones.map(r=>'<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+(/NIT|Mismo nombre/.test(r)?'#DCFCE7':'#FEF3C7')+';color:'+(/NIT|Mismo nombre/.test(r)?'#166534':'#92400E')+'">'+r+'</span>').join('')
+      +'<span style="flex:1"></span><button class="btn-sec" style="font-size:12px" onclick="ucDescartar('+gi+')" title="No son el mismo cliente: no volver a mostrar este grupo ahora">No son duplicados</button><button class="btn-primary" style="font-size:12px"'+(selN?'':' disabled')+' onclick="ucRevisar('+gi+')">Revisar y unir ('+selN+')</button></div>'
+      +'<table class="hist-table" style="font-size:12px"><thead><tr><th>Principal</th><th>Unir</th><th>Cliente</th><th>NIT</th><th>Ciudad</th><th>Correo / teléfono</th><th>Asesor</th><th>Ofertas</th><th>Máquinas</th><th>Contactos</th></tr></thead><tbody>'
+      +g.miembros.map(c=>{ const k=ucConteo(c), es=c.id===ps; return '<tr'+(es?' style="background:#F4F8E8"':'')+'><td><input type="radio" name="ucP'+gi+'" '+(es?'checked':'')+' onchange="ucPrinc('+gi+',\''+c.id+'\')"></td><td><input type="checkbox" '+(es?'disabled ':'')+(g.sel[c.id]&&!es?'checked':'')+' onchange="ucSel('+gi+',\''+c.id+'\',this.checked)"></td>'
+        +'<td><b>'+_escRes(c.titulo)+'</b>'+(c.nombre?'<div style="color:var(--text2)">'+_escRes(c.nombre)+'</div>':'')+'</td><td>'+_escRes(c.nit||'—')+'</td><td>'+_escRes(c.ciudad||'—')+'</td><td>'+_escRes([c.email,c.telefono].filter(Boolean).join(' · ')||'—')+'</td><td>'+_escRes(c.asesor||'—')+'</td><td>'+k.of+'</td><td>'+k.maq+'</td><td>'+k.ct+'</td></tr>'; }).join('')
+      +'</tbody></table></div>';
+  }).join('');
+  cu.innerHTML=cab+man+(tarjetas||'<div style="color:var(--text3);padding:20px;text-align:center">No encontré clientes que parezcan repetidos 🎉. Si sabes de dos que lo son, usa «Unir dos clientes que no aparecen aquí».</div>');
+}
+function ucPrinc(gi,id){ const g=UC.grupos[gi]; g.principal=id; g.sel[id]=false; ucPintar(); }
+function ucSel(gi,id,v){ UC.grupos[gi].sel[id]=v; ucPintar(); }
+function ucDescartar(gi){ UC.grupos.splice(gi,1); ucPintar(); }
+function ucManual(){ UC.manual=!UC.manual; ucPintar(); }
+function ucManualHTML(){
+  const dl='<datalist id="ucDL">'+clientesData.map(c=>'<option value="'+_escRes(c.titulo)+'">').join('')+'</datalist>';
+  return '<div style="border:1px dashed var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+dl
+    +'<div><label style="font-size:11px;font-weight:700">Cliente principal (el que se queda)</label><input id="ucMa" list="ucDL" autocomplete="off" style="display:block;min-width:260px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius)"></div>'
+    +'<div><label style="font-size:11px;font-weight:700">Cliente repetido (se une al principal)</label><input id="ucMb" list="ucDL" autocomplete="off" style="display:block;min-width:260px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius)"></div>'
+    +'<button class="btn-primary" onclick="ucManualOk()">Agregar al listado</button></div>';
+}
+function ucManualOk(){
+  const a=clientesData.find(c=>_kTitulo(c.titulo)===_kTitulo(document.getElementById('ucMa').value)), b=clientesData.find(c=>_kTitulo(c.titulo)===_kTitulo(document.getElementById('ucMb').value));
+  if(!a||!b){ showToast('Elige los dos clientes de la lista','error'); return; }
+  if(a.id===b.id){ showToast('Son el mismo cliente','error'); return; }
+  UC.grupos.unshift({miembros:[a,b],razones:['Unión manual'],fuerte:true,sel:{[a.id]:false,[b.id]:true},principal:a.id}); UC.manual=false; ucPintar();
+}
+// ── confirmar y ejecutar ──
+async function ucColumnasClientes(){
+  if(UC.cols) return UC.cols;
+  const cs=(await graphGet('/sites/'+siteId+'/lists/'+listIdClientes+'/columns?$top=200')).value||[], buscar=(...n)=>cs.find(x=>!x.readOnly&&x.text&&n.some(k=>_nrmP(x.name)===k||_nrmP(x.displayName)===k));
+  const map={}; [['nombre','nombre','contacto'],['empresa','empresa'],['email','email','correo','correoelectronico'],['telefono','telefono','tel','celular'],['ciudad','ciudad'],['pais','pais'],['nit','nitrut','nit','rut'],['asesor','asesor']].forEach(([k,...n])=>{ const c=buscar(...n); if(c) map[k]=c.name; });
+  UC.cols=map; return map;
+}
+function ucRevisar(gi){
+  const g=UC.grupos[gi], P=g.miembros.find(c=>c.id===g.principal), Ds=g.miembros.filter(c=>g.sel[c.id]&&c.id!==g.principal); if(!P||!Ds.length) return;
+  const sumas=Ds.reduce((a,c)=>{ const k=ucConteo(c); a.of+=+k.of||0; a.maq+=+k.maq||0; a.ct+=+k.ct||0; return a; },{of:0,maq:0,ct:0});
+  const rellena=['nombre','empresa','email','telefono','ciudad','nit','asesor'].filter(k=>!P[k]&&Ds.some(d=>d[k])).map(k=>k+': '+Ds.map(d=>d[k]).find(Boolean));
+  const m=document.createElement('div'); m.id='ucConf'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:560px;max-width:96vw;max-height:92vh;overflow:auto;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35)"><div style="font-size:15px;font-weight:700;margin-bottom:8px">Confirmar la unión</div>'
+    +'<div style="font-size:13px;margin-bottom:8px">Se quedará: <b style="color:#166534">'+_escRes(P.titulo)+'</b></div>'
+    +'<div style="font-size:13px;margin-bottom:8px">Se unirán a él y luego se <b style="color:#B91C1C">eliminarán</b>:<ul style="margin:4px 0 0 18px">'+Ds.map(d=>'<li>'+_escRes(d.titulo)+'</li>').join('')+'</ul></div>'
+    +'<div style="font-size:13px;background:#F9FAFB;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px">Pasarán al principal: <b>'+sumas.of+'</b> oferta(s), <b>'+sumas.maq+'</b> máquina(s) y <b>'+sumas.ct+'</b> contacto(s)'+(UC.datos?'':' <i>(aún contando…)</i>')+'.'+(rellena.length?'<div style="margin-top:4px;color:var(--text2)">Se completarán en el principal: '+_escRes(rellena.join(' · '))+'</div>':'')+'</div>'
+    +'<label style="font-size:12px;display:flex;gap:6px;align-items:flex-start;margin-bottom:12px"><input type="checkbox" id="ucOk" onchange="document.getElementById(\'ucGo\').disabled=!this.checked"> Entiendo que esto cambia el cliente de las ofertas, máquinas y contactos, y elimina los duplicados de la lista Clientes (SharePoint los conserva unos días en la papelera de reciclaje).</label>'
+    +'<div id="ucProg" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" id="ucCan" onclick="document.getElementById(\'ucConf\').remove()">Cancelar</button><button class="btn-primary" id="ucGo" disabled onclick="ucEjecutar('+gi+')">Unir clientes</button></div></div>';
+  document.body.appendChild(m);
+}
+async function ucPatch(sitio,lista,id,campos){
+  const token=await getToken(), f={...campos}; let n=0;
+  while(Object.keys(f).length){
+    n++; const r=await fetch('https://graph.microsoft.com/v1.0/sites/'+sitio+'/lists/'+lista+'/items/'+id+'/fields',{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(f)});
+    if(r.ok) return;
+    const t=await r.text(), mm=t.match(/Field '([^']+)' is not recognized/i);
+    if(mm&&f[mm[1]]!==undefined&&n<8){ delete f[mm[1]]; continue; }
+    throw new Error('PATCH '+r.status+': '+t.slice(0,160));
+  }
+}
+async function ucEnLotes(items,fn,paralelo){ let i=0; const fallos=[]; await Promise.all(Array.from({length:paralelo||4},async()=>{ while(i<items.length){ const it=items[i++]; try{ await fn(it); }catch(e){ fallos.push((it.id||'')+': '+e.message); } } })); return fallos; }
+async function ucEjecutar(gi){
+  const g=UC.grupos[gi], P=g.miembros.find(c=>c.id===g.principal), Ds=g.miembros.filter(c=>g.sel[c.id]&&c.id!==g.principal);
+  const prog=document.getElementById('ucProg'), go=document.getElementById('ucGo'), can=document.getElementById('ucCan'); if(!P||!Ds.length||!prog) return;
+  go.disabled=true; can.disabled=true; document.getElementById('ucOk').disabled=true;
+  const paso=t=>{ prog.innerHTML+='<div>'+t+'</div>'; }, fallos=[], resumen={of:0,maq:0,ct:0};
+  const nombres=new Set(Ds.map(d=>_kTitulo(d.titulo))), ids=new Set(Ds.map(d=>String(d.id)));
+  try{
+    UC.datos=null; paso('⏳ Leyendo ofertas, máquinas y contactos…'); const D=await ucCargarDatos();
+    // 1 · completar el principal con los datos que le faltan
+    const cols=await ucColumnasClientes(), nuevos={}, campos={};
+    ['nombre','empresa','email','telefono','ciudad','pais','nit','asesor'].forEach(k=>{ if(cols[k]&&!P[k]){ const v=Ds.map(d=>d[k]).find(Boolean); if(v){ campos[cols[k]]=v; nuevos[k]=v; } } });
+    if(Object.keys(campos).length){ try{ await ucPatch(siteId,listIdClientes,P.id,campos); paso('✓ Datos completados en '+_escRes(P.titulo)); }catch(e){ fallos.push('Completar datos: '+e.message); } }
+    // 2 · ofertas
+    for(const l of D.cot){
+      const its=l.items.filter(i=>nombres.has(_kTitulo(i.v)));
+      if(!its.length) continue; paso('⏳ '+_escRes(l.nombre)+': '+its.length+' oferta(s)…');
+      const f=await ucEnLotes(its,i=>ucPatch(siteId,l.id,i.id,{[l.col]:P.titulo})); resumen.of+=its.length-f.length; fallos.push(...f.map(x=>l.nombre+' '+x));
+    }
+    // 3 · máquinas
+    if(D.cat){
+      const its=D.cat.items.filter(i=>D.cat.lookup?ids.has(String(i.v)):nombres.has(_kTitulo(i.v)));
+      if(its.length){ paso('⏳ Máquinas: '+its.length+'…'); const f=await ucEnLotes(its,i=>ucPatch(siteId,listIdMaquinas,i.id,D.cat.lookup?{[D.cat.col+'LookupId']:parseInt(P.id)}:{[D.cat.col]:P.titulo})); resumen.maq+=its.length-f.length; fallos.push(...f.map(x=>'Máquina '+x)); }
+    }
+    // 4 · contactos
+    if(D.ctc){
+      const its=D.ctc.items.filter(i=>nombres.has(_kTitulo(i.v)));
+      if(its.length){ paso('⏳ Contactos: '+its.length+'…'); const f=await ucEnLotes(its,i=>ucPatch(siteIdComercial,listIdContactos,i.id,{Cliente:P.titulo})); resumen.ct+=its.length-f.length; fallos.push(...f.map(x=>'Contacto '+x)); }
+    }
+    // 5 · eliminar duplicados (solo si todo lo anterior salió bien)
+    if(fallos.length){
+      paso('<b style="color:#B91C1C">⚠ '+fallos.length+' elemento(s) no se pudieron cambiar, así que NO se eliminó ningún duplicado.</b><div style="max-height:90px;overflow:auto;margin-top:4px">'+_escRes(fallos.slice(0,6).join(' | '))+'</div>Puedes volver a intentarlo: lo ya movido no se repite.');
+      go.textContent='Reintentar'; go.disabled=false; can.disabled=false; document.getElementById('ucOk').disabled=false; UC.datos=null; return;
+    }
+    paso('⏳ Eliminando duplicados…'); const token=await getToken(), borr=[];
+    for(const d of Ds){ const r=await fetch('https://graph.microsoft.com/v1.0/sites/'+siteId+'/lists/'+listIdClientes+'/items/'+d.id,{method:'DELETE',headers:{Authorization:'Bearer '+token}}); if(r.ok||r.status===404) borr.push(d.id); else fallos.push('Eliminar '+d.titulo+': '+r.status); }
+    clientesData=clientesData.filter(c=>!borr.includes(c.id)); Object.assign(clientesData.find(c=>c.id===P.id)||{},nuevos);
+    try{ poblarDatalist(); renderTablaClientes(); if(typeof cargarHistorial==='function') cargarHistorial(); }catch(e){}
+    UC.datos=null; UC.grupos.splice(gi,1);
+    const msg='✓ '+Ds.length+' cliente(s) unidos en «'+P.titulo+'»: '+resumen.of+' oferta(s), '+resumen.maq+' máquina(s), '+resumen.ct+' contacto(s).'+(fallos.length?' ⚠ '+fallos.join(' | '):'');
+    console.log('[AYJ] Unir clientes:',msg,'· eliminados:',Ds.map(d=>d.titulo+' (#'+d.id+')').join(', '));
+    document.getElementById('ucConf')?.remove(); showToast(msg,fallos.length?'error':'success'); ucPintar();
+    ucCargarDatos().then(()=>ucPintar()).catch(()=>{});
+  }catch(e){ paso('<b style="color:#B91C1C">No se pudo completar: '+_escRes(e.message)+'</b> No se eliminó ningún duplicado.'); go.textContent='Reintentar'; go.disabled=false; can.disabled=false; document.getElementById('ucOk').disabled=false; UC.datos=null; }
+}
 // ── DIAGNÓSTICO DE VELOCIDAD ──────────────────────────────────────────────────────────────────────────
 // Mide con datos reales dónde se va el tiempo: (1) cada petición a Microsoft Graph/SharePoint (cuánto tarda, cuánto pesa, cuántas filas trae), (2) las acciones
 // principales de la app (arranque, cargar catálogo/historial/clientes, guardar oferta, subir PDF, pintar pantallas) y (3) una prueba automática "Medir ahora"
