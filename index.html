@@ -7084,15 +7084,52 @@ function logGloboEventos(c){
   if(!LOG.resizeOk){ LOG.resizeOk=true; window.addEventListener('resize',()=>{ if(document.getElementById('logCanvas')) logDibujar(); }); }
 }
 // ── pantalla ──
+// ── ordenar por columnas ──
+const LOG_ORD0={k:'ayj',dir:1};
+function logValOrd(p,k){
+  const fe=(r,e)=>p[r]||p[e]||null;
+  switch(k){
+    case 'pedido': return p.codigo;
+    case 'avance': return logAvance(p).total;
+    case 'fase': { const a=logAvance(p); return a.idx+a.f[Math.min(a.idx,2)]*0.99; }
+    case 'maq': return p.units.length;
+    case 'creado': return p.creado;
+    case 'fab': return fe('fabReal','fabEst');
+    case 'desp': return fe('despReal','despEst');
+    case 'zarpe': return fe('zarpeReal','zarpeEst');
+    case 'puerto': return fe('puertoReal','puertoEst');
+    default: return fe('ayjReal','ayjEst');
+  }
+}
+function logCmp(a,b){
+  const o=LOG.ord||LOG_ORD0, va=logValOrd(a,o.k), vb=logValOrd(b,o.k), na=va==null||va==='', nb=vb==null||vb==='';
+  if(na||nb) return na&&nb?0:na?1:-1;   // sin dato: siempre al final
+  let c=typeof va==='string'?va.localeCompare(vb,'es',{numeric:true}):(+va)-(+vb);
+  if(!c) c=a.codigo.localeCompare(b.codigo,'es',{numeric:true});
+  return c*o.dir;
+}
+function logOrdenar(k){ const o=LOG.ord||LOG_ORD0; LOG.ord=o.k===k?{k,dir:-o.dir}:{k,dir:1}; logRender(); }
+function logTh(k,txt){ const o=LOG.ord||LOG_ORD0, on=o.k===k; return '<th onclick="logOrdenar(\''+k+'\')" style="cursor:pointer;white-space:nowrap;user-select:none" title="Ordenar por esta columna">'+txt+(on?(o.dir>0?' ▲':' ▼'):' <span style="color:#C4C8BC">↕</span>')+'</th>'; }
+const logPrioRank=t=>{ const k=logNorm(t); return /alta|urgente|critic/.test(k)?0:/media|normal/.test(k)?1:/baja/.test(k)?2:3; };
+function logUnidadesOrd(p){
+  const o=LOG.ordU; if(!o) return p.units;
+  const val=u=>{ switch(o.k){ case 'titulo': return u.titulo; case 'serial': return u.idMQ; case 'ubic': return u.estadoStock; case 'estado': return u.estadoSel; case 'cliente': return u.cliente; case 'vendedor': return u.vendedor; default: return logPrioRank(u.prio); } };
+  return [...p.units].sort((a,b)=>{ const va=val(a), vb=val(b), na=va===''||va==null, nb=vb===''||vb==null; if(na||nb) return na&&nb?0:na?1:-1; const c=typeof va==='string'?va.localeCompare(vb,'es',{numeric:true}):va-vb; return c*o.dir; });
+}
+function logOrdenarU(k){ const o=LOG.ordU; LOG.ordU=o&&o.k===k?{k,dir:-o.dir}:{k,dir:1}; logRender(); }
+function logThU(k,txt){ const o=LOG.ordU, on=o&&o.k===k; return '<th onclick="logOrdenarU(\''+k+'\')" style="cursor:pointer;white-space:nowrap;user-select:none" title="Ordenar por esta columna">'+txt+(on?(o.dir>0?' ▲':' ▼'):' <span style="color:#C4C8BC">↕</span>')+'</th>'; }
+// ── cliente: una máquina "coincide" si es del cliente elegido en la lista o si lo escrito en la búsqueda (3+ letras) está en su nombre ──
+function logMatchCli(u){ if(LOG.cli) return u.cliente===LOG.cli; const q=(LOG.q||'').toLowerCase().trim(); return q.length>=3&&String(u.cliente||'').toLowerCase().includes(q); }
 function logFiltrados(){
   const q=(LOG.q||'').toLowerCase().trim();
   return LOG.pedidos.filter(p=>{
     if(LOG.ver==='activos'&&!logActivo(p)) return false;
     if(LOG.ver==='recibidos'&&logActivo(p)) return false;
     if(LOG.fab&&(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica).toUpperCase()!==LOG.fab) return false;
-    if(q&&![p.codigo,p.fabrica,p.buque,p.tipoCont,p.numCont,p.pOrigen,p.pDestino,p.notas,...p.units.map(u=>u.idMQ+' '+u.titulo)].join(' ').toLowerCase().includes(q)) return false;
+    if(LOG.cli&&!p.units.some(u=>u.cliente===LOG.cli)) return false;
+    if(q&&![p.codigo,p.fabrica,p.buque,p.tipoCont,p.numCont,p.pOrigen,p.pDestino,p.notas,p.transp,...p.units.map(u=>[u.idMQ,u.titulo,u.cliente,u.vendedor].join(' '))].join(' ').toLowerCase().includes(q)) return false;
     return true;
-  }).sort((a,b)=>{ const ea=(a.ayjReal||a.ayjEst||new Date(8.64e15)), eb=(b.ayjReal||b.ayjEst||new Date(8.64e15)); return ea-eb; });
+  }).sort(logCmp);
 }
 function logCelda(est,real){
   const hoy=new Date(); hoy.setHours(0,0,0,0);
@@ -7108,6 +7145,10 @@ function logRender(){
   if(LOG.error){ c.innerHTML='<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#7F1D1D;border-radius:var(--radius);padding:14px">'+_escRes(LOG.error)+' <button class="btn-sec" onclick="logCargar()">Reintentar</button></div>'; return; }
   if(LOG.tab==='stock'){ logRenderStock(c); return; }
   const lista=logFiltrados(), hoy=new Date(); hoy.setHours(0,0,0,0);
+  const clientes=[...new Set(LOG.pedidos.flatMap(p=>p.units.map(u=>u.cliente)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const hayCli=!!LOG.cli||(LOG.q||'').trim().length>=3, conCli=hayCli?lista.map(p=>({p,n:p.units.filter(logMatchCli).length})).filter(x=>x.n):[];
+  const nomCli=[...new Set(lista.flatMap(p=>p.units.filter(logMatchCli).map(u=>u.cliente)))];
+  const bannerCli=hayCli&&conCli.length&&nomCli.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">👤 <b>'+_escRes(nomCli.slice(0,4).join(', '))+(nomCli.length>4?' y '+(nomCli.length-4)+' más':'')+'</b>: '+conCli.reduce((a,x)=>a+x.n,0)+' máquina(s) en '+conCli.length+' pedido(s) · '+conCli.map(x=>'<a href="#" onclick="logSel(\''+x.p.codigo+'\');return false" style="color:inherit;font-weight:700">'+_escRes(x.p.titulo||x.p.codigo)+' ('+x.n+')</a>').join(' · ')+(LOG.ver==='activos'?' <span style="color:#6B7280">— solo pedidos activos; elige «Todos» para incluir los ya recibidos</span>':'')+'</div>':'';
   const act=LOG.pedidos.filter(logActivo), atras=act.filter(p=>logAtraso(p)>0);
   const enRuta=act.reduce((s,p)=>s+p.units.length,0), fobTot=act.reduce((s,p)=>s+(p.fob||0),0);
   const kpi=(t,n,col,s)=>'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px"><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+t+'</div><div style="font-size:22px;font-weight:800;color:'+col+'">'+n+'</div>'+(s?'<div style="font-size:11px;color:var(--text3)">'+s+'</div>':'')+'</div>';
@@ -7123,20 +7164,21 @@ function logRender(){
       +'<div style="position:absolute;left:10px;bottom:8px;display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text2);background:rgba(255,255,255,.88);padding:3px 9px;border-radius:6px"><span><b style="color:#F59E0B">●</b> Fabricación</span><span><b style="color:#2563EB">●</b> Lista · Embarcada</span><span><b style="color:#7C3AED">●</b> Nacionalizada · T. local</span><span><b style="color:#16A34A">●</b> Disponible en AYJ</span><span><b style="color:#DC2626">●</b> Atrasado</span></div>'
       +'<div id="logGloboMsg" style="position:absolute;right:10px;bottom:8px;text-align:right;max-width:50%;font-size:11px;color:var(--text2);background:rgba(255,255,255,.88);padding:2px 8px;border-radius:6px"></div></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
-      +'<input type="text" placeholder="Buscar pedido, serial, buque, contenedor…" value="'+_escRes(LOG.q)+'" oninput="LOG.q=this.value;logRender();logFoco()" id="logQ" style="min-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">'
+      +'<input type="text" placeholder="Buscar pedido, serial, cliente, vendedor, buque…" value="'+_escRes(LOG.q)+'" oninput="LOG.q=this.value;logRender();logFoco()" id="logQ" style="min-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">'
+      +'<select onchange="LOG.cli=this.value;logRender()" title="Ver los pedidos de un solo cliente" style="max-width:220px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todos los clientes</option>'+clientes.map(c=>'<option value="'+_escRes(c)+'"'+(LOG.cli===c?' selected':'')+'>'+_escRes(c)+'</option>').join('')+'</select>'
       +'<select onchange="LOG.fab=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todas las fábricas</option>'+fabs.map(f=>'<option'+(LOG.fab===f?' selected':'')+'>'+_escRes(f)+'</option>').join('')+'</select>'
       +'<select onchange="LOG.ver=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="activos"'+(LOG.ver==='activos'?' selected':'')+'>Pedidos activos</option><option value="recibidos"'+(LOG.ver==='recibidos'?' selected':'')+'>Ya recibidos en AYJ</option><option value="todos"'+(LOG.ver==='todos'?' selected':'')+'>Todos</option></select>'
       +'<span style="flex:1"></span><button class="btn-sec" onclick="logReporteAbrir()" title="Reporte del estado de los pedidos con fechas estimadas y reales y notas, para comunicar al equipo">📄 Reporte</button><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
     +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.map(k=>k==='transp'?'Transportista (texto)':k).join(', ')+'</div>':'')
     +(LOG.sinCodigo.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">ℹ Hay máquinas con N° de PEDIDO de marcas sin código de fábrica: <b>'+_escRes(LOG.sinCodigo.join(', '))+'</b>. Agrega su código en <code>LOG_FAB</code> (index.html) para que se alineen con la lista de pedidos.</div>':'')
-    +'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr><th>Pedido</th><th>Fase y avance total</th><th>Avance por fases</th><th>Máquinas</th><th>Creado</th><th>Fabricación</th><th>Despacho</th><th>Zarpe</th><th>Llegada a puerto</th><th>Llegada a AYJ</th><th></th></tr></thead><tbody>'
+    +bannerCli+'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr>'+logTh('pedido','Pedido')+logTh('avance','Fase y avance total')+logTh('fase','Avance por fases')+logTh('maq','Máquinas')+logTh('creado','Creado')+logTh('fab','Fabricación')+logTh('desp','Despacho')+logTh('zarpe','Zarpe')+logTh('puerto','Llegada a puerto')+logTh('ayj','Llegada a AYJ')+'<th></th></tr></thead><tbody>'
     +(lista.map(p=>{
-      const fz=logFaseInfo(p), av=fz.av, at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
+      const fz=logFaseInfo(p), av=fz.av, at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, ncli=hayCli?p.units.filter(logMatchCli).length:0, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
       const dias=eta&&!p.ayjReal?Math.round((eta-hoy)/86400000):null;
       return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
         +'<td><strong style="font-size:14px">'+_escRes(p.titulo||p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
         +'<td style="min-width:150px"><span style="background:'+fz.bg+';color:'+fz.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(fz.txt)+'</span><div style="display:flex;align-items:center;gap:6px;margin-top:6px" title="Avance total del pedido: de la creación a la llegada a AYJ">'+logBarra(av.total,'#575756',9)+'<b style="font-size:11px;min-width:32px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:2px">atrasado '+at+' d</div>':'')+logDesvUltima(p)+'</td><td style="min-width:230px">'+logBarrasFases(av)+'</td>'
-        +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
+        +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(ncli?'<div style="font-size:10px;color:#1D4ED8;font-weight:700">👤 '+ncli+' del cliente</div>':'')+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
         +'<td style="font-size:12px;white-space:nowrap">'+(p.creado?logF(p.creado):'—')+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.fabEst,p.fabReal)+'</td><td style="font-size:12px">'+logCelda(p.despEst,p.despReal)+'</td><td style="font-size:12px">'+logCelda(p.zarpeEst,p.zarpeReal)+'</td>'
         +'<td style="font-size:12px">'+logCelda(p.puertoEst,p.puertoReal)+(p.pDestino?'<div style="font-size:10px;color:var(--text2)">'+_escRes(p.pDestino)+'</div>':'')+'</td>'
@@ -7153,8 +7195,8 @@ function logDetalle(p){
   const datos=[['Origen',[p.ciudad,p.pOrigen].filter(Boolean).join(' · ')],['Destino',p.pDestino],['Buque',p.buque],['Transportista',p.transp],['Tipo de contenedor',p.tipoCont],['N° de contenedor',p.numCont],['Precio FOB',p.fob?'USD '+Math.round(p.fob).toLocaleString('es-CO'):'']].filter(x=>x[1]).map(x=>'<span style="margin-right:16px"><b style="color:var(--text2)">'+x[0]+':</b> '+_escRes(x[1])+'</span>').join('');
   const sinCoord=(!logCoord(p.ciudad)&&!logCoord(p.pOrigen))||!logCoord(p.pDestino);
   return '<div style="margin-bottom:10px">'+logPanelAvance(p)+'</div><div style="font-size:12px;margin-bottom:8px">'+(datos||'<span style="color:var(--text3)">Sin datos de ruta todavía (ciudad de origen, puertos, buque, contenedor).</span>')+(p.notas?'<div style="margin-top:4px;color:var(--text2)">📝 '+_escRes(p.notas)+'</div>':'')+(sinCoord?'<div style="margin-top:4px;color:#92400E">⚠ Para ver este pedido en el globo falta reconocer el origen o el puerto de destino (escribe una ciudad/puerto conocido, ej. Shanghai, Genova, Cartagena).</div>':'')+'</div>'
-    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th><th>Vendedor</th><th>Urgencia de entrega</th></tr></thead><tbody>'
-    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px;cursor:pointer" onclick="logCliente(\''+u.id+'\')" title="'+(u.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(u.cliente?'<span'+(u.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(u.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td><td style="font-size:12px">'+(u.vendedor?_escRes(u.vendedor):'<span style="color:var(--text3)">—</span>')+'</td><td style="font-size:12px">'+logPrioHTML(u.prio)+'</td></tr>').join('')||'<tr><td colspan="7" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table><div id="lgU_det" style="margin-top:12px"></div>';
+    +'<table class="hist-table"><thead><tr>'+logThU('titulo','Máquina')+logThU('serial','Serial')+logThU('ubic','Ubicación')+logThU('estado','Estado')+logThU('cliente','Cliente')+logThU('vendedor','Vendedor')+logThU('prio','Urgencia de entrega')+'</tr></thead><tbody>'
+    +(logUnidadesOrd(p).map(u=>'<tr'+(logMatchCli(u)?' style="background:#FEF9C3"':'')+'><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px;cursor:pointer" onclick="logCliente(\''+u.id+'\')" title="'+(u.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(u.cliente?'<span'+(u.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(u.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td><td style="font-size:12px">'+(u.vendedor?_escRes(u.vendedor):'<span style="color:var(--text3)">—</span>')+'</td><td style="font-size:12px">'+logPrioHTML(u.prio)+'</td></tr>').join('')||'<tr><td colspan="7" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table><div id="lgU_det" style="margin-top:12px"></div>';
 }
 function logCliente(uid){
   const u=LOG.units.find(x=>String(x.id)===String(uid)); if(!u) return;
