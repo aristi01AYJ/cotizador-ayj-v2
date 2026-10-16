@@ -2878,6 +2878,8 @@ async function guardarCotizacion(){
       Validez:validez,
       Items:JSON.stringify(carrito.map(i=>({nombre:i.nombre,tipo:i.tipo,cantidad:i.cantidad,tarifaUSD:i.tarifa,costoAYJ:i.costoAYJ||0,marca:i.marca||'',modelo:i.modelo||'',tipologia:i.tipologia||'',origen:(i.id&&String(i.id).startsWith('liq_'))?'LIQ':'TAR',...liqItemParaGuardar(i),...(i.evento?{ev:i.evento,cb:i.combo||''}:{}),...(i.noMaquina?{nm:1}:{})}))),
     };
+    { const cs=document.getElementById('contactoSel'), ct=cs&&cs.value!==''&&cs._contactos?cs._contactos[parseInt(cs.value)]:null;   // contacto de la oferta (columna Contacto de Cotizaciones)
+      if(ct) fields.Contacto=[ct.nombre,ct.cargo,ct.email,ct.telefono].map(x=>String(x||'').replace(/\|/g,'/').trim()).join('|'); }
     // Posible cierre (opcional) — si no se definió, simplemente no se mandan estos campos.
     // PosibleCierre es solo registro histórico de qué opción se eligió (30/60/90/Personalizada);
     // FechaCierre es el dato que de verdad se usa para calcular la Fecha de Seguimiento.
@@ -3749,6 +3751,7 @@ async function cargarHistorial(){
         fechaSeguimiento:parsearFechaSharePoint(f[SP_COLS_COT.FechaSeguimiento])||calcularFechaSeguimiento(parsearFechaSharePoint(f[SP_COLS_COT.FechaCierre])),
         posibleCierre:f[SP_COLS_COT.PosibleCierre]||'',
         resultado:String(f[SP_COLS_COT.ResultadoOferta]||'').trim(),
+        contacto:String(f.Contacto||'').trim(),
       };
     });
     poblarVendedoresHistorial();
@@ -3945,7 +3948,7 @@ function filtrarHistorial(){
         +'<td style="text-align:center;white-space:nowrap">'
         +(r.linkPDF?'<a href="'+r.linkPDF+'" target="_blank" class="btn-cli-usar" style="border-color:var(--red);color:var(--red);text-decoration:none;" title="Ver oferta"><i class="ti ti-file-type-pdf"></i></a> ':'' )
         +(r.linkPDF?'<button class="btn-cli-usar" onclick="generarLinkClienteIdx(\''+r.id+'\')" title="Generar link para que el cliente firme"><i class="ti ti-send"></i></button> ':'' )
-        +(r.items.length?'<button class="btn-cli-usar" onclick=\'duplicarOferta('+JSON.stringify(r.cliente)+','+JSON.stringify(r.items)+')\' title="Duplicar en carrito"><i class="ti ti-copy"></i></button>':'' )
+        +(r.items.length?'<button class="btn-cli-usar" onclick=\'duplicarOferta('+JSON.stringify(r.cliente)+','+JSON.stringify(r.items)+','+JSON.stringify(r.contacto||'')+')\' title="Duplicar en carrito"><i class="ti ti-copy"></i></button>':'' )
         +(r.vendedor&&currentUserName&&(r.vendedor===currentUserName||asesorLabel(currentUserName)===asesorLabel(r.vendedor))?
           ' <button class="btn-cli-usar" onclick="editarOfertaIdx(\''+r.id+'\')" title="Editar oferta" style="border-color:var(--green);color:var(--green-dark)"><i class="ti ti-edit"></i></button>'
           +' <button class="btn-cli-usar" onclick="borrarOfertaIdx(\''+r.id+'\')" title="Borrar oferta" style="border-color:var(--red);color:var(--red)"><i class="ti ti-trash"></i></button>'
@@ -3960,11 +3963,13 @@ function filtrarHistorial(){
 }
 
 
-function duplicarOferta(cliente, itemsData){
+function duplicarOferta(cliente, itemsData, contacto){
   if(carrito.length>0 && !confirm('¿Cargar esta oferta? Se reemplazará el carrito actual.')) return;
   // Cargar cliente
   document.getElementById('clienteInput').value=cliente;
+  { const cs=document.getElementById('contactoSel'); if(cs) cs._contactos=null; }
   filtrarClienteInput(cliente);
+  restaurarContactoOferta(cliente,contacto,true);
   // Reconstruir carrito desde los items guardados
   carrito=[];
   itemsData.forEach(item=>{
@@ -5443,6 +5448,26 @@ function borrarOfertaIdx(id){
   else showToast('Error: oferta no encontrada','error');
 }
 
+// Restaura en el desplegable el contacto con el que se hizo la oferta. Se guarda en la columna Contacto de Cotizaciones como «nombre|cargo|email|teléfono».
+// esperar=true: ya hay una carga de contactos en curso (duplicar) y solo se espera a que termine.
+async function restaurarContactoOferta(cliente,guardado,esperar){
+  try{
+    const sel=document.getElementById('contactoSel'); if(!sel||!cliente) return;
+    if(esperar){ for(let k=0;k<50&&!sel._contactos;k++) await new Promise(r=>setTimeout(r,100)); }
+    else{ sel._contactos=null; await onClienteSeleccionado(cliente); }
+    if(!sel._contactos) sel._contactos=[];
+    const p=String(guardado||'').split('|'), nom=(p[0]||'').trim();
+    if(!nom) return;   // oferta sin contacto guardado: queda como lo dejó la carga del cliente (nunca el último contacto usado)
+    let i=sel._contactos.findIndex(c=>c.nombre.trim().toLowerCase()===nom.toLowerCase());
+    if(i<0){   // el contacto ya no está en la lista del cliente: se conserva el de la oferta
+      sel._contactos.push({nombre:nom,cargo:(p[1]||'').trim(),email:(p[2]||'').trim(),telefono:(p[3]||'').trim()}); i=sel._contactos.length-1;
+      sel.innerHTML='<option value="">— Seleccionar contacto —</option>'+sel._contactos.map((c,k)=>`<option value="${k}">${c.nombre}${c.cargo?' · '+c.cargo:''}</option>`).join('');
+      const w=document.getElementById('contactoWrap'); if(w) w.style.display='block';
+    }
+    sel.value=String(i); onContactoSeleccionado();
+  }catch(e){ console.warn('No se pudo restaurar el contacto de la oferta:',e.message); }
+}
+
 async function editarOferta(itemId, r){
   // Cargar datos de la oferta en el carrito
   if(carrito.length>0){
@@ -5484,6 +5509,8 @@ async function editarOferta(itemId, r){
   // Cargar cliente
   const clienteInput=document.getElementById('clienteInput');
   if(clienteInput) clienteInput.value=r.cliente||'';
+  { const info=document.getElementById('clienteInfo'), m=clientesData.find(c=>c.titulo.toLowerCase()===(r.cliente||'').toLowerCase());   // datos del cliente de ESTA oferta (antes quedaban los del cliente anterior)
+    if(info){ if(m){ info.style.display='block'; info.textContent=[m.nombre,m.ciudad,m.telefono].filter(Boolean).join(' · '); } else info.style.display='none'; } }
 
   // Restaurar descuento
   if(r.desc>0||r.descEspecial){
@@ -5568,30 +5595,8 @@ async function editarOferta(itemId, r){
   if(idSynInputEdit) idSynInputEdit.value=r.idSynergy||'';
   poblarAsesorSel(r.vendedor||currentUserName);
 
-  // Restaurar contacto — cargar contactos del cliente y seleccionar
-  if(r.cliente){
-    setTimeout(async()=>{
-      try{
-        await cargarListaContactos();
-        const token=await getToken();
-        const resp=await fetch(
-          `https://graph.microsoft.com/v1.0/sites/${siteIdComercial}/lists/${listIdContactos}/items?expand=fields&$top=500`,
-          {headers:{Authorization:'Bearer '+token}}
-        ).then(res=>res.json());
-        const contactosCliente=(resp.value||[])
-          .filter(i=>(i.fields?.Title_x003a_Cliente||i.fields?.ClienteLookupId||i.fields?.Cliente||'').toString().toLowerCase().includes((r.cliente||'').toLowerCase().substring(0,10)))
-          .map(i=>({id:i.id,nombre:i.fields?.Title||'',cargo:i.fields?.Cargo||'',email:i.fields?.Email||'',telefono:i.fields?.Telefono||''}))
-          .filter(c=>c.nombre);
-        const wrap=document.getElementById('contactoWrap');
-        const sel=document.getElementById('contactoSel');
-        if(wrap&&sel&&contactosCliente.length>0){
-          sel.innerHTML='<option value="">— Sin contacto —</option>'+contactosCliente.map((c,i)=>`<option value="${i}">${c.nombre}${c.cargo?' · '+c.cargo:''}</option>`).join('');
-          sel._contactos=contactosCliente;
-          wrap.style.display='flex';
-        }
-      }catch(e){console.warn('No se pudieron cargar contactos al reabrir:',e.message);}
-    },800);
-  }
+  // Restaurar contacto: el guardado en la oferta (no el último contacto usado)
+  if(r.cliente) restaurarContactoOferta(r.cliente,r.contacto);
 
   // Aviso liquidador
   {
