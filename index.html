@@ -6789,7 +6789,7 @@ function logLineaHTML(p){
 function logPanelAvance(p){
   const av=logAvance(p);
   return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;background:#fff"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Avance y desviación frente a lo estimado</div><div style="display:flex;gap:18px;flex-wrap:wrap">'
-    +'<div style="flex:1 1 250px;min-width:0"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px" title="Avance total del pedido"><span style="font-size:10px;width:104px;font-weight:700">Avance total</span>'+logBarra(av.total,'#575756',10)+'<b style="font-size:11px;min-width:30px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+logBarrasFases(av)+'</div>'
+    +'<div style="flex:1 1 250px;min-width:0"><div style="margin-bottom:8px">'+logEscena(p)+'</div><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px" title="Avance total del pedido"><span style="font-size:10px;width:104px;font-weight:700">Avance total</span>'+logBarra(av.total,'#575756',10)+'<b style="font-size:11px;min-width:30px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+logBarrasFases(av)+'</div>'
     +'<div style="flex:2 1 340px;min-width:0">'+logLineaHTML(p)+'</div></div></div>';
 }
 // ── ficha: encabezado con fábrica + panel vivo que se recalcula al editar fechas ──
@@ -6872,6 +6872,102 @@ async function logUpdNota(codigo){
   try{ await logUpdAgregar(codigo,'📝 '+t); await logUpdCargar(true); showToast('✓ Actualización registrada','success'); }
   catch(e){ showToast('No se pudo registrar: '+e.message,'error'); return; }
   logUpdPintar('lgU_det',codigo,'detalle');
+}
+// ── Animaciones livianas ──
+// 1) Mapa: barco con contenedores (en el mar), engranaje girando (en fabricación) y camión (transporte local); se redibuja solo la capa de rutas y marcadores (el mapa de fondo se guarda en caché).
+// 2) Ficha / detalle del pedido: escena SVG de la fase actual (robot armando la máquina, barco navegando, camión, llegada a AYJ). Es SVG con animación nativa: no gasta JavaScript.
+// Si el usuario tiene activado «reducir movimiento» en su sistema, todo queda quieto.
+function logHeading(dir){ const dx=dir[0], dy=dir[1]; const flip=dx<0; let ang=Math.atan2(dy,Math.abs(dx)||1e-6); ang=Math.max(-0.5,Math.min(0.5,ang)); return {flip,ang}; }
+const LOG_CONT_COL=['#E85D3A','#2F7DD1','#F2B134','#3BA776'];
+function logDibBarco(ctx,x,y,dir,color,sel,t,seed){
+  const h=logHeading(dir), esc=sel?1.3:1;
+  ctx.save(); ctx.translate(x,y+Math.sin(t/700+seed)*1.1);
+  if(h.flip) ctx.scale(-1,1);
+  ctx.rotate(h.ang+Math.sin(t/900+seed)*0.035); ctx.scale(esc,esc);
+  const ga=ctx.globalAlpha;
+  for(let i=0;i<3;i++){ const f=((t/1100+i/3)%1); ctx.globalAlpha=ga*(1-f)*0.55; ctx.beginPath(); ctx.arc(-16-f*20,4.5,2+f*3.2,0,7); ctx.strokeStyle='#fff'; ctx.lineWidth=1.2; ctx.stroke(); }   // estela
+  ctx.globalAlpha=ga;
+  if(sel){ ctx.beginPath(); ctx.arc(0,0,19,0,7); ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(16,0); ctx.lineTo(12,6.5); ctx.lineTo(-13,6.5); ctx.closePath(); ctx.fillStyle='#1F2A44'; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.stroke();   // casco
+  ctx.fillStyle=color; ctx.fillRect(-15,0.4,30,2);   // franja del color de la fase
+  ctx.fillStyle='#F3F4F6'; ctx.fillRect(-14,-8,5,8); ctx.fillStyle='#93C5FD'; ctx.fillRect(-13,-6.5,3,1.6);   // puente
+  for(let r=0;r<2;r++) for(let c=0;c<3;c++){ ctx.fillStyle=LOG_CONT_COL[(Math.floor(seed)+c+r*2)%4]; ctx.fillRect(-7+c*7.4,-4.6-r*4.6,6.6,4.2); }   // contenedores apilados
+  ctx.restore();
+}
+function logDibEngranaje(ctx,x,y,color,sel,t){
+  const R=sel?10:8; ctx.save(); ctx.translate(x,y); ctx.rotate(t/1400);
+  ctx.beginPath(); for(let i=0;i<16;i++){ const a=i/16*Math.PI*2, r=i%2?R*0.78:R; ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r); } ctx.closePath();
+  ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.6; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,R*0.34,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.restore();
+}
+function logDibCamion(ctx,x,y,dir,color,sel,t){
+  const h=logHeading(dir), esc=sel?1.3:1;
+  ctx.save(); ctx.translate(x,y+Math.sin(t/180)*0.5); if(h.flip) ctx.scale(-1,1); ctx.rotate(h.ang); ctx.scale(esc,esc);
+  ctx.fillStyle=color; ctx.fillRect(-11,-7,15,9); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(-11,-7,15,9);   // contenedor
+  ctx.fillStyle='#374151'; ctx.fillRect(5,-3.5,7,5.5); ctx.fillStyle='#BFDBFE'; ctx.fillRect(9,-2.6,2.4,2);   // cabina
+  ctx.fillStyle='#111827'; [-7,-1,8].forEach(wx=>{ ctx.beginPath(); ctx.arc(wx,3.4,2.1,0,7); ctx.fill(); });
+  ctx.restore();
+}
+// ── escena de la fase (SVG animado) ──
+function logEscena(p){
+  const av=logAvance(p), i=av.idx, u=(LOG._sc=(LOG._sc||0)+1), tx=(t,x,y,c)=>'<text x="'+x+'" y="'+y+'" font-size="9" font-weight="700" fill="'+(c||'#374151')+'" font-family="inherit">'+t+'</text>';
+  const pct=Math.round(av.f[Math.min(i,2)]*100), rot=(a,b,cx,cy,dur)=>'<animateTransform attributeName="transform" type="rotate" values="'+a+' '+cx+' '+cy+';'+b+' '+cx+' '+cy+';'+a+' '+cx+' '+cy+'" dur="'+dur+'s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.5;1" keySplines=".4 0 .6 1;.4 0 .6 1"/>';
+  const bob=(dy,dur)=>'<animateTransform attributeName="transform" type="translate" values="0 0;0 '+dy+';0 0" dur="'+dur+'s" repeatCount="indefinite"/>';
+  const nube=(y,dur,beg)=>'<g opacity=".85"><ellipse cx="0" cy="'+y+'" rx="16" ry="5" fill="#fff"/><ellipse cx="11" cy="'+(y+2)+'" rx="12" ry="4" fill="#fff"/><animateTransform attributeName="transform" type="translate" from="-40 0" to="340 0" dur="'+dur+'s" begin="'+beg+'s" repeatCount="indefinite"/></g>';
+  let body='', cielo='#DCEEFB';
+  if(i===0){   // robot armando la máquina: las piezas van apareciendo con el avance de la fábrica
+    const f=av.f[0], ver=m=>f>=m, parte=(on,svg,ghost)=>on?svg:ghost;
+    cielo='#EEF1E6';
+    body='<rect x="0" y="72" width="300" height="18" fill="#D6DAC8"/><rect x="0" y="72" width="300" height="1.5" fill="#B7BDA5"/>'
+      +'<g stroke="#9AA88A" stroke-dasharray="3 2" fill="none"><rect x="176" y="60" width="74" height="12" rx="2"/><rect x="184" y="34" width="14" height="26"/><rect x="180" y="26" width="72" height="10" rx="2"/></g>'
+      +parte(f>0.02,'<rect x="176" y="60" width="74" height="12" rx="2" fill="#5B6B4A"/>','')
+      +parte(ver(0.33),'<rect x="184" y="34" width="14" height="26" fill="#80A61B"/>','')
+      +parte(ver(0.66),'<rect x="180" y="26" width="72" height="10" rx="2" fill="#6F8F14"/><circle cx="214" cy="41" r="5" fill="#4B5563"><animateTransform attributeName="transform" type="rotate" from="0 214 41" to="360 214 41" dur="1.2s" repeatCount="indefinite"/></circle><rect x="213" y="36" width="2" height="10" fill="#D1D5DB"/>','')
+      +parte(ver(0.9),'<circle cx="242" cy="48" r="3.2" fill="#F2B134"><animate attributeName="opacity" values="1;.25;1" dur="1s" repeatCount="indefinite"/></circle>','')
+      +'<rect x="76" y="64" width="38" height="8" rx="2" fill="#4B5563"/>'      // base del robot
+      +'<g>'+rot(-7,7,95,64,3.2)+'<rect x="92" y="38" width="6" height="28" rx="3" fill="#F2B134"/><circle cx="95" cy="40" r="5" fill="#4B5563"/>'
+        +'<g>'+rot(22,-6,95,40,2.1)+'<rect x="93" y="37" width="72" height="6" rx="3" fill="#F2B134"/><rect x="160" y="34" width="9" height="12" rx="2" fill="#4B5563"/><circle cx="170" cy="40" r="3" fill="#EF4444"/>'
+        +'<circle cx="172" cy="40" r="6" fill="#FDE68A"><animate attributeName="opacity" values="0;.9;0" dur=".5s" repeatCount="indefinite"/></circle></g></g>'
+      +tx('Fabricación · '+pct+'%',8,14,'#5B6B4A');
+  } else if(i===1){   // barco con contenedores navegando
+    const cont=[...Array(8)].map((_,k)=>'<rect x="'+(112+(k%4)*21)+'" y="'+(28-Math.floor(k/4)*12)+'" width="19" height="11" fill="'+LOG_CONT_COL[(k+u)%4]+'" stroke="#fff" stroke-width=".6"/>').join('');
+    body='<g>'+nube(14,38,0)+nube(30,52,-18)+'</g><rect x="0" y="52" width="300" height="38" fill="#2F7DD1"/><rect x="0" y="52" width="300" height="38" fill="url(#lgw'+u+')"/>'
+      +'<g>'+bob(-2.2,2.4)+'<g>'+rot(-1.4,1.4,150,60,3)+'<path d="M92 50 L216 50 L202 66 L104 66 Z" fill="#1F2A44" stroke="#fff" stroke-width="1"/><rect x="96" y="50.6" width="116" height="3" fill="'+LOG_FASES[1].col+'"/><rect x="98" y="30" width="12" height="20" fill="#F3F4F6"/><rect x="100" y="34" width="8" height="3" fill="#93C5FD"/><rect x="102" y="22" width="4" height="8" fill="#EF4444"/>'+cont+'</g></g>'
+      +'<path d="M-40 60'+' q10 -5 20 0'+' t20 0'.repeat(18)+'" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.6"><animateTransform attributeName="transform" type="translate" from="0 0" to="40 0" dur="1.8s" repeatCount="indefinite"/></path>'
+      +'<path d="M-40 72'+' q10 5 20 0'+' t20 0'.repeat(18)+'" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.4"><animateTransform attributeName="transform" type="translate" from="40 0" to="0 0" dur="2.6s" repeatCount="indefinite"/></path>'
+      +tx('Lista · Embarcada · '+pct+'%',8,14,'#1E40AF')
+      +'<defs><linearGradient id="lgw'+u+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#0B3A6B" stop-opacity=".35"/></linearGradient></defs>';
+  } else if(i===2){   // camión llevando el contenedor hacia AYJ
+    cielo='#E9F0F7';
+    body='<g>'+nube(16,46,0)+'</g><polygon points="0,62 40,38 70,56 110,30 160,60 210,36 260,58 300,44 300,72 0,72" fill="#B7C9A8"/><rect x="0" y="68" width="300" height="22" fill="#6B7280"/><rect x="0" y="68" width="300" height="2" fill="#4B5563"/>'
+      +'<line x1="0" y1="79" x2="300" y2="79" stroke="#fff" stroke-width="2" stroke-dasharray="14 12"><animate attributeName="stroke-dashoffset" from="0" to="-26" dur=".7s" repeatCount="indefinite"/></line>'
+      +'<g>'+bob(-1.2,.5)+'<rect x="104" y="40" width="64" height="26" rx="1" fill="'+LOG_FASES[2].col+'" stroke="#fff" stroke-width=".8"/><g stroke="#fff" stroke-opacity=".5">'+[116,128,140,152].map(x=>'<line x1="'+x+'" y1="41" x2="'+x+'" y2="65"/>').join('')+'</g>'
+      +'<path d="M172 66 L172 46 L190 46 L198 56 L198 66 Z" fill="#374151"/><path d="M178 49 L188 49 L193 56 L178 56 Z" fill="#BFDBFE"/>'
+      +[116,150,186].map(cx=>'<g><circle cx="'+cx+'" cy="68" r="6.5" fill="#111827"/><circle cx="'+cx+'" cy="68" r="2.4" fill="#9CA3AF"/><line x1="'+(cx-5)+'" y1="68" x2="'+(cx+5)+'" y2="68" stroke="#9CA3AF" stroke-width="1"><animateTransform attributeName="transform" type="rotate" from="0 '+cx+' 68" to="360 '+cx+' 68" dur=".5s" repeatCount="indefinite"/></line></g>').join('')+'</g>'
+      +tx('Nacionalizada · Transporte local · '+pct+'%',8,14,'#5B21B6');
+  } else {   // en AYJ
+    body='<rect x="0" y="72" width="300" height="18" fill="#D6DAC8"/><rect x="170" y="30" width="96" height="42" fill="#F3F4F6" stroke="#9CA3AF"/><rect x="170" y="24" width="96" height="8" fill="#80A61B"/>'
+      +'<text x="190" y="31" font-size="7" font-weight="800" fill="#fff" font-family="inherit">AYJ MAQUINARIA</text><rect x="184" y="44" width="20" height="28" fill="#93C5FD"/><rect x="226" y="44" width="28" height="14" fill="#BFDBFE"/>'
+      +'<rect x="70" y="52" width="64" height="20" fill="'+LOG_FASES[3].col+'" stroke="#fff"/><g stroke="#fff" stroke-opacity=".5">'+[82,94,106,118].map(x=>'<line x1="'+x+'" y1="53" x2="'+x+'" y2="71"/>').join('')+'</g>'
+      +'<g transform="translate(150 28)"><circle r="11" fill="#16A34A"><animateTransform attributeName="transform" type="scale" values="1;1.12;1" dur="1.6s" repeatCount="indefinite"/></circle><path d="M-5 0 L-1.5 4 L5.5 -4" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>'
+      +[[60,20],[280,40],[130,14]].map((q,k)=>'<circle cx="'+q[0]+'" cy="'+q[1]+'" r="2" fill="#FBBF24"><animate attributeName="opacity" values="0;1;0" dur="'+(1.4+k*.4)+'s" repeatCount="indefinite"/></circle>').join('')
+      +tx('Disponible en AYJ',8,14,'#166534');
+  }
+  setTimeout(logEscenaPausa,0);
+  return '<svg class="lgsc" viewBox="0 0 300 90" width="100%" style="display:block;max-height:92px;border-radius:8px;background:'+cielo+'" role="img" aria-label="Fase del pedido: '+_escRes(av.fase.nom)+'" preserveAspectRatio="xMidYMid meet">'+body+'</svg>';
+}
+function logEscenaPausa(){ try{ if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches) document.querySelectorAll('svg.lgsc').forEach(s=>{ if(s.pauseAnimations) s.pauseAnimations(); }); }catch(e){} }
+// bucle del mapa: solo mientras el canvas está en pantalla, la pestaña está visible y hay algo que animar (≈14 cuadros por segundo)
+function logAnimLoop(){
+  if(LOG.animOn) return; LOG.animOn=true;
+  LOG.reducido=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const paso=()=>{
+    const c=LOG.cv, vista=document.getElementById('logisticaView');
+    if(!c||!c.isConnected){ LOG.animOn=false; return; }
+    if(LOG.animar&&!LOG.reducido&&!document.hidden&&vista&&vista.style.display!=='none') logDibujar();
+    LOG.animTimer=setTimeout(paso,70);
+  };
+  paso();
 }
 // puntos de la ruta [lon,lat] (por nombre de ciudad/puerto)
 function logRuta(p){
@@ -6975,18 +7071,21 @@ function logDibujar(){
   const c=LOG.cv; if(!c||!window.d3||!LOG.mundo||!c.isConnected) return;
   const W=c.clientWidth, H=c.clientHeight; if(!W||!H) return;
   const dpr=window.devicePixelRatio||1; if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){ c.width=Math.round(W*dpr); c.height=Math.round(H*dpr); }
-  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
-  const v=logVista(W,H);
-  ctx.fillStyle='#D9E8F5'; ctx.fillRect(0,0,W,H);
+  const ctxM=c.getContext('2d'); let ctx=ctxM;
+  const v=logVista(W,H), kb=[W,H,dpr,LOG.cen[0].toFixed(4),LOG.cen[1].toFixed(4),LOG.zoom.toFixed(5)].join('|'), nb=!LOG.base||LOG.base.key!==kb;   // nb: el encuadre cambió → hay que repintar el mapa de fondo
+  if(nb){ const bc=document.createElement('canvas'); bc.width=c.width; bc.height=c.height; LOG.base={key:kb,cv:bc}; ctx=bc.getContext('2d'); }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(nb){ ctx.fillStyle='#D9E8F5'; ctx.fillRect(0,0,W,H); }
   const copias=[]; for(let n=-4;n<=4;n++){ const x0=v.xp(-180)+n*v.ww, x1=v.xp(180)+n*v.ww; if(x1>=0&&x0<=W) copias.push(n); }
   const grat=d3.geoGraticule().step([30,30])();
-  copias.forEach(n=>{
+  if(nb) copias.forEach(n=>{
     const proj=d3.geoMercator().scale(v.s).center([0,0]).translate([v.xp(0)+n*v.ww,v.yp(0)]).precision(0.6), path=d3.geoPath(proj,ctx);
     ctx.beginPath(); path(grat); ctx.strokeStyle='rgba(110,140,170,.22)'; ctx.lineWidth=.5; ctx.stroke();
     ctx.beginPath(); path(LOG.mundo.paises); ctx.fillStyle='#EDF1E2'; ctx.fill();
     const col=LOG.mundo.paises.features.find(f=>String(f.id)==='170'); if(col){ ctx.beginPath(); path(col); ctx.fillStyle='#D3E6A3'; ctx.fill(); }
     ctx.beginPath(); path(LOG.mundo.bordes); ctx.strokeStyle='rgba(140,155,120,.55)'; ctx.lineWidth=.5; ctx.stroke();
   });
+  ctxM.setTransform(1,0,0,1,0,0); ctxM.drawImage(LOG.base.cv,0,0); ctxM.setTransform(dpr,0,0,dpr,0,0); ctx=ctxM; LOG.animar=false;
   LOG.marcas=[];
   const lista=logFiltrados(), etiquetas=lista.length<=8;
   const sede=n=>{ const x=v.xp(LOG_AYJ[0])+n*v.ww, y=v.yp(LOG_AYJ[1]); if(x<-10||x>W+10) return; ctx.fillStyle='#80A61B'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.fillStyle='#3F5A0A'; ctx.font='bold 11px sans-serif'; ctx.fillText('AYJ',x+8,y+4); };
@@ -7004,6 +7103,7 @@ function logDibujar(){
   pedidos.forEach(it=>{
     const {p,pos}=it;
     const T=pos.T, sel=p.codigo===LOG.sel, color=logColor(p), et=pos.etapa;
+    if(it.av.idx===0||et==='En el mar'||et==='Transporte local') LOG.animar=true;
     const lin=sel||it.av.idx===1||it.av.idx===2;   // solo los pedidos que ya van en camino (y el seleccionado) muestran su ruta
     const rc={l1:et==='Fábrica'?0:1,mar:et==='En el mar'?pos.t:(et==='Fábrica'||et==='Puerto de origen')?0:1,l3:(et==='Puerto'||et==='Transporte local')?it.av.f[2]:et==='AYJ'?1:0};   // fracción recorrida de cada tramo
     [-2,-1,0,1,2].forEach(n=>{   // las rutas usan longitudes continuas (pueden pasar de 180°): se prueban varios desplazamientos del mundo y lo que cae fuera de pantalla se descarta
@@ -7029,7 +7129,11 @@ function logDibujar(){
         if(ax>-30&&ax<W+30){ ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(x,y); ctx.setLineDash([]); ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.stroke(); ctx.beginPath(); ctx.arc(ax,ay,3,0,7); ctx.fillStyle=color; ctx.fill(); }
       }
       if(x>-20&&x<W+20&&y>-20&&y<H+20){
-        ctx.beginPath(); ctx.arc(x,y,sel?7:5.5,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke();
+        const tt=LOG.reducido?0:performance.now(), sd=(p.codigo.charCodeAt(p.codigo.length-1)||1)*1.7;
+        if(et==='En el mar'&&PO&&pos.seg!=null&&PO[pos.seg+1]) logDibBarco(ctx,x,y,[PO[pos.seg+1][0]-PO[pos.seg][0],PO[pos.seg+1][1]-PO[pos.seg][1]],color,sel,tt,sd);   // barco con contenedores
+        else if(et==='Transporte local'){ const A=T.pts[T.pts.length-1], B=T.pts[T.finMar]; logDibCamion(ctx,x,y,[X(A)-X(B),Y(A)-Y(B)],color,sel,tt); }               // camión
+        else if(it.av.idx===0) logDibEngranaje(ctx,x,y,color,sel,tt);                                                                                                   // en fabricación: engranaje girando
+        else { ctx.beginPath(); ctx.arc(x,y,sel?7:5.5,0,7); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.stroke(); }
         LOG.marcas.push({codigo:p.codigo,x,y,r:13,txt:p.codigo+' · '+it.av.fase.nom+' · avance '+Math.round(it.av.total*100)+'%'+(pos.etapa==='En el mar'?' · '+Math.round(pos.t*100)+'% de la travesía':'')});
         if(sel||etiquetas||lado){
           ctx.font='bold 11px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.fillStyle='#1F2937';
@@ -7214,7 +7318,7 @@ async function logIniciarGlobo(){
     if(nuevo) logGloboEventos(c);
     const sinRuta=logFiltrados().filter(p=>!logPosicion(p)).length;
     if(msg&&sinRuta) msg.textContent=sinRuta+' pedido(s) sin ciudad/puerto reconocido: no se pueden ubicar en el globo todavía.';
-    logDibujar();
+    logDibujar(); logAnimLoop();
   }catch(e){ if(msg) msg.textContent='No se pudo cargar el mapa ('+e.message+'). La tabla funciona igual.'; }
 }
 // ── edición ──
