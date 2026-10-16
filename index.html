@@ -6620,6 +6620,14 @@ function logPrefijo(marca){ const k=String(marca||'').toUpperCase().replace(/[^A
 function logCodigo(pref,num){ const n=parseInt(num); if(!pref||isNaN(n)) return ''; return pref+String(n).padStart(2,'0'); }
 function logPartes(c){ const m=String(c||'').trim().toUpperCase().replace(/\s+/g,'').match(/^([A-Z]+)0*(\d+)$/); return m?{pref:m[1],num:parseInt(m[2])}:null; }
 function logNormCodigo(c){ const t=String(c||'').trim().toUpperCase().replace(/\s+/g,''); const p=logPartes(t); return p?logCodigo(p.pref,p.num):t; }   // NX9 ≡ NX09; WM1-2025 y BL01_26 se respetan tal cual
+function logPrioHTML(t){
+  const x=String(t||'').trim(); if(!x) return '<span style="color:var(--text3)">—</span>';
+  const k=logNorm(x); let c='#374151', bg='#F3F4F6';
+  if(/alta|urgente|critic|inmediat|^1$|^1\D/.test(k)||/^(alta|urgente)/.test(k)){ c='#B91C1C'; bg='#FEE2E2'; }
+  else if(/media|normal|^2$|^2\D/.test(k)){ c='#92400E'; bg='#FEF3C7'; }
+  else if(/baja|^3$|^3\D|sin/.test(k)){ c='#166534'; bg='#DCFCE7'; }
+  return '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;color:'+c+';background:'+bg+'">'+_escRes(x)+'</span>';
+}
 const logEnCamino=u=>/importa|fabrica/i.test(u.estadoStock);   // ESTADO de la máquina: En Importación o En Fabricación (todavía no está en AYJ)
 const logF=d=>d?d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'2-digit'}):'';
 const logInput=d=>d?new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10):'';
@@ -6662,7 +6670,7 @@ function logColPedido(cols){
 async function logUnidades(){
   const items=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO','RESERVADA','VENDIDA'],200);
   const cols=await columnasCatalogo();
-  const cPed=logColPedido(cols), cUb=buscarColCat(cols,['ubicacion']), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
+  const cPed=logColPedido(cols), cPr=buscarColCat(cols,['prioridad','urgencia','urgenciaentrega','urgenciadeentrega']), cUb=buscarColCat(cols,['ubicacion']), cFD=buscarColCat(cols,['fechadisponible','fechadedisponibilidad','fechadisponibilidad']), cFC=buscarColCat(cols,['fechacreado','fechadecreado','fechacreacion']);
   LOG.catCols={ped:cPed&&cPed.name,fd:cFD&&cFD.name,fc:cFC&&cFC.name};
   const campos=window._catCampos||{marcaField:'Marca'};
   LOG.units=items.map(i=>{
@@ -6674,9 +6682,11 @@ async function logUnidades(){
     const vUb=cUb?f[cUb.name]:(f.Ubicaci_x00f3_n||f.Ubicacion), ubicRaw=String(vUb&&typeof vUb==='object'?(vUb.LookupValue||vUb.Value||''):(vUb||'')).trim();
     const tarRaw=f.TARIFA||f.TARIFA_SUGERIDO||0, tarifa=tarRaw?(parseFloat(String(tarRaw).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0):0;
     const tip=String(f[campos.tipologiaField]||f.Tipolog_x00ed_a||f.Tipologia||'').trim();
-    return {ubicRaw,ubicK:logUbicDe(ubicRaw),tip,tarifa,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,raw,pref:pt?pt.pref:(codigo.match(/^[A-Z]+/)||[''])[0],estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
+    const vP=cPr?f[cPr.name]:(f.PRIORIDAD!=null?f.PRIORIDAD:f.Prioridad), prio=String(vP&&typeof vP==='object'?(vP.LookupValue||vP.Value||''):(vP==null?'':vP)).trim();
+    return {prio,vendedor:'',ubicRaw,ubicK:logUbicDe(ubicRaw),tip,tarifa,obsRaw:String(f.Observaciones||''),id:i.id,titulo:String(f.Title||'').trim(),idMQ:String(f.ID_MQ||'').trim(),marca,raw,pref:pt?pt.pref:(codigo.match(/^[A-Z]+/)||[''])[0],estadoSel:String(f.ESTADO_||'').trim().toUpperCase(),estadoStock:String(f.ESTADO||'').trim(),
       num:pt?pt.num:null,codigo,fCreado:cFC?logFechaDe(f[cFC.name]):null,fDisp:cFD?logFechaDe(f[cFD.name]):null,cliente:String(cliente||'').trim(),clienteCampo,obs};
   });
+  try{ await resolverVendedoresReservas(items,LOG.units); }catch(e){ console.warn('[AYJ] Logística: no se pudo resolver el vendedor de las máquinas:',e.message); }   // llena .vendedor (columna Vendedor; si está vacía, quien modificó el registro)
 }
 async function logCargar(){
   LOG.cargando=true; LOG.error=''; logRender();
@@ -7143,8 +7153,8 @@ function logDetalle(p){
   const datos=[['Origen',[p.ciudad,p.pOrigen].filter(Boolean).join(' · ')],['Destino',p.pDestino],['Buque',p.buque],['Transportista',p.transp],['Tipo de contenedor',p.tipoCont],['N° de contenedor',p.numCont],['Precio FOB',p.fob?'USD '+Math.round(p.fob).toLocaleString('es-CO'):'']].filter(x=>x[1]).map(x=>'<span style="margin-right:16px"><b style="color:var(--text2)">'+x[0]+':</b> '+_escRes(x[1])+'</span>').join('');
   const sinCoord=(!logCoord(p.ciudad)&&!logCoord(p.pOrigen))||!logCoord(p.pDestino);
   return '<div style="margin-bottom:10px">'+logPanelAvance(p)+'</div><div style="font-size:12px;margin-bottom:8px">'+(datos||'<span style="color:var(--text3)">Sin datos de ruta todavía (ciudad de origen, puertos, buque, contenedor).</span>')+(p.notas?'<div style="margin-top:4px;color:var(--text2)">📝 '+_escRes(p.notas)+'</div>':'')+(sinCoord?'<div style="margin-top:4px;color:#92400E">⚠ Para ver este pedido en el globo falta reconocer el origen o el puerto de destino (escribe una ciudad/puerto conocido, ej. Shanghai, Genova, Cartagena).</div>':'')+'</div>'
-    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>'
-    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px;cursor:pointer" onclick="logCliente(\''+u.id+'\')" title="'+(u.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(u.cliente?'<span'+(u.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(u.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table><div id="lgU_det" style="margin-top:12px"></div>';
+    +'<table class="hist-table"><thead><tr><th>Máquina</th><th>Serial</th><th>Ubicación</th><th>Estado</th><th>Cliente</th><th>Vendedor</th><th>Urgencia de entrega</th></tr></thead><tbody>'
+    +(p.units.map(u=>'<tr><td style="font-size:12px"><strong>'+_escRes(u.titulo)+'</strong></td><td style="font-size:12px">'+_escRes(u.idMQ||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoStock||'—')+'</td><td style="font-size:12px">'+_escRes(u.estadoSel==='VENDIDA'?'Vendida':u.estadoSel==='RESERVADA'?'Reservada':'Disponible')+'</td><td style="font-size:12px;cursor:pointer" onclick="logCliente(\''+u.id+'\')" title="'+(u.clienteCampo?'Clic para cambiar el cliente':'Clic para guardar el cliente en la columna Cliente de TODAS_2025')+'">'+(u.cliente?'<span'+(u.clienteCampo?'':' style="font-style:italic;color:#92400E"')+'>'+_escRes(u.cliente)+'</span>':'<span style="color:var(--text3);border:1px dashed var(--border);border-radius:8px;padding:0 6px">＋ asignar</span>')+'</td><td style="font-size:12px">'+(u.vendedor?_escRes(u.vendedor):'<span style="color:var(--text3)">—</span>')+'</td><td style="font-size:12px">'+logPrioHTML(u.prio)+'</td></tr>').join('')||'<tr><td colspan="7" style="color:var(--text3);font-size:12px">Ninguna máquina de TODAS_2025 tiene este código en la columna PEDIDO.</td></tr>')+'</tbody></table><div id="lgU_det" style="margin-top:12px"></div>';
 }
 function logCliente(uid){
   const u=LOG.units.find(x=>String(x.id)===String(uid)); if(!u) return;
