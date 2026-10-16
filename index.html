@@ -423,7 +423,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           </select>
           <input type="text" id="garantiaCustomInput" placeholder="Ej: 3 meses, sin garantía..." style="display:none;margin-top:4px;width:100%;padding:4px 8px;border:1px solid #F59E0B;border-radius:var(--radius);font-size:12px;font-family:inherit;background:#fffbf0" oninput="window._garantiaPersonalizada=this.value">
         </div>
-        <div class="field-group">
+        <div class="field-group" style="position:relative">
           <label>Posible cierre</label>
           <div style="display:flex;gap:4px;align-items:center">
             <select id="cierreSel" onchange="onCierreChange(this.value)">
@@ -437,7 +437,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
             </select>
             <input type="date" id="cierreCustomInput" onchange="actualizarCierreLabel()" style="display:none">
           </div>
-          <div id="cierreLabel" style="font-size:10px;color:var(--text2);margin-top:2px"></div>
+          <div id="cierreLabel" style="font-size:10px;color:var(--text2);position:absolute;left:0;top:100%;margin-top:2px;white-space:nowrap"></div>
         </div>
         <div class="field-group">
           <label>Seguimiento</label>
