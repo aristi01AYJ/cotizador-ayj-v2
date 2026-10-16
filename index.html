@@ -478,6 +478,10 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
           <div id="modalidadLabel" style="font-size:10px;color:var(--text2);margin-top:2px;display:none;max-width:260px"></div>
         </div>
         <div class="field-group" style="margin:0">
+          <label style="font-size:10px">Instalación</label>
+          <label style="font-size:12px;display:flex;gap:5px;align-items:center;padding:5px 0;cursor:pointer" title="La instalación, el montaje y la puesta en marcha van incluidos en toda oferta, sin importar la modalidad de entrega. Marca esta casilla solo si los hará el cliente por su cuenta."><input type="checkbox" id="instNoChk"> Por cuenta del cliente (no incluida)</label>
+        </div>
+        <div class="field-group" style="margin:0">
           <label style="font-size:10px">Posible cierre</label>
           <div style="display:flex;gap:4px;align-items:center">
             <select id="cierreSel" onchange="onCierreChange(this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit">
@@ -1207,42 +1211,59 @@ function guardarEntregaPersonalizada(){
   showToast('✓ Tiempo de entrega aplicado','success');
 }
 // ── Modalidad de entrega de la oferta ──
-// Define DÓNDE y bajo qué condiciones se entrega la máquina (distinto de «Tiempo de entrega»): cambia el texto de «Entrega» e «Instalación» y las exclusiones del PDF.
-// Se guarda en la columna ModalidadEntrega de Cotizaciones (texto): cliente | ayj | fob|Puerto | cif|Puerto | otra|1/0|texto. Sin valor = «En instalaciones del cliente» (la de siempre).
+// Define DÓNDE y bajo qué condiciones se entrega la máquina (distinto de «Tiempo de entrega»): cambia el texto de «Entrega» y las exclusiones del PDF.
+// La INSTALACIÓN va siempre incluida, sin importar la modalidad, salvo que se marque «Instalación por cuenta del cliente (no incluida)» (casilla aparte: instNoChk).
+// Se guarda en la columna ModalidadEntrega de Cotizaciones (texto): cliente | ayj | fob|Puerto | cif|Puerto | otra||texto, con el sufijo #sinInst si la instalación no va incluida. Sin valor = la de siempre.
 const MOD_INST_BASE='Personal especializado AYJ con colaboración del COMPRADOR. Si en 15 días desde la entrega física no se puede instalar por causas del COMPRADOR, se da por entregado y se pagan los saldos.';
-const MOD_INST_NO='No incluida en esta modalidad. La instalación y la puesta en marcha pueden cotizarse por separado.';
+const MOD_INST_NO='Por cuenta del COMPRADOR: la instalación, el montaje y la puesta en marcha no están incluidos en esta oferta. Pueden cotizarse por separado con personal especializado de AYJ.';
 const MODALIDADES={
-  cliente:{nom:'En instalaciones del cliente',entrega:'En bodega del cliente sobre plataforma de camión, incluido montaje, puesta en marcha y entrenamiento. Costos de descargue y puesta en sitio no incluidos.',instalacion:MOD_INST_BASE,excl:[]},
-  ayj:{nom:'En instalaciones de AYJ (el cliente recoge)',entrega:'En las instalaciones de AYJ. El COMPRADOR recoge la máquina por su cuenta: el cargue, el transporte, el seguro y la responsabilidad sobre la máquina son del COMPRADOR desde el momento del retiro. No incluye flete, montaje ni puesta en marcha.',instalacion:MOD_INST_NO,excl:['Cargue, transporte y seguro de la máquina desde las instalaciones de AYJ']},
-  fob:{nom:'FOB — Puerto de origen',entrega:'Venta FOB (Incoterms® 2020), puerto de origen{P}: AYJ pone la máquina a bordo del buque en el puerto de origen y desde ese momento el riesgo pasa al COMPRADOR. El flete y el seguro internacionales, la nacionalización (aranceles, IVA y trámites aduaneros), el descargue y el transporte interno están a cargo del COMPRADOR.',instalacion:MOD_INST_NO,excl:['Flete y seguro internacionales','Nacionalización: aranceles, IVA y trámites aduaneros','Descargue y transporte interno desde el puerto de destino']},
-  cif:{nom:'CIF — Puerto local, sin nacionalizar',entrega:'Venta CIF (Incoterms® 2020), puerto de destino{P}, sin nacionalizar: el precio incluye la máquina, el flete marítimo y el seguro hasta el puerto de destino. El riesgo pasa al COMPRADOR cuando la máquina es embarcada en el puerto de origen. La nacionalización (aranceles, IVA y trámites aduaneros), el descargue y el transporte desde el puerto están a cargo del COMPRADOR.',instalacion:MOD_INST_NO,excl:['Nacionalización: aranceles, IVA y trámites aduaneros','Descargue y transporte desde el puerto de destino']}
+  cliente:{nom:'En instalaciones del cliente',entrega:'En bodega del cliente sobre plataforma de camión, incluido montaje, puesta en marcha y entrenamiento. Costos de descargue y puesta en sitio no incluidos.',entregaSin:'En bodega del cliente sobre plataforma de camión. Costos de descargue y puesta en sitio no incluidos. El montaje, la puesta en marcha y el entrenamiento no están incluidos.',excl:[]},
+  ayj:{nom:'En instalaciones de AYJ (el cliente recoge)',entrega:'En las instalaciones de AYJ. El COMPRADOR recoge la máquina por su cuenta: el cargue, el transporte, el seguro y la responsabilidad sobre la máquina son del COMPRADOR desde el momento del retiro. No incluye flete.',excl:['Cargue, transporte y seguro de la máquina desde las instalaciones de AYJ']},
+  fob:{nom:'FOB — Puerto de origen',entrega:'Venta FOB (Incoterms® 2020), puerto de origen{P}: AYJ pone la máquina a bordo del buque en el puerto de origen y desde ese momento el riesgo pasa al COMPRADOR. El flete y el seguro internacionales, la nacionalización (aranceles, IVA y trámites aduaneros), el descargue y el transporte interno están a cargo del COMPRADOR.',excl:['Flete y seguro internacionales','Nacionalización: aranceles, IVA y trámites aduaneros','Descargue y transporte interno desde el puerto de destino']},
+  cif:{nom:'CIF — Puerto local, sin nacionalizar',entrega:'Venta CIF (Incoterms® 2020), puerto de destino{P}, sin nacionalizar: el precio incluye la máquina, el flete marítimo y el seguro hasta el puerto de destino. El riesgo pasa al COMPRADOR cuando la máquina es embarcada en el puerto de origen. La nacionalización (aranceles, IVA y trámites aduaneros), el descargue y el transporte desde el puerto están a cargo del COMPRADOR.',excl:['Nacionalización: aranceles, IVA y trámites aduaneros','Descargue y transporte desde el puerto de destino']}
 };
-function modalidadParse(s){ const p=String(s||'').split('|'), k=p[0]||'cliente'; if(k==='otra') return {k,inst:p[1]!=='0',texto:p.slice(2).join('|')}; if(k==='fob'||k==='cif') return {k,puerto:p[1]||''}; return {k:MODALIDADES[k]?k:'cliente'}; }
-function modalidadActual(){
-  const sel=document.getElementById('modalidadSel'), k=sel?sel.value:'cliente';
-  if(k==='__custom_mod__') return {k:'otra',texto:window._modTexto||'',inst:window._modInst!==false};
-  if(k==='fob'||k==='cif') return {k,puerto:((document.getElementById('modalidadPuerto')||{}).value||'').trim()};
-  return {k:MODALIDADES[k]?k:'cliente'};
+function modalidadParse(s){
+  let t=String(s||''), sinInst=false;
+  if(t.endsWith('#sinInst')){ sinInst=true; t=t.slice(0,-8); }
+  const p=t.split('|'), k=p[0]||'cliente';
+  if(k==='otra'){ if(p[1]==='0') sinInst=true; return {k,sinInst,texto:p.slice(2).join('|')}; }   // «otra|0|texto»: formato anterior (0 = sin instalación)
+  if(k==='fob'||k==='cif') return {k,sinInst,puerto:p[1]||''};
+  return {k:MODALIDADES[k]?k:'cliente',sinInst};
 }
-function modalidadSerializar(){ const m=modalidadActual(); if(m.k==='otra') return 'otra|'+(m.inst===false?0:1)+'|'+String(m.texto).replace(/\|/g,'/'); if(m.puerto!==undefined) return m.k+(m.puerto?'|'+m.puerto.replace(/\|/g,'/'):''); return m.k; }
+function modalidadActual(){
+  const sel=document.getElementById('modalidadSel'), k=sel?sel.value:'cliente', sinInst=!!(document.getElementById('instNoChk')||{}).checked;
+  if(k==='__custom_mod__') return {k:'otra',sinInst,texto:window._modTexto||''};
+  if(k==='fob'||k==='cif') return {k,sinInst,puerto:((document.getElementById('modalidadPuerto')||{}).value||'').trim()};
+  return {k:MODALIDADES[k]?k:'cliente',sinInst};
+}
+function modalidadSerializar(){
+  const m=modalidadActual(); let t;
+  if(m.k==='otra') t='otra||'+String(m.texto).replace(/\|/g,'/');
+  else if(m.puerto!==undefined) t=m.k+(m.puerto?'|'+m.puerto.replace(/\|/g,'/'):'');
+  else t=m.k;
+  return t+(m.sinInst?'#sinInst':'');
+}
 function modalidadTextos(m){
   if(typeof m==='string') m=modalidadParse(m);
   m=m||{k:'cliente'};
-  if(m.k==='otra') return {entrega:_escRes(m.texto||'A convenir'),instalacion:m.inst===false?MOD_INST_NO:MOD_INST_BASE,excl:[]};
+  const inst=m.sinInst?MOD_INST_NO:MOD_INST_BASE, exInst=m.sinInst?['Instalación, montaje y puesta en marcha (por cuenta del COMPRADOR)']:[];
+  if(m.k==='otra') return {entrega:_escRes(m.texto||'A convenir'),instalacion:inst,excl:exInst};
   const b=MODALIDADES[m.k]||MODALIDADES.cliente, pu=m.puerto?' ('+_escRes(m.puerto)+')':'';
-  return {entrega:b.entrega.replace('{P}',pu),instalacion:b.instalacion,excl:b.excl};
+  return {entrega:(m.sinInst&&b.entregaSin?b.entregaSin:b.entrega).replace('{P}',pu),instalacion:inst,excl:[...b.excl,...exInst]};
 }
 function modalidadReset(){
   const s=document.getElementById('modalidadSel'); if(s) s.value='cliente';
-  window._modTexto=''; window._modInst=true;
+  const ni=document.getElementById('instNoChk'); if(ni) ni.checked=false;
+  window._modTexto='';
   const pw=document.getElementById('modalidadPuertoWrap'), pi=document.getElementById('modalidadPuerto'), l=document.getElementById('modalidadLabel');
   if(pw) pw.style.display='none'; if(pi) pi.value=''; if(l){ l.style.display='none'; l.textContent=''; }
 }
 function modalidadRestaurar(str){
   const m=modalidadParse(str), s=document.getElementById('modalidadSel'); if(!s) return;
   modalidadReset();
-  if(m.k==='otra'){ s.value='__custom_mod__'; window._modTexto=m.texto; window._modInst=m.inst!==false; }
+  if(m.k==='otra'){ s.value='__custom_mod__'; window._modTexto=m.texto; }
   else s.value=m.k;
+  const ni=document.getElementById('instNoChk'); if(ni) ni.checked=!!m.sinInst;
   onModalidadChange(s.value,true);
   if(m.puerto){ const pi=document.getElementById('modalidadPuerto'); if(pi) pi.value=m.puerto; }
 }
@@ -1261,16 +1282,15 @@ function onModalidadChange(v,silencio){
 function modalidadPersonalizar(){
   const m=document.createElement('div'); m.id='modalModalidad'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:520;display:flex;align-items:center;justify-content:center;padding:12px';
   m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:520px;max-width:96vw;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:15px;font-weight:700;margin-bottom:6px">Modalidad de entrega personalizada</div>'
-    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Escribe cómo y dónde se entrega la máquina. Este texto saldrá tal cual en la fila «Entrega» de la oferta.</div>'
-    +'<textarea id="modPTexto" rows="4" placeholder="Ej: Entrega en la planta del cliente en Cali, descargue por cuenta de AYJ…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px">'+_escRes(window._modTexto||'')+'</textarea>'
-    +'<label style="font-size:12px;display:flex;gap:6px;align-items:center;margin:10px 0 14px"><input type="checkbox" id="modPInst"'+(window._modInst===false?'':' checked')+'> Incluye instalación y puesta en marcha por AYJ</label>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Escribe cómo y dónde se entrega la máquina. Este texto saldrá tal cual en la fila «Entrega» de la oferta. La instalación va incluida salvo que marques «Instalación por cuenta del cliente».</div>'
+    +'<textarea id="modPTexto" rows="4" placeholder="Ej: Entrega en la planta del cliente en Cali, descargue por AYJ…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px;margin-bottom:12px">'+_escRes(window._modTexto||'')+'</textarea>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="modalidadPCancelar()">Cancelar</button><button class="btn-primary" onclick="modalidadPAplicar()">Aplicar</button></div></div>';
   document.body.appendChild(m); setTimeout(()=>{ const t=document.getElementById('modPTexto'); if(t) t.focus(); },50);
 }
 function modalidadPCancelar(){ document.getElementById('modalModalidad')?.remove(); if(!window._modTexto){ const s=document.getElementById('modalidadSel'); if(s) s.value='cliente'; onModalidadChange('cliente',true); } }
 function modalidadPAplicar(){
   const t=(document.getElementById('modPTexto').value||'').trim(); if(!t){ showToast('Escribe la modalidad de entrega','error'); return; }
-  window._modTexto=t; window._modInst=document.getElementById('modPInst').checked;
+  window._modTexto=t;
   document.getElementById('modalModalidad')?.remove(); onModalidadChange('__custom_mod__',true); showToast('✓ Modalidad de entrega aplicada','success');
 }
 function getEntrega(){
