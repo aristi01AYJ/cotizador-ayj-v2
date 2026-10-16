@@ -6755,6 +6755,10 @@ async function rolesGuardar(){
 // más su PEDIDO y junta las dos listas al leer (no se copia nada a TODAS_2025 salvo al "Recibir pedido en AYJ": las unidades pasan de En Importación a En Stock).
 // El estado del pedido NO se guarda: se calcula con el último hito que tenga fecha real. El barco se ubica en el globo interpolando por las fechas (no es seguimiento AIS).
 const LOG={pedidos:[],units:[],cargando:false,error:'',q:'',fab:'',ver:'activos',sel:null,listId:'',map:{},def:{},faltan:[],catCols:null,cen:[-74,12],zoom:1,marcas:[],libs:null,mundo:null,sinCodigo:[],cv:null,tip:null,tab:'pedidos',uf:'',ut:'',ue:'',uq:'',un:60};
+// estilos propios del módulo (la foto de cada máquina en «Ubicación en stock» no debe depender de que se haya abierto Evento)
+(function(){ if(document.getElementById('logCss')) return; const st=document.createElement('style'); st.id='logCss';
+  st.textContent='#logBody .ev-foto{height:112px;background:#F3F4F6;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;color:#9CA3AF;flex:none}#logBody .ev-foto img{width:100%;height:100%;object-fit:contain;background:#fff;display:block}';
+  document.head.appendChild(st); })();
 // código de fábrica por Marca (editable aquí cuando haya una fábrica nueva)
 const LOG_FAB={TWM:'P',TAILOR:'P',TAILORWOOD:'P',NANXING:'NX',BALA:'BL',WOODMIZER:'WM',WM:'WM',MAGGI:'MG',FREUD:'FRE',JOWAT:'JOW',RIMA:'RM',SAFTEKNIC:'SAF'};
 const LOG_FAB_NOMBRE={P:'TWM',NX:'NANXING',BL:'BALA',WM:'WOODMIZER',MG:'MAGGI',FRE:'FREUD',JOW:'JOWAT',RM:'RIMA',SAF:'SAFTEKNIC'};
@@ -7822,7 +7826,7 @@ function logRenderStock(c){
   const tiles=(arr)=>arr.map(u=>{
     const e=logEstU(u), inf=logUbInfo(u.ubicK);
     return '<div style="background:#fff;border:1px solid var(--border);border-top:3px solid '+inf.color+';border-radius:10px;overflow:hidden;display:flex;flex-direction:column">'
-      +'<div class="ev-foto" data-k="'+_escRes(evFotoKey(u.titulo))+'" style="height:88px;border-radius:0;font-size:24px"><span class="ev-ph">⚙</span></div>'
+      +'<div class="ev-foto" data-k="'+_escRes(evFotoKey(u.titulo))+'" style="height:112px;border-radius:0;font-size:24px"><span class="ev-ph">⚙</span></div>'
       +'<div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px;flex:1"><div style="font-weight:700;font-size:13px;line-height:1.2">'+_escRes(u.titulo)+'</div><div style="font-size:10px;color:var(--text2)">'+_escRes([u.marca,u.tip].filter(Boolean).join(' · '))+'</div><div style="font-size:11px;color:var(--text2)">Serial '+_escRes(u.idMQ||'—')+'</div>'
       +'<div style="margin-top:3px"><span style="background:'+e.bg+';color:'+e.c+';padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700">'+e.txt+'</span></div>'+(u.cliente?'<div style="font-size:11px;color:#92400E">👤 '+_escRes(u.cliente)+'</div>':'')
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px"><span style="font-size:10px;color:'+inf.color+';font-weight:700" title="'+_escRes(u.ubicRaw||'sin dato')+'">● '+inf.nom+'</span><button class="btn-sec" style="font-size:11px;padding:2px 8px" onclick="logMoverAbrir(\''+u.id+'\')">⇄ Mover</button></div></div></div>';
