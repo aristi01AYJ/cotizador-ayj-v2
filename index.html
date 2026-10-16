@@ -339,6 +339,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
         <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos y venta nacional (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
         <button id="navPerf" onclick="perfAbrir()" title="Mide cuánto tarda cada acción y cada llamada a SharePoint (solo lee; los datos quedan en este navegador)"><i class="ti ti-gauge"></i> Velocidad</button>
+        <button id="navEnlacesWeb" onclick="ewAbrir()" title="Escribe en TODAS_2025 los enlaces a la página web de cada máquina (propuestos por el cotizador, con revisión)"><i class="ti ti-world"></i> Enlaces web</button>
         <button id="navRoles" onclick="rolesAbrir()" title="Define qué módulos ve cada rol (solo Gerente General)" style="display:none"><i class="ti ti-shield-lock"></i> Roles y módulos</button>
         </div></div>
     </div>
@@ -8306,6 +8307,70 @@ async function trmSparkCargar(){
   catch(e){ console.warn('[AYJ] TRM: no se pudo cargar el historial de 30 días:',e.message); const el=document.getElementById('trmSpark'); if(el) el.innerHTML=''; }
 }
 
+// ── ENLACES WEB: escribir en TODAS_2025 ──────────────────────────────────────────────────────────────────────
+// Más ▾ → «Enlaces web»: propone, para cada máquina sin enlace, la ficha de la web que el cotizador encuentra por su código de modelo (webAutoDe) y, tras revisar y marcar,
+// la escribe en la columna LinkWeb de TODAS_2025 (hipervínculo o texto) en todas las filas de esa máquina que estén vacías. No toca los enlaces que ya existen (salvo que se marque «reemplazar»).
+const EW={filas:[],col:null,cargando:false,propagar:true};
+async function ewColumna(){
+  const cols=await columnasCatalogo();
+  const c=cols.find(x=>!x.readOnly&&(x.hyperlinkOrPicture||x.text)&&(()=>{ const nn=_webNorm(x.displayName||x.name).replace(/[^a-z]/g,''); return nn.includes('web')&&!/ficha|video|yt/.test(nn); })());
+  return c||null;
+}
+const ewValor=v=>v?(typeof v==='object'?String(v.Url||'').trim():String(v).trim()):'';
+async function ewAbrir(){
+  if(typeof ucPermiso==='function'&&!ucPermiso()){ showToast('Los enlaces web los gestionan los gerentes','error'); return; }
+  const m=document.createElement('div'); m.id='ewModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:1000px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">🌐 Enlaces web de las máquinas</strong><button onclick="document.getElementById(\'ewModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div><div id="ewCuerpo" style="padding:14px 18px;overflow-y:auto;flex:1"><div class="loading-list"><span class="spinner dark"></span> Leyendo las máquinas…</div></div><div id="ewPie" style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center"></div></div>';
+  document.body.appendChild(m);
+  try{
+    EW.col=await ewColumna();
+    if(!EW.col){ document.getElementById('ewCuerpo').innerHTML='<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:10px 12px;font-size:13px">No encuentro la columna del enlace en TODAS_2025. Créala con el nombre <b>LinkWeb</b> (tipo Hipervínculo o Una línea de texto) y vuelve a abrir esta herramienta.</div>'; return; }
+    const items=await cargarItemsCatalogo(['DISPONIBLE','BAJO PEDIDO','RESERVADA'],200), campos=window._catCampos||{marcaField:'Marca'}, g={};
+    items.forEach(i=>{ const f=i.fields||{}, t=String(f.Title||'').trim(); if(!t) return; const k=_webNorm(t).trim(); (g[k]=g[k]||{titulo:t,marca:String(f[campos.marcaField]||f.Marca||'').trim(),modelo:String(f.Modelo||'').trim(),rows:[]}).rows.push({id:i.id,actual:ewValor(f[EW.col.name])}); });
+    EW.filas=Object.values(g).map(x=>{ const actual=x.rows.map(r=>r.actual).find(Boolean)||'', auto=webAutoDe(x.titulo,x.modelo); const vacias=x.rows.filter(r=>!r.actual).length;
+      return {...x,actual,auto,vacias,sel:!actual&&!!auto}; }).sort((a,b)=>a.titulo.localeCompare(b.titulo,'es'));
+    ewPintar();
+  }catch(e){ document.getElementById('ewCuerpo').innerHTML='<div style="color:var(--red)">No se pudieron leer las máquinas: '+_escRes(e.message)+'</div>'; }
+}
+function ewPintar(){
+  const cu=document.getElementById('ewCuerpo'); if(!cu) return;
+  const prop=EW.filas.filter(f=>!f.actual&&f.auto), con=EW.filas.filter(f=>f.actual), sin=EW.filas.filter(f=>!f.actual&&!f.auto);
+  const fila=(f,i,conCheck)=>'<tr><td>'+(conCheck?'<input type="checkbox" '+(f.sel?'checked ':'')+'onchange="EW.filas['+i+'].sel=this.checked;ewPie()">':'')+'</td><td><b>'+_escRes(f.titulo)+'</b><div style="color:var(--text2)">'+_escRes([f.marca,f.modelo].filter(Boolean).join(' · '))+'</div></td><td>'+f.rows.length+'</td><td style="word-break:break-all">'
+    +(f.actual?'<a href="'+_escRes(f.actual)+'" target="_blank" rel="noopener">'+_escRes(f.actual.replace('https://www.ayj.com.co/maquinas/',''))+'</a>':'<span style="color:var(--text3)">—</span>')+'</td><td style="word-break:break-all">'
+    +(f.auto?'<a href="'+f.auto+'" target="_blank" rel="noopener">'+_escRes(f.auto.replace('https://www.ayj.com.co/maquinas/',''))+'</a>':'<span style="color:var(--text3)">sin coincidencia segura</span>')+'</td></tr>';
+  const tabla=(lista,conCheck)=>'<table class="hist-table" style="font-size:12px"><thead><tr><th style="width:30px"></th><th>Máquina</th><th>Filas</th><th>Enlace actual</th><th>Enlace propuesto (automático)</th></tr></thead><tbody>'+lista.map(f=>fila(f,EW.filas.indexOf(f),conCheck)).join('')+'</tbody></table>';
+  cu.innerHTML='<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Revisé <b>'+EW.filas.length+'</b> máquinas de TODAS_2025. Columna: <b>'+_escRes(EW.col.displayName||EW.col.name)+'</b>. Abre cada enlace propuesto para comprobar que es la máquina correcta; desmarca los que no lo sean. Se escribe en todas las filas vacías de cada máquina.</div>'
+    +'<div style="font-weight:700;margin:8px 0 4px">Con propuesta ('+prop.length+')</div>'+(prop.length?tabla(prop,true):'<div style="color:var(--text3);font-size:12px">No hay máquinas sin enlace con propuesta automática.</div>')
+    +'<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Sin coincidencia segura ('+sin.length+'): completar a mano en TODAS_2025</summary>'+(sin.length?tabla(sin,false):'')+'</details>'
+    +'<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Ya tienen enlace ('+con.length+')</summary>'+(con.length?tabla(con,false):'')+'</details>';
+  ewPie();
+}
+// filas que se van a escribir: las máquinas marcadas (enlace propuesto) y, si se deja la casilla, las filas vacías de máquinas que ya tienen enlace en otra fila
+function ewTareas(){
+  const t=[];
+  EW.filas.forEach(f=>{
+    if(f.sel&&!f.actual&&f.auto) f.rows.filter(r=>!r.actual).forEach(r=>t.push({f,r,url:f.auto}));
+    else if(f.actual&&EW.propagar) f.rows.filter(r=>!r.actual).forEach(r=>t.push({f,r,url:f.actual}));
+  });
+  return t;
+}
+function ewPie(){
+  const p=document.getElementById('ewPie'); if(!p) return; const t=ewTareas(), nm=new Set(t.map(x=>x.f)).size;
+  p.innerHTML='<label style="font-size:12px;display:flex;gap:5px;align-items:center;cursor:pointer" title="Si una máquina tiene varias filas y solo una trae el enlace, copia ese enlace a las demás"><input type="checkbox" '+(EW.propagar?'checked ':'')+'onchange="EW.propagar=this.checked;ewPie()"> Completar las filas vacías de máquinas que ya tienen enlace</label>'
+    +'<span style="margin-left:auto;font-size:12px;color:var(--text2)">'+nm+' máquina(s) · '+t.length+' fila(s) por escribir</span><button class="btn-sec" onclick="document.getElementById(\'ewModal\').remove()">Cerrar</button><button class="btn-primary" id="ewGo" '+(t.length?'':'disabled ')+'onclick="ewEscribir()">Escribir enlaces</button>';
+}
+async function ewEscribir(){
+  const go=document.getElementById('ewGo'), tareas=ewTareas(); if(!tareas.length) return;
+  go.disabled=true; go.textContent='Escribiendo…';
+  const esLink=!!EW.col.hyperlinkOrPicture; let i=0; const fallos=[];
+  await Promise.all(Array.from({length:4},async()=>{ while(i<tareas.length){ const {f,r,url}=tareas[i++]; try{
+    const d=await patchUnidadResiliente(r.id,{[EW.col.name]:esLink?{Url:url,Description:'Ver en la web'}:url}); if(d.length) throw new Error('la columna '+d.join(', ')+' no existe'); r.actual=url; }
+    catch(e){ fallos.push(f.titulo+': '+e.message); } } }));
+  EW.filas.forEach(f=>{ const w=f.rows.find(r=>r.actual); if(w&&!f.actual){ f.actual=w.actual; } if(f.actual) WEB_MAN[_webNorm(f.titulo).trim()]=f.actual; f.vacias=f.rows.filter(r=>!r.actual).length; if(f.actual) f.sel=false; });
+  console.log('[AYJ] Enlaces web escritos:',tareas.length-fallos.length,'filas · fallos:',fallos.length,fallos.slice(0,5));
+  showToast(fallos.length?'⚠ '+(tareas.length-fallos.length)+' fila(s) escritas; fallaron '+fallos.length+' ('+fallos[0]+')':'✓ '+tareas.length+' fila(s) con su enlace web',fallos.length?'error':'success');
+  ewPintar();
+}
 // ── ENLACE A LA WEB DE CADA MÁQUINA ───────────────────────────────────────────────────────────────────────
 // Cada máquina del cotizador enlaza con su ficha en la página web: https://www.ayj.com.co/maquinas/<slug>/ (icono 🌐 en el catálogo y el carrito, y «Ver en la web» en el PDF de la oferta).
 // 1) Enlace manual: columna de hipervínculo «LinkWeb» de TODAS_2025 (gana siempre). 2) Automático: el título/modelo de la máquina se cruza con los códigos de modelo del índice WEB_MAQ
@@ -8318,9 +8383,10 @@ const _webNorm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-
 const _webPal=t=>_webNorm(t).split(/[\s_()|,;:]+/).map(w=>w.replace(/[^a-z0-9]/g,'')).filter(Boolean);
 const _webUni=w=>/^\d+([.,]\d+)?(hp|v|mm|kw|hz|kg|w|lt|l|t|m|cm|ph|a)$/.test(w);
 const _webMod=w=>w.length>=3&&!_webUni(w)&&((/[0-9]/.test(w)&&/[a-z]/.test(w))||(/^[0-9]{3,}$/.test(w)&&!/^20\d\d$/.test(w)));
-function webLinkDe(titulo,modelo){
+function webLinkDe(titulo,modelo){ const k=_webNorm(titulo).trim(); return k?(WEB_MAN[k]||webAutoDe(titulo,modelo)):''; }   // manual (LinkWeb) primero; si no, el automático
+// enlace automático por código de modelo (sin mirar el manual); lo usa también la herramienta «Enlaces web» para proponer qué escribir en LinkWeb
+function webAutoDe(titulo,modelo){
   const k=_webNorm(titulo).trim(); if(!k) return '';
-  if(WEB_MAN[k]) return WEB_MAN[k];
   if(WEB_CACHE[k]!==undefined) return WEB_CACHE[k];
   const toks=[...new Set(_webPal(titulo).concat(_webPal(modelo)).filter(_webMod))]; let url='';
   if(toks.length){
@@ -8340,7 +8406,7 @@ function webIconoDe(titulo,modelo,clase){
   const u=webLinkDe(titulo,modelo); if(!u) return '';
   return '<a '+(clase?'class="'+clase+'" ':'')+'href="'+u+'" target="_blank" rel="noopener" style="color:var(--green-dark);font-size:15px" title="Ver la máquina en la página web de AYJ"><i class="ti ti-world"></i></a>';
 }
-function webRegistrarManuales(maquinas){ maquinas.forEach(m=>{ if(m.linkWeb) WEB_MAN[_webNorm(m.title).trim()]=m.linkWeb; }); Object.keys(WEB_CACHE).forEach(k=>delete WEB_CACHE[k]); }
+function webRegistrarManuales(maquinas){ maquinas.forEach(m=>{ if(m.linkWeb) WEB_MAN[_webNorm(m.title).trim()]=m.linkWeb; }); }
 // ── UNIR CLIENTES DUPLICADOS ──────────────────────────────────────────────────────────────────────────────
 // Clientes ▸ «Unir duplicados»: detecta clientes repetidos (mismo NIT, mismo nombre sin S.A.S./tildes, nombres parecidos, mismo correo o teléfono), deja elegir cuál queda como
 // PRINCIPAL y pasa a él lo que cuelga de los demás: ofertas (columna Cliente de Cotizaciones y de las otras listas Cotizaciones_*), máquinas (columna Cliente de TODAS_2025)
