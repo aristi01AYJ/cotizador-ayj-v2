@@ -339,6 +339,7 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
         <button id="navDashboard" onclick="switchView('dashboard')"><i class="ti ti-chart-bar"></i> Inteligencia</button>
         <button id="navEventoCfg" onclick="evConfigDesdeCotizador()" title="Configurar el evento: precios, combos y venta nacional (requiere clave)"><i class="ti ti-settings"></i> Config. evento</button>
         <button id="navPerf" onclick="perfAbrir()" title="Mide cuánto tarda cada acción y cada llamada a SharePoint (solo lee; los datos quedan en este navegador)"><i class="ti ti-gauge"></i> Velocidad</button>
+        <button id="navRespaldo" onclick="rdAbrir()" title="Descarga una copia de todas las listas de SharePoint (solo gerentes)"><i class="ti ti-database-export"></i> Respaldo de datos</button>
         <button id="navEnlacesWeb" onclick="ewAbrir()" title="Escribe en TODAS_2025 los enlaces a la página web de cada máquina (propuestos por el cotizador, con revisión)"><i class="ti ti-world"></i> Enlaces web</button>
         <button id="navRoles" onclick="rolesAbrir()" title="Define qué módulos ve cada rol (solo Gerente General)" style="display:none"><i class="ti ti-shield-lock"></i> Roles y módulos</button>
         </div></div>
@@ -8337,6 +8338,49 @@ async function trmSparkCargar(){
   catch(e){ console.warn('[AYJ] TRM: no se pudo cargar el historial de 30 días:',e.message); const el=document.getElementById('trmSpark'); if(el) el.innerHTML=''; }
 }
 
+// ── RESPALDO DE DATOS ────────────────────────────────────────────────────────────────────────────────────────
+// Más ▾ → «Respaldo de datos» (solo gerentes): descarga en un archivo JSON TODAS las listas del sitio de SharePoint (máquinas, clientes, cotizaciones, contactos, pedidos, usuarios, roles…)
+// con sus filas completas y los nombres de columnas. Es la primera medida de seguridad de la ruta hacia una base de datos propia (Fase 0): una copia fuera de SharePoint que se puede guardar en otro lugar.
+// El archivo trae datos de clientes y costos: guardarlo en un sitio protegido, no enviarlo por correo ni chat.
+const RD={corriendo:false};
+function rdUltimo(){ try{ const v=localStorage.getItem('ayj_ultimo_respaldo'); return v?new Date(v):null; }catch(e){ return null; } }
+function rdAbrir(){
+  if(typeof ucPermiso==='function'&&!ucPermiso()){ showToast('El respaldo lo hacen los gerentes','error'); return; }
+  const u=rdUltimo(), m=document.createElement('div'); m.id='rdModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:560px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">🛟 Respaldo de datos</strong><button onclick="document.getElementById(\'rdModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:14px 18px;overflow-y:auto;font-size:13px"><p style="margin:0 0 8px">Descarga una copia de <b>todas las listas</b> de SharePoint (máquinas, clientes, cotizaciones, contactos, pedidos, usuarios, roles…) en un solo archivo.</p>'
+    +'<p style="margin:0 0 8px;color:var(--text2);font-size:12px">'+(u?'Último respaldo hecho desde este navegador: <b>'+u.toLocaleString('es-CO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</b>.':'Todavía no se ha hecho ningún respaldo desde este navegador.')+' Recomendado: una vez por semana.</p>'
+    +'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 10px;font-size:12px;margin-bottom:10px">El archivo contiene datos de clientes y costos. Guárdalo en una carpeta protegida de la empresa; no lo envíes por correo ni por chat.</div>'
+    +'<div id="rdProg" style="font-size:12px;color:var(--text2);max-height:220px;overflow-y:auto"></div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'rdModal\').remove()">Cerrar</button><button class="btn-primary" id="rdGo" onclick="rdGenerar()">Generar respaldo ahora</button></div></div>';
+  document.body.appendChild(m);
+}
+async function rdGenerar(){
+  if(RD.corriendo) return; RD.corriendo=true;
+  const go=document.getElementById('rdGo'), prog=document.getElementById('rdProg'); if(go){ go.disabled=true; go.textContent='Respaldando…'; }
+  const linea=t=>{ if(prog){ prog.innerHTML+='<div>'+t+'</div>'; prog.scrollTop=prog.scrollHeight; } };
+  const out={app:'Cotizador AYJ',generado:new Date().toISOString(),por:(typeof currentUserName!=='undefined'&&currentUserName)||'',sitio:SP_SITE,listas:[]}, fallos=[]; let filas=0;
+  try{
+    const todas=((await graphGet('/sites/'+siteId+'/lists?$select=id,displayName,list&$top=200')).value||[]).filter(l=>l.list&&!l.list.hidden&&l.list.template==='genericList');
+    linea('Se respaldarán '+todas.length+' listas…');
+    for(const l of todas){
+      try{
+        const cols=((await graphGet('/sites/'+siteId+'/lists/'+l.id+'/columns?$top=300&$select=name,displayName')).value||[]).map(c=>({nombre:c.name,visible:c.displayName}));
+        const its=await graphGetAll('/sites/'+siteId+'/lists/'+l.id+'/items?expand=fields&$top=500');
+        out.listas.push({nombre:l.displayName,columnas:cols,filas:its.map(i=>({id:i.id,creado:i.createdDateTime,modificado:i.lastModifiedDateTime,creadoPor:(i.createdBy&&i.createdBy.user&&i.createdBy.user.displayName)||'',modificadoPor:(i.lastModifiedBy&&i.lastModifiedBy.user&&i.lastModifiedBy.user.displayName)||'',campos:i.fields||{}}))});
+        filas+=its.length; linea('✓ '+_escRes(l.displayName)+' · '+its.length+' filas');
+      }catch(e){ fallos.push(l.displayName+': '+e.message); linea('<span style="color:#B91C1C">✗ '+_escRes(l.displayName)+': '+_escRes(e.message)+'</span>'); }
+    }
+    out.resumen={listas:out.listas.length,filas,fallos};
+    const blob=new Blob([JSON.stringify(out)],{type:'application/json'}), mb=(blob.size/1048576).toFixed(1), nombre='ayj-respaldo-'+new Date().toISOString().slice(0,10)+'.json';
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+    if(!fallos.length){ try{ localStorage.setItem('ayj_ultimo_respaldo',new Date().toISOString()); }catch(e){} }
+    linea('<b>'+(fallos.length?'⚠ Respaldo incompleto':'✓ Respaldo listo')+'</b>: '+out.listas.length+' listas, '+filas.toLocaleString('es-CO')+' filas, '+mb+' MB → <b>'+nombre+'</b> (revisa tu carpeta de descargas).');
+    console.log('[AYJ] Respaldo:',out.listas.length,'listas,',filas,'filas,',mb,'MB, fallos:',fallos.length);
+    showToast(fallos.length?'⚠ Respaldo con '+fallos.length+' lista(s) que fallaron':'✓ Respaldo descargado ('+filas.toLocaleString('es-CO')+' filas)',fallos.length?'error':'success');
+  }catch(e){ linea('<span style="color:#B91C1C">No se pudo completar: '+_escRes(e.message)+'</span>'); showToast('No se pudo hacer el respaldo: '+e.message,'error'); }
+  RD.corriendo=false; if(go){ go.disabled=false; go.textContent='Generar de nuevo'; }
+}
 // ── POR ENTREGAR: FOCO ───────────────────────────────────────────────────────────────────────────────────────
 // Inventario ▸ Por entregar es la pantalla de trabajo del equipo técnico. Por cada máquina vendida sin entregar muestra: prioridad (editable), preparación (Importación · Alistamiento · Lista, editable),
 // fecha estimada de disponibilidad para entrega (en días, editable, para las que vienen en camino), ciudad del cliente y dónde está. Más un reporte de lo que está en stock sin entregar.
