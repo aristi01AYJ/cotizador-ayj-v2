@@ -2542,7 +2542,13 @@ function _pbkdf2(pass,salt,iter){
 const _hexA=h=>{ const o=new Uint8Array(h.length/2); for(let i=0;i<o.length;i++) o[i]=parseInt(h.substr(i*2,2),16); return o; };
 const _aHex=a=>Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');
 // ¿la clave escrita corresponde a la del tipo indicado (PRECIO, MG o LIQ)?
+// ── ¿Puede esta persona usar las funciones de administrador sin clave? Solo si aparece en USUARIOS_APP con acceso al módulo Ventas (comerciales y gerentes) y no está en vista previa por enlace (?rol=).
+// Los demás (técnicos, logística, quien no aparece en la lista) siguen necesitando la clave. En el modo Evento (pantalla frente al cliente) y en la autorización de precios bajo el mínimo la clave se pide siempre.
+const CLAVE_DIRECTA='\u0001directo';
+function adminDirecto(){ return typeof ROL!=='undefined'&&!!ROL.encontrado&&ROL.fuente!=='enlace'&&Array.isArray(ROL.modulos)&&ROL.modulos.includes('Ventas'); }
+function pedirClave(mensaje){ return adminDirecto()?CLAVE_DIRECTA:prompt(mensaje); }
 function claveOk(entrada,tipo){
+  if(entrada===CLAVE_DIRECTA) return adminDirecto();   // acceso directo por rol (nunca vale si la persona no cumple adminDirecto())
   const c=({PRECIO:typeof CLAVE_PRECIO!=='undefined'?CLAVE_PRECIO:'',MG:typeof CLAVE_MG!=='undefined'?CLAVE_MG:'',LIQ:typeof CLAVE_LIQ!=='undefined'?CLAVE_LIQ:''})[tipo];
   if(entrada==null||entrada==='') return false;
   if(typeof c==='string') return entrada===c;               // transición: aún sin cifrar
@@ -2558,7 +2564,7 @@ function solicitarClavePrecio(){
     showToast('Edición de precios bloqueada','success');
     return;
   }
-  const clave=prompt('Clave para modificar precios:');
+  const clave=pedirClave('Clave para modificar precios:');
   if(clave===null) return;
   if(!claveOk(clave,'PRECIO')){showToast('Clave incorrecta','error');return;}
   window.precioDesbloqueado=true;
@@ -2590,7 +2596,7 @@ const CLAVE_MG='AYJ860';
 
 function toggleMGPanel(){
   if(!mgDesbloqueado){
-    const clave=prompt('Clave para ver Margen y Comisión:');
+    const clave=pedirClave('Clave para ver Margen y Comisión:');
     if(clave===null) return;
     if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
     mgDesbloqueado=true;
@@ -2651,7 +2657,7 @@ function solicitarClaveDescSinLimite(){
   }
   const clave=prompt('Ingresa la clave para liberar el descuento SIN límite:');
   if(clave===null) return;
-  if(clave!=='AYJ860'){showToast('Clave incorrecta','error');return;}
+  if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   descMaximo=100;
   input.max=100;
   document.getElementById('descMaxLabel').textContent='sin límite 🔓';
@@ -2713,7 +2719,7 @@ function solicitarClaveDesc(){
   }
   const clave=prompt('Ingresa la clave para habilitar descuento hasta 40%:');
   if(clave===null) return;
-  if(clave==='AYJ860'){
+  if(claveOk(clave,'MG')){
     descMaximo=40;
     document.getElementById('descInput').max=40;
     document.getElementById('descMaxLabel').textContent='máx 40% 🔓';
@@ -3218,9 +3224,9 @@ async function guardarCotizacion(){
 
 
 function pedirClaveMargenes(){
-  const clave=prompt('🔒 Ingresa la clave para ver márgenes:');
+  const clave=pedirClave('🔒 Ingresa la clave para ver márgenes:');
   if(clave===null) return;
-  if(clave==='AYJ860'){
+  if(claveOk(clave,'MG')){
     mostrarResumenMargenes();
   } else {
     showToast('Clave incorrecta','error');
@@ -3229,9 +3235,9 @@ function pedirClaveMargenes(){
 
 
 function pedirClaveMargenes(){
-  const clave=prompt('🔒 Ingresa la clave para ver márgenes:');
+  const clave=pedirClave('🔒 Ingresa la clave para ver márgenes:');
   if(clave===null) return;
-  if(clave==='AYJ860'){
+  if(claveOk(clave,'MG')){
     mostrarResumenMargenes();
   } else {
     showToast('Clave incorrecta','error');
@@ -5617,7 +5623,7 @@ function reasignarOfertaIdx(id){
   if(!r){showToast('Error: oferta no encontrada','error');return;}
   const esDueno=asesorLabel(currentUserName)===asesorLabel(r.vendedor);
   if(!esDueno){
-    const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para reasignarla ingresa la clave de administrador:');
+    const clave=pedirClave('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para reasignarla ingresa la clave de administrador:');
     if(clave===null) return;
     if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   }
@@ -6058,7 +6064,7 @@ async function abrirPedidoIdx(id,opts){
   if(r.estado==='Actualizada'){showToast('Esta versión fue reemplazada por una revisión posterior: abre la vigente para hacer el pedido','error');return;}
   if(!r.items||!r.items.length){showToast('La oferta no tiene ítems guardados','error');return;}
   if(asesorLabel(currentUserName)!==asesorLabel(r.vendedor)&&!(opts&&opts.forzar)){
-    const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para ver o generar su pedido ingresa la clave de administrador:');
+    const clave=pedirClave('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para ver o generar su pedido ingresa la clave de administrador:');
     if(clave===null) return;
     if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   }
@@ -6672,7 +6678,7 @@ function pedidoAbrirDocumentos(r){
 }
 async function pedidoRegistrarAhora(){
   const P=_pedido; if(!P) return;
-  const clave=prompt('Clave de administrador para registrar los seriales de una oferta que ya estaba ganada:');
+  const clave=pedirClave('Clave de administrador para registrar los seriales de una oferta que ya estaba ganada:');
   if(clave===null) return;
   if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   const id=P.r.id;
@@ -10497,7 +10503,7 @@ async function _buscarDuplicados(){
 // Recorre la lista Cotizaciones, agrupa por N° base y, en cada oferta con varias versiones, marca como Actualizada las anteriores a la vigente
 // (la de mayor revisión; empate → mayor id) que sigan "Enviada". Las Ganadas/Perdidas no se tocan. Pide la clave y muestra el conteo antes.
 async function marcarActualizadasAnteriores(){
-  const c=prompt('🔒 Clave de administrador para marcar como "Actualizada" las revisiones anteriores:'); if(c===null) return;
+  const c=pedirClave('🔒 Clave de administrador para marcar como "Actualizada" las revisiones anteriores:'); if(c===null) return;
   if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); return; }
   try{
     showToast('Revisando las ofertas…','success');
@@ -10525,7 +10531,7 @@ async function marcarActualizadasAnteriores(){
   }catch(e){ showToast('Error: '+e.message,'error'); }
 }
 async function abrirLimpiezaDuplicados(){
-  const clave=prompt('🔒 Clave para administrar duplicados:');
+  const clave=pedirClave('🔒 Clave para administrar duplicados:');
   if(clave===null) return;
   if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   document.getElementById('modalDuplicados').style.display='flex';
@@ -11006,7 +11012,7 @@ const CLAVE_LIQ='AYJ860';
 
 function abrirLiquidador(){
   if(!liqDesbloqueado){
-    const clave=prompt('Clave para acceder al Liquidador:');
+    const clave=pedirClave('Clave para acceder al Liquidador:');
     if(!clave) return;
     if(!claveOk(clave,'LIQ')){showToast('Clave incorrecta','error');return;}
     liqDesbloqueado=true;
