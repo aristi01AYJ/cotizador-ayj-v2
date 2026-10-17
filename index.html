@@ -2491,7 +2491,7 @@ function calcTotales(){
 // ── DESCUENTO ──────────────────────────────────────────
 // ── EDICIÓN DE PRECIOS ────────────────────────────────
 window.precioDesbloqueado=false;
-const CLAVE_PRECIO='AYJ860';
+const CLAVE_PRECIO={"s":"5c6be706d00b5cddd3660341da4d3538","i":150000,"h":"3179fc1178600dab9ef343c248400f00a40b36717e2872e5c6fcf4db55d255d0"};
 
 // ── CLAVES DE ADMINISTRADOR ──────────────────────────────────────────────────────────────────────────────────
 // Las claves de Precio, Margen (MG) y Liquidador ya no se guardan en texto dentro del código (la página es pública): se guardan como PBKDF2-SHA256 con sal y 150.000 iteraciones
@@ -2592,7 +2592,7 @@ const TABLA_MG={0:[50.0,7.5],1:[49.495,7.424],2:[48.98,7.347],3:[48.454,7.268],4
 
 // ── PANEL MG ───────────────────────────────────────────
 let mgDesbloqueado=false;
-const CLAVE_MG='AYJ860';
+const CLAVE_MG={"s":"5c6be706d00b5cddd3660341da4d3538","i":150000,"h":"3179fc1178600dab9ef343c248400f00a40b36717e2872e5c6fcf4db55d255d0"};
 
 function toggleMGPanel(){
   if(!mgDesbloqueado){
@@ -11008,7 +11008,7 @@ async function exportarPedidoExcel(){
 const MAQUINAS_INST=[["ENCHAPADORA M45", "B", "TWM", 12, 1.5], ["ENCHAPADORA GAMA 0", "B", "TWM", 18, 2.25], ["ENCHAPADORA GAMA 1", "B", "TWM", 20, 2.5], ["ENCHAPADORA GAMA 2", "B", "TWM", 26, 3.25], ["ENCHAPADORA GAMA 3", "B", "TWM", 30, 3.75], ["ESCUADRADORA TS16", "C", "TWM", 14, 1.75], ["ESCUADRADORA TS32", "B", "TWM", 18, 2.25], ["PLANEADORA / CEPILLOS / LIJADORA LB / TROMPO", "C", "TWM", 6, 0.75], ["EXTRACTOR EP2 / EP3", "C", "TWM", 3, 0.375], ["EXTRACTOR EP5 / EP7", "C", "TWM", 6, 0.75], ["TRONZADORA / RADIAL", "C", "TWM", 6, 0.75], ["CR01", "C", "TWM", 4, 0.5], ["SIERRA VERTICAL", "B", "BALA", 24, 3], ["BARRENO", "A", "PADE", 16, 2], ["ESPIGADORA", "A", "PADE", 24, 3], ["ENCHAPADORA AKRON/ROXYL", "A", "BIESSE", 56, 7], ["ENCHAPADORA STREAM", "A", "BIESSE", 96, 12], ["LIJADORAS BIESSE", "A", "BIESSE", 40, 5], ["ROVER C - 6FT / C EDGE", "A", "BIESSE", 120, 15], ["ROVER A y C - SKILL - KLEVER - EKO", "A", "BIESSE", 48, 6], ["SECCIONADORA SEKTOR / EB95", "A", "BIESSE", 48, 6], ["SECCIONADORA SERIE 6 y 7", "A", "BIESSE", 56, 7], ["SECCIONADORA SERIE 6 y 7 ROTANTE", "A", "BIESSE", 80, 10], ["SKIPPER 100 / SKIPPER 130", "A", "BIESSE", 56, 7], ["TALADRO DE LINEA TECHNO", "A", "BIESSE", 48, 6], ["TALADRO DE LINEA TECHNO FDT", "A", "BIESSE", 80, 10], ["COSMO / BANCO DE ARMADO", "B", "BIESSE", 24, 3], ["CABINA PRESURIZADA CORAL", "A", "CORAL", 40, 5], ["EXTRACTOR FM / MFM CORAL", "A", "CORAL", 24, 3], ["EXTRACTOR DE POLVO 10HP", "B", "CORAL", 16, 2], ["SECCIONADORA NANXING NPC", "A", "NANXING", 48, 6], ["SECCIONADORA NANXING SERIE 6/7", "A", "NANXING", 56, 7], ["ENCHAPADORA NANXING GAMA 1", "B", "NANXING", 20, 2.5], ["ENCHAPADORA NANXING GAMA 2", "B", "NANXING", 26, 3.25], ["CNC NANXING ATC", "A", "NANXING", 80, 10], ["CNC NANXING BASICO", "A", "NANXING", 48, 6], ["SIERRA ESCUADRADORA JOWAY", "A", "JOWAY", 24, 3], ["PERSONALIZADA (Ingresar horas)", "X", "OTRO", 0, 0]];
 
 let liqDesbloqueado=false;
-const CLAVE_LIQ='AYJ860';
+const CLAVE_LIQ={"s":"5c6be706d00b5cddd3660341da4d3538","i":150000,"h":"3179fc1178600dab9ef343c248400f00a40b36717e2872e5c6fcf4db55d255d0"};
 
 function abrirLiquidador(){
   if(!liqDesbloqueado){
