@@ -2493,6 +2493,62 @@ function calcTotales(){
 window.precioDesbloqueado=false;
 const CLAVE_PRECIO='AYJ860';
 
+// ── CLAVES DE ADMINISTRADOR ──────────────────────────────────────────────────────────────────────────────────
+// Las claves de Precio, Margen (MG) y Liquidador ya no se guardan en texto dentro del código (la página es pública): se guardan como PBKDF2-SHA256 con sal y 150.000 iteraciones
+// ({s:sal,i:iteraciones,h:hash}). Se cambian con el programa _AYJ_Cotizadores/rotar-clave.cjs, que pide la clave sin mostrarla. Esto es una medida de transición: la protección definitiva
+// llega con la API propia, donde la clave nunca viaja al navegador. Mientras una constante siga siendo un texto (antes de rotar) se compara tal cual.
+const _SK=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+const _SIV=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+function _shaCompress(H,W){
+  for(let t=16;t<64;t++){ const x=W[t-15], y=W[t-2]; W[t]=(W[t-16]+(((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3))+W[t-7]+(((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10)))|0; }
+  let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+  for(let t=0;t<64;t++){
+    const t1=(h+(((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)))+((e&f)^(~e&g))+_SK[t]+W[t])|0;
+    const t2=((((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)))+((a&b)^(a&c)^(b&c)))|0;
+    h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
+  }
+  H[0]=(H[0]+a)|0; H[1]=(H[1]+b)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0; H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
+}
+function _sha256(bytes){   // bytes: Uint8Array → Uint8Array(32)
+  const n=bytes.length, total=((n+9+63)>>6)<<6, buf=new Uint8Array(total); buf.set(bytes); buf[n]=0x80;
+  const dv=new DataView(buf.buffer); dv.setUint32(total-4,(n*8)>>>0); dv.setUint32(total-8,Math.floor(n*8/4294967296));
+  const H=Uint32Array.from(_SIV), W=new Uint32Array(64);
+  for(let o=0;o<total;o+=64){ for(let t=0;t<16;t++) W[t]=dv.getUint32(o+t*4); _shaCompress(H,W); }
+  const out=new Uint8Array(32), od=new DataView(out.buffer); for(let t=0;t<8;t++) od.setUint32(t*4,H[t]>>>0); return out;
+}
+function _hmac256(key,msg){
+  if(key.length>64) key=_sha256(key);
+  const ip=new Uint8Array(64+msg.length), op=new Uint8Array(96); for(let t=0;t<64;t++){ const k=key[t]||0; ip[t]=k^0x36; op[t]=k^0x5c; }
+  ip.set(msg,64); op.set(_sha256(ip),64); return _sha256(op);
+}
+// PBKDF2-HMAC-SHA256, un solo bloque de salida (32 bytes), con los estados intermedios de ipad/opad guardados (2 compresiones por iteración)
+function _pbkdf2(pass,salt,iter){
+  let key=pass; if(key.length>64) key=_sha256(key);
+  const ik=new Uint8Array(64), ok=new Uint8Array(64); for(let t=0;t<64;t++){ const k=key[t]||0; ik[t]=k^0x36; ok[t]=k^0x5c; }
+  const Hi=Uint32Array.from(_SIV), Ho=Uint32Array.from(_SIV), W=new Uint32Array(64), dvi=new DataView(ik.buffer), dvo=new DataView(ok.buffer);
+  for(let t=0;t<16;t++) W[t]=dvi.getUint32(t*4); _shaCompress(Hi,W);
+  for(let t=0;t<16;t++) W[t]=dvo.getUint32(t*4); _shaCompress(Ho,W);
+  const msg=new Uint8Array(salt.length+4); msg.set(salt); msg[salt.length+3]=1;
+  const u1=_hmac256(pass,msg), U=new Uint32Array(8), T=new Uint32Array(8), du=new DataView(u1.buffer);
+  for(let t=0;t<8;t++){ U[t]=du.getUint32(t*4); T[t]=U[t]; }
+  const A=new Uint32Array(8), H=new Uint32Array(8);
+  for(let n=1;n<iter;n++){
+    H.set(Hi); for(let t=0;t<8;t++) W[t]=U[t]; W[8]=0x80000000; for(let t=9;t<15;t++) W[t]=0; W[15]=768; _shaCompress(H,W);
+    A.set(H); H.set(Ho); for(let t=0;t<8;t++) W[t]=A[t]; W[8]=0x80000000; for(let t=9;t<15;t++) W[t]=0; W[15]=768; _shaCompress(H,W);
+    for(let t=0;t<8;t++){ U[t]=H[t]; T[t]^=H[t]; }
+  }
+  const out=new Uint8Array(32), od=new DataView(out.buffer); for(let t=0;t<8;t++) od.setUint32(t*4,T[t]>>>0); return out;
+}
+const _hexA=h=>{ const o=new Uint8Array(h.length/2); for(let i=0;i<o.length;i++) o[i]=parseInt(h.substr(i*2,2),16); return o; };
+const _aHex=a=>Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');
+// ¿la clave escrita corresponde a la del tipo indicado (PRECIO, MG o LIQ)?
+function claveOk(entrada,tipo){
+  const c=({PRECIO:typeof CLAVE_PRECIO!=='undefined'?CLAVE_PRECIO:'',MG:typeof CLAVE_MG!=='undefined'?CLAVE_MG:'',LIQ:typeof CLAVE_LIQ!=='undefined'?CLAVE_LIQ:''})[tipo];
+  if(entrada==null||entrada==='') return false;
+  if(typeof c==='string') return entrada===c;               // transición: aún sin cifrar
+  if(!c||!c.h||!c.s) return false;
+  const got=_pbkdf2(new TextEncoder().encode(String(entrada)),_hexA(c.s),c.i||150000), want=_hexA(c.h); let d=0; for(let i=0;i<32;i++) d|=got[i]^want[i]; return d===0;
+}
 function solicitarClavePrecio(){
   if(window.precioDesbloqueado){
     window.precioDesbloqueado=false;
@@ -2504,7 +2560,7 @@ function solicitarClavePrecio(){
   }
   const clave=prompt('Clave para modificar precios:');
   if(clave===null) return;
-  if(clave!==CLAVE_PRECIO){showToast('Clave incorrecta','error');return;}
+  if(!claveOk(clave,'PRECIO')){showToast('Clave incorrecta','error');return;}
   window.precioDesbloqueado=true;
   const btn=document.getElementById('precioLockBtn');
   if(btn){btn.textContent='🔓 Precio';btn.style.background='#F59E0B';btn.style.color='#fff';}
@@ -2536,7 +2592,7 @@ function toggleMGPanel(){
   if(!mgDesbloqueado){
     const clave=prompt('Clave para ver Margen y Comisión:');
     if(clave===null) return;
-    if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+    if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
     mgDesbloqueado=true;
     showToast('✓ Panel MG habilitado','success');
     document.getElementById('mgBtn').style.background='var(--green)';
@@ -5563,7 +5619,7 @@ function reasignarOfertaIdx(id){
   if(!esDueno){
     const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para reasignarla ingresa la clave de administrador:');
     if(clave===null) return;
-    if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+    if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   }
   const asesores=listaAsesoresConocidos().filter(a=>asesorLabel(a.nombre)!==asesorLabel(r.vendedor));
   if(!asesores.length){showToast('No hay otros asesores conocidos a quién asignar','error');return;}
@@ -6004,7 +6060,7 @@ async function abrirPedidoIdx(id,opts){
   if(asesorLabel(currentUserName)!==asesorLabel(r.vendedor)&&!(opts&&opts.forzar)){
     const clave=prompt('Esta oferta es de '+asesorLabel(r.vendedor)+'. Para ver o generar su pedido ingresa la clave de administrador:');
     if(clave===null) return;
-    if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+    if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   }
   // Una oferta YA GANADA no genera otro pedido: solo se consultan sus documentos.
   if(r.estado==='Cerrada-Ganada'&&!(opts&&opts.forzar)){ pedidoAbrirDocumentos(r); return; }
@@ -6618,7 +6674,7 @@ async function pedidoRegistrarAhora(){
   const P=_pedido; if(!P) return;
   const clave=prompt('Clave de administrador para registrar los seriales de una oferta que ya estaba ganada:');
   if(clave===null) return;
-  if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+  if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   const id=P.r.id;
   cerrarPedido();
   await abrirPedidoIdx(id,{forzar:true});
@@ -9590,7 +9646,7 @@ function evSalir(){
   if(!EV.admin){
     const c=prompt('Clave de administrador (MG) para ir al cotizador:');
     if(c===null) return;
-    if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+    if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); return; }
   }
   EV.admin=false; switchView('nueva');
 }
@@ -9760,7 +9816,7 @@ function evDestinoHTML(t){
 function evSetDestino(tipo){ EV.dest.tipo=tipo; if(tipo==='local'){ EV.dest.ciudadId=''; EV.dest.manual=null; EV.dest.envioOk=true; EV.dest.trasOk=true; } renderEventoCarrito(); }
 function evSetCiudad(id){
   if(id==='__otra__'){
-    if(!EV.admin){ const c=prompt('Clave de administrador para ingresar una ciudad con valor manual:'); if(c===null){ renderEventoCarrito(); return; } if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); renderEventoCarrito(); return; } EV.admin=true; }
+    if(!EV.admin){ const c=prompt('Clave de administrador para ingresar una ciudad con valor manual:'); if(c===null){ renderEventoCarrito(); return; } if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); renderEventoCarrito(); return; } EV.admin=true; }
     const nombre=prompt('Ciudad / destino:'); if(!nombre){ renderEventoCarrito(); return; }
     const envio=parseFloat(prompt('Envío nacional (USD):','0'))||0, tras=parseFloat(prompt('Traslado para la instalación (USD):','0'))||0;
     EV.dest.manual={id:'manual',ciudad:nombre.trim(),envio,traslado:tras}; EV.dest.ciudadId='';
@@ -9785,7 +9841,7 @@ function evDesbloquear(){
   if(EV.admin){ EV.admin=false; renderEvento(); return; }
   const c=prompt('Clave de administrador (MG):');
   if(c===null) return;
-  if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+  if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); return; }
   EV.admin=true; renderEvento();
   showToast('🔓 MG: margen y opciones de administrador visibles. Cierra el candado antes de mostrar la pantalla al cliente.','success');
 }
@@ -9887,7 +9943,7 @@ function evValidarVenta(e){
   if(t.bajoMinimo&&!EV.admin){
     const c=prompt('Este precio requiere autorización. Ingresa la clave de administrador:');
     if(c===null) return null;
-    if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return null; }
+    if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); return null; }
   }
   return t;
 }
@@ -9992,7 +10048,7 @@ function evConfigurar(){
   if(!EV.admin){
     const c=prompt('Clave de administrador para configurar el evento:');
     if(c===null) return;
-    if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+    if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); return; }
     EV.admin=true; renderEvento();
   }
   EV.edit=JSON.parse(JSON.stringify(EV.data));
@@ -10442,7 +10498,7 @@ async function _buscarDuplicados(){
 // (la de mayor revisión; empate → mayor id) que sigan "Enviada". Las Ganadas/Perdidas no se tocan. Pide la clave y muestra el conteo antes.
 async function marcarActualizadasAnteriores(){
   const c=prompt('🔒 Clave de administrador para marcar como "Actualizada" las revisiones anteriores:'); if(c===null) return;
-  if(c!==CLAVE_MG){ showToast('Clave incorrecta','error'); return; }
+  if(!claveOk(c,'MG')){ showToast('Clave incorrecta','error'); return; }
   try{
     showToast('Revisando las ofertas…','success');
     const items=await graphGetAll(`/sites/${siteId}/lists/${listIdCotizaciones}/items?expand=fields($select=Title,Estado)&$top=500`);
@@ -10471,7 +10527,7 @@ async function marcarActualizadasAnteriores(){
 async function abrirLimpiezaDuplicados(){
   const clave=prompt('🔒 Clave para administrar duplicados:');
   if(clave===null) return;
-  if(clave!==CLAVE_MG){showToast('Clave incorrecta','error');return;}
+  if(!claveOk(clave,'MG')){showToast('Clave incorrecta','error');return;}
   document.getElementById('modalDuplicados').style.display='flex';
   await abrirLimpiezaDuplicadosSilencioso();
 }
@@ -10952,7 +11008,7 @@ function abrirLiquidador(){
   if(!liqDesbloqueado){
     const clave=prompt('Clave para acceder al Liquidador:');
     if(!clave) return;
-    if(clave!==CLAVE_LIQ){showToast('Clave incorrecta','error');return;}
+    if(!claveOk(clave,'LIQ')){showToast('Clave incorrecta','error');return;}
     liqDesbloqueado=true;
     // Poblar select de máquinas instalación
     // Poblar instMaquina desde catálogo real (con horas de SharePoint)
