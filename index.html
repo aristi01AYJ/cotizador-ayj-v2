@@ -765,8 +765,8 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <div style="padding:12px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex-shrink:0">
         <strong style="font-size:15px">🚢 Control logístico</strong>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="ev-tab on" id="logTab1" type="button" onclick="logTab('pedidos')">En importación</button>
-          <button class="ev-tab" id="logTab2" type="button" onclick="logTab('stock')">Distribución en stock</button>
+          <button class="ev-tab on" id="logTab1" type="button" onclick="logTab('pedidos')">🚢 En importación</button>
+          <button class="ev-tab" id="logTab2" type="button" onclick="logTab('stock')">📦 Distribución en stock</button>
 
         </div>
         <button class="btn-sec" style="margin-left:auto" onclick="LOG.ts=0;logCargar()" title="Volver a leer de SharePoint"><i class="ti ti-refresh"></i></button>
@@ -6941,7 +6941,7 @@ function logPrecisionAbrir(){
     +'<div style="font-size:11px;color:var(--text2)"><b>Diferencia de la etapa</b> = duración real − plazo planeado de esa etapa (positivo: se demoró). <b>Desviación acumulada</b> = fecha real − fecha estimada fija del hito: cuánto atraso se acumula hasta ese punto. «Dentro de ±3 d» cuenta los pedidos cuya fecha real cayó a 3 días o menos de la estimada.</div></div></div>';
   document.body.appendChild(m);
 }
-(function(){ if(document.getElementById('logTabsCss')) return; const st=document.createElement('style'); st.id='logTabsCss'; st.textContent='#logisticaView .ev-tab{font-size:12.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:9px 20px;border-radius:8px}'; document.head.appendChild(st); })();
+(function(){ if(document.getElementById('logTabsCss')) return; const st=document.createElement('style'); st.id='logTabsCss'; st.textContent='#logisticaView .ev-tab{display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border-radius:20px;border:2px solid #ddd;background:#fff;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#888;margin-right:6px}#logisticaView .ev-tab:hover{border-color:#80A61B;color:#3d6b0a}#logisticaView .ev-tab.on{border-color:#80A61B;background:#f0f4e8;color:#3d6b0a}'; document.head.appendChild(st); })();
 const LOG_HITOS=[{nom:'Fabricación',est:'fabEst',real:'fabReal',estado:'Fabricado'},{nom:'Despacho de fábrica',est:'despEst',real:'despReal',estado:'Despachado de fábrica'},
   {nom:'Zarpe del barco',est:'zarpeEst',real:'zarpeReal',estado:'En tránsito internacional'},{nom:'Llegada a puerto',est:'puertoEst',real:'puertoReal',estado:'En puerto / nacionalización'},{nom:'Nacionalización',est:'nacEst',real:'nacReal',estado:'Nacionalizada, en transporte a AYJ'},{nom:'Llegada a AYJ',est:'ayjEst',real:'ayjReal',estado:'Recibido en AYJ'}];
 const LOG_AYJ=[-74.1,4.65];   // Bogotá (sede y consignatario)
