@@ -7724,7 +7724,7 @@ function logRender(){
         +''
         +''
         +'<td style="font-size:12px">'+logCeldaEta(p)+'</td>'
-        +'<td style="white-space:nowrap;width:1%" onclick="event.stopPropagation()"><button class="btn-sec" style="font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎</button> '+(logActivo(p)?'<button class="btn-sec" style="font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</td></tr>'
+        +'<td style="white-space:nowrap;width:1%" onclick="event.stopPropagation()"><div style="display:flex;flex-direction:column;gap:4px;width:96px"><button class="btn-sec" style="width:100%;justify-content:center;font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎ Editar</button>'+(logActivo(p)?'<button class="btn-sec" style="width:100%;justify-content:center;font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</div></td></tr>'
         +(es?'<tr><td colspan="5" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
     }).join('')||'<tr><td colspan="5" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
     +'</tbody></table></div>';
