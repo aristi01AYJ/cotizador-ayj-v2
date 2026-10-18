@@ -765,9 +765,9 @@ body.modo-usd #tSubUSD,body.modo-usd #tDescUSD,body.modo-usd #tIVAUSD,body.modo-
       <div style="padding:12px 20px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex-shrink:0">
         <strong style="font-size:15px">🚢 Control logístico</strong>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="ev-tab on" id="logTab1" type="button" onclick="logTab('pedidos')">1 · Pedidos a fábrica</button>
-          <button class="ev-tab" id="logTab2" type="button" onclick="logTab('stock')">2 · Ubicación en stock</button>
-          <button class="ev-tab" type="button" disabled style="opacity:.45;cursor:not-allowed" title="Próxima fase">3 · Entregas locales</button>
+          <button class="ev-tab on" id="logTab1" type="button" onclick="logTab('pedidos')">En importación</button>
+          <button class="ev-tab" id="logTab2" type="button" onclick="logTab('stock')">Distribución en stock</button>
+
         </div>
         <button class="btn-sec" style="margin-left:auto" onclick="LOG.ts=0;logCargar()" title="Volver a leer de SharePoint"><i class="ti ti-refresh"></i></button>
       </div>
@@ -6830,9 +6830,120 @@ const LOG_FAB_NOMBRE={P:'TWM',NX:'NANXING',BL:'BALA',WM:'WOODMIZER',MG:'MAGGI',F
 const LOG_CAMPOS={fabrica:['fabrica'],creado:['fechacreado'],fabEst:['fabricadoest','fabricacionest'],fabReal:['fabricadoreal','fabricacionreal'],despEst:['despachoest','desapachoest'],despReal:['despachoreal','desapachoreal'],
   zarpeEst:['zarpeest'],zarpeReal:['zarpereal'],puertoEst:['llegadapuertoest'],puertoReal:['llegadapuertoreal'],ayjEst:['llegadaayjest'],ayjReal:['llegadaayjreal'],
   ciudad:['ciudadorigen'],pOrigen:['puertoorigen'],pDestino:['puertodestino'],buque:['buque'],tipoCont:['tipodecontenedor','tipocontenedor','contenedor'],numCont:['numerocontenedor','numerodecontenedor','nocontenedor','numcontenedor'],fob:['preciofob','fob','preciofobusd','preciofobdelcontenedor'],especial:['estadoespecial'],notas:['notas'],transp:['transportista','transporte','navieratransportista']};
-const LOG_FECHAS=['creado','fabEst','fabReal','despEst','despReal','zarpeEst','zarpeReal','puertoEst','puertoReal','ayjEst','ayjReal'];
+const LOG_FECHAS=['creado','fabEst','fabReal','despEst','despReal','zarpeEst','zarpeReal','puertoEst','puertoReal','nacEst','nacReal','ayjEst','ayjReal'];
+// ── Plazos y fechas estimadas automáticas ──────────────────────────────────────────────────────────────────────────────────────────
+// Al crear el pedido se marca la fecha del pedido (= «Fecha creado» en PEDIDOS_FABRICA, editable para cargar pedidos del pasado) y los plazos en días; de ahí salen las fechas
+// ESTIMADAS, que quedan fijas (línea base para medir qué tan acertados somos). Las REALES marcan la pauta: el desfase de la última etapa con fecha real se traslada a las etapas
+// que faltan (fecha «vigente») sin tocar la estimada original. Columnas nuevas de PEDIDOS_FABRICA: PlazoFabricacion, PlazoListaEmbarque, PlazoTransporteInt, PlazoNacionalizacion,
+// PlazoTransporteNal (número) y NacionalizacionEst, NacionalizacionReal (fecha).
+Object.assign(LOG_CAMPOS,{nacEst:['nacionalizacionest','nacionalizadaest'],nacReal:['nacionalizacionreal','nacionalizadareal'],plazoFab:['plazofabricacion'],plazoLista:['plazolistaembarque','plazolistaembarcada'],plazoInt:['plazotransporteint','plazotransporteinternacional'],plazoNac:['plazonacionalizacion'],plazoTNal:['plazotransportenal','plazotransportenacional']});
+const LOG_PLAZOS=[60,8,40,5,3];   // días típicos: fabricación · lista → embarque · transporte internacional · nacionalización · transporte nacional
+const LOG_PLAZO_K=['plazoFab','plazoLista','plazoInt','plazoNac','plazoTNal'];
+const LOG_COL_NOM={nacEst:'NacionalizacionEst (fecha)',nacReal:'NacionalizacionReal (fecha)',plazoFab:'PlazoFabricacion (número)',plazoLista:'PlazoListaEmbarque (número)',plazoInt:'PlazoTransporteInt (número)',plazoNac:'PlazoNacionalizacion (número)',plazoTNal:'PlazoTransporteNal (número)'};
+const LOG_ETAPAS=[
+  {nom:'Fabricación',corto:'Fabricación',k:'fab',col:'#F59E0B',bg:'#FDE9C0'},
+  {nom:'Lista → embarque',corto:'Lista → embarque',k:'zarpe',col:'#0EA5E9',bg:'#D6EEFB'},
+  {nom:'Transporte internacional',corto:'T. internacional',k:'puerto',col:'#2563EB',bg:'#D9E5FB'},
+  {nom:'Nacionalización',corto:'Nacionalización',k:'nac',col:'#7C3AED',bg:'#E6DCFB'},
+  {nom:'Transporte nacional',corto:'T. nacional',k:'ayj',col:'#16A34A',bg:'#D3F0DC'}];
+const logSumaDias=(d,n)=>d?new Date(d.getTime()+Math.round(n)*86400000):null;
+// plazo en días de la etapa i: el del pedido; si falta, la diferencia entre sus fechas estimadas; si no, el valor típico
+function logPlazo(p,i){
+  const v=p[LOG_PLAZO_K[i]]; if(v>0) return v;
+  const E=['fabEst','zarpeEst','puertoEst','nacEst','ayjEst'], a=i===0?p.creado:p[E[i-1]], b=p[E[i]];
+  return a&&b&&b>a?Math.round((b-a)/86400000):LOG_PLAZOS[i];
+}
+function logCalcEst(creado,pl){ if(!creado) return null; const E=['fabEst','zarpeEst','puertoEst','nacEst','ayjEst'], o={}; let d=creado; E.forEach((k,i)=>{ d=logSumaDias(d,pl[i]); o[k]=d; }); return o; }
+// fechas vigentes por hito: la real si existe; si no, la estimada fija corrida por el desfase de la última etapa con fecha real (positivo = atraso, negativo = adelanto)
+function logVigentes(p){
+  const D=86400000, K=['fab','zarpe','puerto','nac','ayj'], o={}; let desf=0, prev=null;
+  K.forEach(k=>{ const e=p[k+'Est'], r=p[k+'Real']; if(e&&r) desf=Math.round((r-e)/D); });
+  K.forEach((k,i)=>{ const e=p[k+'Est']||null, r=p[k+'Real']||null; let vig=r;
+    if(!vig){ if(e) vig=logSumaDias(e,desf); else if(prev) vig=logSumaDias(prev,logPlazo(p,i)); }
+    o[k]={est:e,real:r,vig:vig||null,dev:e&&r?Math.round((r-e)/D):null}; prev=vig||prev; });
+  o.desf=desf; return o;
+}
+function logEta(p){ const a=logVigentes(p).ayj; return a.vig||a.est||null; }
+// 5 etapas con su avance propio (0–100 %); una etapa está hecha si ella o alguna posterior ya tiene fecha real
+function logEtapasInfo(p){
+  const V=logVigentes(p), ahora=Date.now(), hoy=new Date().setHours(0,0,0,0);
+  const ini0=p.creado||(V.fab.vig?logSumaDias(V.fab.vig,-logPlazo(p,0)):null);
+  const done=LOG_ETAPAS.map((e,i)=>LOG_ETAPAS.slice(i).some(x=>V[x.k].real)); if(p.despReal) done[0]=true;
+  return LOG_ETAPAS.map((e,i)=>{
+    const m=V[e.k], fin=m.vig, ini=i===0?ini0:(V[LOG_ETAPAS[i-1].k].vig||null), dur=logPlazo(p,i);
+    let f=0; if(done[i]) f=1; else if((i===0||done[i-1])&&ini&&fin) f=fin>ini?Math.max(0,Math.min(0.99,(ahora-ini.getTime())/(fin-ini))):(ahora>=ini.getTime()?0.99:0);
+    const venc=!done[i]&&!!fin&&fin.getTime()<hoy;
+    return {i,nom:e.nom,corto:e.corto,col:e.col,bg:e.bg,dur,f,done:done[i],venc,ini,fin,est:m.est,real:m.real,dev:m.dev};
+  });
+}
+// barra principal del pedido: 5 tramos, ancho proporcional a los días planeados, cada uno de 0 a 100 % (rojo si su fecha ya venció)
+function logBarraSeg(p,h){
+  const E=logEtapasInfo(p), tot=E.reduce((s,e)=>s+e.dur,0)||1;
+  return '<div style="display:flex;gap:2px;flex:1;min-width:150px">'+E.map(e=>{ const w=Math.max(e.dur,tot*0.06), tip=e.nom+': '+Math.round(e.f*100)+'%'+(e.fin?' · '+(e.real?'real ':'prevista ')+logF(e.real||e.fin):'')+(e.venc?' · vencida':'');
+    return '<div title="'+_escRes(tip)+'" style="flex:'+w.toFixed(2)+' 1 0;min-width:0;height:'+h+'px;background:'+e.bg+';border-radius:3px;overflow:hidden;'+(e.venc?'box-shadow:0 0 0 1.5px #DC2626;':'')+'"><div style="width:'+Math.round(e.f*100)+'%;height:100%;background:'+(e.venc?'#DC2626':e.col)+'"></div></div>'; }).join('')+'</div>';
+}
+function logBarrasEtapas(p){
+  return logEtapasInfo(p).map(e=>{ const pct=Math.round(e.f*100); return '<div style="display:flex;align-items:center;gap:6px;margin:2px 0" title="'+e.nom+': '+pct+'%"><span style="width:128px;font-size:10px;white-space:nowrap;color:var(--text2)">'+(pct>=100?'✓ ':'')+e.corto+' <span style="color:var(--text3)">('+e.dur+' d)</span></span>'+logBarra(e.f,e.venc?'#DC2626':e.col,7)+'<b style="font-size:10px;min-width:28px;text-align:right;color:'+(pct>=100?'#166534':'var(--text)')+'">'+pct+'%</b></div>'; }).join('');
+}
+// retraso (+) o adelanto (−) de la llegada a AYJ frente a lo estimado originalmente
+function logRetraso(p){ const a=logVigentes(p).ayj; return a.est&&a.vig?Math.round((a.vig-a.est)/86400000):null; }
+function logRetrasoChip(p){
+  const d=logRetraso(p); if(d==null||(d===0&&!p.ayjReal)) return '';
+  const c=d>0?['#B91C1C','#FEE2E2']:['#166534','#DCFCE7'];
+  return '<div style="margin-top:3px"><span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;color:'+c[0]+';background:'+c[1]+'" title="Llegada a AYJ: fecha vigente frente a la estimada original">'+(d>0?'retraso de '+d+' d vs estimado':d<0?'adelanto de '+(-d)+' d vs estimado':'según lo estimado')+'</span></div>';
+}
+function logCeldaEta(p){
+  const V=logVigentes(p).ayj, hoy=new Date(); hoy.setHours(0,0,0,0);
+  if(V.real) return '<div style="font-weight:700;color:#166534;white-space:nowrap">✓ '+logF(V.real)+'</div>'+(V.est?'<div style="font-size:10px;color:var(--text3)">est. '+logF(V.est)+'</div>':'');
+  const f=V.vig; if(!f) return '<span style="color:var(--text3)">—</span>';
+  const dias=Math.round((f-hoy)/86400000), cambio=V.est&&Math.round((f-V.est)/86400000)!==0;
+  return '<div style="font-style:italic;white-space:nowrap;color:'+(dias<0?'#DC2626':'var(--text)')+'">'+logF(f)+(dias<0?' ⚠':'')+'</div><div style="font-size:10px;font-weight:700;color:'+(dias<0?'#DC2626':'var(--text2)')+'">'+(dias<0?'hace '+(-dias)+' d':'en '+dias+' d')+'</div>'+(cambio?'<div style="font-size:10px;color:var(--text3)">orig. '+logF(V.est)+'</div>':'');
+}
+function logTablaHitos(p){
+  const V=logVigentes(p), dif=(a,b)=>Math.round((b-a)/86400000);
+  const fila=(nom,k)=>{ const m=V[k]; if(!m.est&&!m.real&&!m.vig) return ''; const cambio=!m.real&&m.est&&m.vig&&dif(m.est,m.vig)!==0;
+    return '<tr><td>'+nom+'</td><td>'+(m.est?logF(m.est):'—')+'</td><td>'+(m.real?'<b style="color:#166534">✓ '+logF(m.real)+'</b>':(m.vig?'<i>'+logF(m.vig)+'</i>'+(cambio?' <span style="font-size:10px;color:#B91C1C">('+(dif(m.est,m.vig)>0?'+':'')+dif(m.est,m.vig)+' d)</span>':''):'—'))+'</td><td>'+(m.dev!=null?logDesvChip({tipo:'real',dias:m.dev}):'')+'</td></tr>'; };
+  return '<div style="margin-top:10px;overflow-x:auto"><table class="hist-table" style="font-size:12px"><thead><tr><th>Hito</th><th>Estimada (fija)</th><th>Real / vigente</th><th>Desviación</th></tr></thead><tbody>'+fila('Fabricación (máquina lista)','fab')+fila('Embarque (zarpe)','zarpe')+fila('Llegada a puerto','puerto')+fila('Nacionalización','nac')+fila('Llegada a AYJ','ayj')+'</tbody></table><div style="font-size:10px;color:var(--text3);margin-top:4px">Las estimadas son fijas (línea base para medir qué tan acertados somos). Con fecha real, las etapas que faltan se corren por el desfase y queda a la vista.</div></div>';
+}
+// bloque de plazos del formulario del pedido
+function logPlazosHTML(p,inp,nuevo){
+  const et=['Fabricación','Lista → embarque','Transp. internacional','Nacionalización','Transp. nacional'], mgr=typeof ucPermiso==='function'&&ucPermiso();
+  return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Plazos en días <span style="font-weight:400;color:var(--text2)">· con la fecha del pedido calculan las fechas estimadas, que quedan fijas</span></div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">'
+    +LOG_PLAZO_K.map((k,i)=>'<div><label style="font-size:10.5px;font-weight:700">'+et[i]+'</label><input type="number" min="0" step="1" id="lgE_'+k+'" value="'+(nuevo?LOG_PLAZOS[i]:logPlazo(p,i))+'" style="'+inp+'"></div>').join('')+'</div>'
+    +(!nuevo&&mgr?'<div style="margin-top:6px"><button type="button" class="btn-sec" style="font-size:11px;padding:3px 9px" onclick="logAutoEst(true)" title="Reemplaza las estimadas actuales por las calculadas con la fecha del pedido y estos plazos (queda anotado en la bitácora del pedido)">↻ Recalcular estimadas con estos plazos</button></div>':'')+'</div>';
+}
+// llena las fechas estimadas con la fecha del pedido + plazos: siempre en un pedido nuevo; en uno existente solo si un gerente pulsa «Recalcular»
+function logAutoEst(forzar){
+  const v=id=>(document.getElementById('lgE_'+id)||{}).value||'', f=LOG.ficha; if(!f||!(f.nuevo||forzar)) return;
+  const cre=v('creado')?logFechaDe(logIso(v('creado'))):null; if(!cre) return;
+  const pl=LOG_PLAZO_K.map((k,i)=>{ const n=parseFloat(v(k)); return n>=0?n:LOG_PLAZOS[i]; }), est=logCalcEst(cre,pl);
+  Object.keys(est).forEach(k=>{ const e=document.getElementById('lgE_'+k); if(e) e.value=logInput(est[k]); });
+  logFichaRefrescar();
+}
+// ── precisión de los estimados: lo planeado frente a lo que realmente pasó ──
+function logPrecisionHTML(fab){
+  const K=['fab','zarpe','puerto','nac','ayj'], dif=(a,b)=>Math.round((b-a)/86400000), prom=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null, f1=x=>x==null?'—':(Math.round(x*10)/10).toLocaleString('es-CO');
+  const ps=LOG.pedidos.filter(p=>!fab||(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'').toUpperCase()===fab);
+  const filas=LOG_ETAPAS.map((e,i)=>{
+    const L=ps.map(p=>{ const k=K[i], fin=p[k+'Real'], est=p[k+'Est']; if(!fin||!est) return null; const ini=i===0?p.creado:p[K[i-1]+'Real'], iniEst=i===0?p.creado:p[K[i-1]+'Est'];
+      return {dev:dif(est,fin),real:ini?dif(ini,fin):null,plan:iniEst?dif(iniEst,est):null}; }).filter(Boolean);
+    const dr=prom(L.filter(x=>x.real!=null&&x.plan!=null).map(x=>x.real-x.plan)), ok=L.length?Math.round(L.filter(x=>Math.abs(x.dev)<=3).length/L.length*100):null;
+    const lect=dr==null?'sin datos suficientes':dr>3?'se demora más de lo planeado':dr<-3?'termina antes de lo planeado':'el plazo planeado es acertado';
+    return '<tr><td><b>'+e.nom+'</b></td><td style="text-align:center">'+L.length+'</td><td style="text-align:center">'+f1(prom(L.map(x=>x.plan).filter(x=>x!=null)))+'</td><td style="text-align:center">'+f1(prom(L.map(x=>x.real).filter(x=>x!=null)))+'</td><td style="text-align:center;font-weight:700;color:'+(dr==null?'inherit':dr>3?'#B91C1C':'#166534')+'">'+(dr==null?'—':(dr>0?'+':'')+f1(dr))+'</td><td style="text-align:center">'+f1(prom(L.map(x=>x.dev)))+'</td><td style="text-align:center">'+(ok==null?'—':ok+' %')+'</td><td style="font-size:11px;color:var(--text2)">'+lect+'</td></tr>';
+  }).join('');
+  return '<table class="hist-table" style="font-size:12px;width:100%"><thead><tr><th>Etapa</th><th>Pedidos medidos</th><th>Plazo planeado (d)</th><th>Duración real (d)</th><th>Diferencia de la etapa (d)</th><th>Desviación acumulada al cierre (d)</th><th>Dentro de ±3 d</th><th>Lectura</th></tr></thead><tbody>'+filas+'</tbody></table>';
+}
+function logPrecisionAbrir(){
+  const fabs=[...new Set(LOG.pedidos.map(p=>(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'').toUpperCase()).filter(Boolean))].sort();
+  const m=document.createElement('div'); m.id='logPrecModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:585;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML='<div style="background:#fff;border-radius:var(--radius-lg);width:980px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">📊 ¿Qué tan acertados son nuestros plazos?</strong><button onclick="document.getElementById(\'logPrecModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
+    +'<div style="padding:14px 18px;overflow:auto;display:grid;gap:10px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><label style="font-weight:700">Fábrica</label><select onchange="document.getElementById(\'lgPr_tab\').innerHTML=logPrecisionHTML(this.value)" style="padding:6px 9px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todas</option>'+fabs.map(f=>'<option>'+_escRes(f)+'</option>').join('')+'</select><span style="color:var(--text2)">Compara, por etapa, lo planeado con lo que realmente pasó en los pedidos que ya tienen fecha real.</span></div><div id="lgPr_tab" style="overflow-x:auto">'+logPrecisionHTML('')+'</div>'
+    +'<div style="font-size:11px;color:var(--text2)"><b>Diferencia de la etapa</b> = duración real − plazo planeado de esa etapa (positivo: se demoró). <b>Desviación acumulada</b> = fecha real − fecha estimada fija del hito: cuánto atraso se acumula hasta ese punto. «Dentro de ±3 d» cuenta los pedidos cuya fecha real cayó a 3 días o menos de la estimada.</div></div></div>';
+  document.body.appendChild(m);
+}
+(function(){ if(document.getElementById('logTabsCss')) return; const st=document.createElement('style'); st.id='logTabsCss'; st.textContent='#logisticaView .ev-tab{font-size:12.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:9px 20px;border-radius:8px}'; document.head.appendChild(st); })();
 const LOG_HITOS=[{nom:'Fabricación',est:'fabEst',real:'fabReal',estado:'Fabricado'},{nom:'Despacho de fábrica',est:'despEst',real:'despReal',estado:'Despachado de fábrica'},
-  {nom:'Zarpe del barco',est:'zarpeEst',real:'zarpeReal',estado:'En tránsito internacional'},{nom:'Llegada a puerto',est:'puertoEst',real:'puertoReal',estado:'En puerto / nacionalización'},{nom:'Llegada a AYJ',est:'ayjEst',real:'ayjReal',estado:'Recibido en AYJ'}];
+  {nom:'Zarpe del barco',est:'zarpeEst',real:'zarpeReal',estado:'En tránsito internacional'},{nom:'Llegada a puerto',est:'puertoEst',real:'puertoReal',estado:'En puerto / nacionalización'},{nom:'Nacionalización',est:'nacEst',real:'nacReal',estado:'Nacionalizada, en transporte a AYJ'},{nom:'Llegada a AYJ',est:'ayjEst',real:'ayjReal',estado:'Recibido en AYJ'}];
 const LOG_AYJ=[-74.1,4.65];   // Bogotá (sede y consignatario)
 // lugares conocidos [lon,lat]; el texto escrito en CiudadOrigen / PuertoOrigen / PuertoDestino se reconoce por contener alguno de estos nombres
 const LOG_LUG={shanghai:[121.47,31.23],ningbo:[121.55,29.87],qingdao:[120.38,36.07],shenzhen:[114.05,22.54],yantian:[114.27,22.57],guangzhou:[113.26,23.13],nansha:[113.6,22.75],xiamen:[118.09,24.48],tianjin:[117.7,39.0],xingang:[117.7,39.0],dalian:[121.61,38.91],hongkong:[114.17,22.3],
@@ -6890,6 +7001,7 @@ function logModelo(i){
   ['ciudad','pOrigen','pDestino','buque','tipoCont','numCont','especial','transp'].forEach(k=>{ p[k]=String(g(k)||'').trim(); });
   p.notas=String(g('notas')||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/[ \t]+/g,' ').trim();
   const fobN=parseFloat(g('fob')); p.fob=isNaN(fobN)?null:fobN;
+  LOG_PLAZO_K.forEach(k=>{ const n=parseFloat(g(k)); p[k]=isNaN(n)?null:n; });
   return p;
 }
 // La columna PEDIDO de TODAS_2025 es de TEXTO y trae el código completo. Si hay más de una columna llamada PEDIDO (ej. una numérica vieja), se prefiere la de texto/elección y la que se llama así por nombre visible.
@@ -6939,34 +7051,25 @@ function logEstado(p){
   if(p.especial) return {txt:p.especial,cls:'#B91C1C',bg:'#FEE2E2',idx:-1,especial:true};
   let idx=-1; LOG_HITOS.forEach((h,i)=>{ if(p[h.real]) idx=i; });
   if(idx<0) return {txt:'En fabricación',cls:'#92400E',bg:'#FEF3C7',idx:-1};
-  const col=[['#92400E','#FEF3C7'],['#92400E','#FEF3C7'],['#1E40AF','#DBEAFE'],['#5B21B6','#EDE9FE'],['#166534','#DCFCE7']][idx];
+  const col=[['#92400E','#FEF3C7'],['#92400E','#FEF3C7'],['#1E40AF','#DBEAFE'],['#5B21B6','#EDE9FE'],['#5B21B6','#EDE9FE'],['#166534','#DCFCE7']][idx];
   return {txt:LOG_HITOS[idx].estado,cls:col[0],bg:col[1],idx};
 }
 function logActivo(p){ return !p.ayjReal&&!/cancel/i.test(p.especial); }
-function logAtraso(p){ const hoy=new Date(); hoy.setHours(0,0,0,0); const e=logEstado(p); if(!logActivo(p)) return 0; const sig=LOG_HITOS.find((h,i)=>i>e.idx&&p[h.est]&&!p[h.real]); const ref=p.ayjEst&&!p.ayjReal?p.ayjEst:null; const d=[sig&&p[sig.est],ref].filter(x=>x&&x<hoy).sort((a,b)=>a-b)[0]; return d?Math.floor((hoy-d)/86400000):0; }
+function logAtraso(p){ const hoy=new Date(); hoy.setHours(0,0,0,0); if(!logActivo(p)) return 0; const K=['fab','zarpe','puerto','nac','ayj'], V=logVigentes(p); let u=-1; K.forEach((k,i)=>{ if(V[k].real) u=i; }); const sig=K.map(k=>V[k]).find((m,i)=>i>u&&!m.real&&m.vig); return sig&&sig.vig<hoy?Math.floor((hoy-sig.vig)/86400000):0; }
 // ── Fases del pedido: 1 Fabricación · 2 Lista–Embarcada (de fabricado a llegada a puerto: despacho, zarpe y travesía) · 3 Nacionalizada–Transporte local (del puerto a AYJ) · 4 Disponible en AYJ.
 // Avance de cada fase por fechas: 100 % cuando hay fecha real de su cierre; si no, (hoy − inicio) / (fin estimado − inicio), máximo 99 %.
 const LOG_FASES=[{nom:'Fabricación',corto:'Fabricación',col:'#F59E0B',bg:'#FEF3C7',tx:'#92400E'},{nom:'Lista · Embarcada',corto:'Lista · Embarcada',col:'#2563EB',bg:'#DBEAFE',tx:'#1E40AF'},
   {nom:'Nacionalizada · Transporte local',corto:'Nacionalizada · T. local',col:'#7C3AED',bg:'#EDE9FE',tx:'#5B21B6'},{nom:'Disponible en AYJ',corto:'Disponible en AYJ',col:'#16A34A',bg:'#DCFCE7',tx:'#166534'}];
 const LOG_FASE_DIAS=[60,35,10];   // duración supuesta de cada fase cuando falta su fecha estimada de cierre
 function logAvance(p){
-  const D=86400000, ahora=Date.now(), t=x=>x?x.getTime():null;
-  const primera=p.fabReal||p.despReal||p.zarpeReal||p.puertoReal||p.ayjReal;
-  const hecho=[!!primera,!!(p.puertoReal||p.ayjReal),!!p.ayjReal];
-  const ini=[t(p.creado)||(t(p.fabEst)?t(p.fabEst)-LOG_FASE_DIAS[0]*D:null),t(primera)||t(p.fabEst),t(p.puertoReal||p.ayjReal)||t(p.puertoEst)];
-  const fin=[t(p.fabReal)||t(p.fabEst),t(p.puertoReal)||t(p.puertoEst),t(p.ayjReal)||t(p.ayjEst)];
-  const f=[0,0,0,0], dur=[];
-  for(let i=0;i<3;i++){
-    const a=ini[i]; let b=fin[i]; if(a&&!b) b=a+LOG_FASE_DIAS[i]*D;
-    dur[i]=a&&b&&b>a?(b-a)/D:LOG_FASE_DIAS[i];
-    if(hecho[i]) f[i]=1;
-    else if((i===0||hecho[i-1])&&a&&b) f[i]=b>a?Math.max(0,Math.min(0.99,(ahora-a)/(b-a))):(ahora>=a?0.99:0);
-  }
-  f[3]=p.ayjReal?1:0;
-  const w=[dur[0],dur[1],dur[2],Math.max(1,(dur[0]+dur[1]+dur[2])*0.04)];
-  let total=f.reduce((s,x,i)=>s+x*w[i],0)/w.reduce((s,x)=>s+x,0); if(!p.ayjReal) total=Math.min(total,0.99);
+  const E=logEtapasInfo(p), mix=(a,b)=>{ const t=a.dur+b.dur; return t?(a.f*a.dur+b.f*b.dur)/t:0; };
+  const primera=p.fabReal||p.despReal||p.zarpeReal||p.puertoReal||p.nacReal||p.ayjReal;
+  const hecho=[!!primera,!!(p.puertoReal||p.nacReal||p.ayjReal),!!p.ayjReal];
+  const f=[hecho[0]?1:E[0].f, hecho[1]?1:mix(E[1],E[2]), hecho[2]?1:mix(E[3],E[4]), p.ayjReal?1:0];
+  const w=[E[0].dur,E[1].dur+E[2].dur,E[3].dur+E[4].dur,Math.max(1,(E[0].dur+E[1].dur+E[2].dur+E[3].dur+E[4].dur)*0.04)];
+  let total=f.reduce((t,x,i)=>t+x*w[i],0)/w.reduce((t,x)=>t+x,0); if(!p.ayjReal) total=Math.min(total,0.99);
   const idx=hecho[2]?3:hecho[1]?2:hecho[0]?1:0;
-  return {f,idx,total,fase:LOG_FASES[idx]};
+  return {f,idx,total,fase:LOG_FASES[idx],E};
 }
 function logFaseInfo(p){ const av=logAvance(p), e=logEstado(p); return e.especial?{av,txt:e.txt,bg:e.bg,cls:e.cls}:{av,txt:av.fase.nom,bg:av.fase.bg,cls:av.fase.tx}; }
 function logBarra(f,col,h){ return '<div style="flex:1;min-width:46px;background:#E5E7EB;border-radius:'+(h/2)+'px;height:'+h+'px;overflow:hidden"><div style="width:'+Math.round(f*100)+'%;height:100%;background:'+col+'"></div></div>'; }
@@ -6977,7 +7080,7 @@ function logBarrasFases(av){
 // Control de cambios: lista PEDIDOS_UPDATES en el mismo sitio (Title = código del pedido, Nota = varias líneas de texto). La fecha, la hora y la persona salen de las
 // columnas Creado / Creado por de SharePoint. Cada "Guardar" de la ficha anota solo qué cambió (antes → después) y, si se escribió, la nota de la actualización.
 const LOG_UPD={id:null,col:'Nota',cargado:false,items:[],falta:false};
-const LOG_ETQ={creado:'Fecha de creación',fabEst:'Fabricación estimada',fabReal:'Fabricación real',despEst:'Despacho estimado',despReal:'Despacho real',zarpeEst:'Zarpe estimado',zarpeReal:'Zarpe real',puertoEst:'Llegada a puerto estimada',puertoReal:'Llegada a puerto real',ayjEst:'Llegada a AYJ estimada',ayjReal:'Llegada a AYJ real',ciudad:'Ciudad de origen',pOrigen:'Puerto de origen',pDestino:'Puerto de destino',buque:'Buque',tipoCont:'Tipo de contenedor',numCont:'N° de contenedor',transp:'Transportista',especial:'Estado especial',fob:'Precio FOB'};
+const LOG_ETQ={creado:'Fecha de creación',fabEst:'Fabricación estimada',fabReal:'Fabricación real',despEst:'Despacho estimado',despReal:'Despacho real',zarpeEst:'Zarpe estimado',zarpeReal:'Zarpe real',puertoEst:'Llegada a puerto estimada',puertoReal:'Llegada a puerto real',ayjEst:'Llegada a AYJ estimada',ayjReal:'Llegada a AYJ real',nacEst:'Nacionalización estimada',nacReal:'Nacionalización real',plazoFab:'Plazo de fabricación (días)',plazoLista:'Plazo lista → embarque (días)',plazoInt:'Plazo de transporte internacional (días)',plazoNac:'Plazo de nacionalización (días)',plazoTNal:'Plazo de transporte nacional (días)',ciudad:'Ciudad de origen',pOrigen:'Puerto de origen',pDestino:'Puerto de destino',buque:'Buque',tipoCont:'Tipo de contenedor',numCont:'N° de contenedor',transp:'Transportista',especial:'Estado especial',fob:'Precio FOB'};
 const logDif=(a,b)=>Math.round((b-a)/86400000);
 // por hito: con fecha real → días de diferencia con la estimada (+ tarde, − antes); sin real y estimada vencida → días de atraso; sin real y estimada futura → días que faltan
 function logDesv(p){
@@ -7020,11 +7123,11 @@ function logLineaHTML(p){
   }).join('');
   return filas+'<div style="font-size:10px;color:var(--text3);margin-top:4px">◇ estimada · ● real · línea gris = hoy · '+logF(new Date(a+pad))+' → '+logF(new Date(b-pad))+'</div>';
 }
-function logPanelAvance(p){
+function logPanelAvance(p,sinTabla){
   const av=logAvance(p);
   return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;background:#fff"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Avance y desviación frente a lo estimado</div><div style="display:flex;gap:18px;flex-wrap:wrap">'
-    +'<div style="flex:1 1 250px;min-width:0"><div style="margin-bottom:8px">'+logEscena(p)+'</div><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px" title="Avance total del pedido"><span style="font-size:10px;width:104px;font-weight:700">Avance total</span>'+logBarra(av.total,'#575756',10)+'<b style="font-size:11px;min-width:30px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+logBarrasFases(av)+'</div>'
-    +'<div style="flex:2 1 340px;min-width:0">'+logLineaHTML(p)+'</div></div></div>';
+    +'<div style="flex:1 1 250px;min-width:0"><div style="margin-bottom:8px">'+logEscena(p)+'</div><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px" title="Avance total del pedido"><span style="font-size:10px;width:104px;font-weight:700">Avance total</span>'+logBarra(av.total,'#575756',10)+'<b style="font-size:11px;min-width:30px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+logBarrasEtapas(p)+'</div>'
+    +'<div style="flex:2 1 340px;min-width:0">'+logLineaHTML(p)+'</div></div>'+(sinTabla?'':logTablaHitos(p))+'</div>';
 }
 // ── ficha: encabezado con fábrica + panel vivo que se recalcula al editar fechas ──
 function logFormP(){
@@ -7032,6 +7135,7 @@ function logFormP(){
   LOG_FECHAS.forEach(k=>{ q[k]=v(k)?logFechaDe(logIso(v(k))):null; });
   ['ciudad','pOrigen','pDestino','buque','tipoCont','numCont','transp','especial'].forEach(k=>{ q[k]=v(k).trim(); });
   q.notas=v('notas').trim(); const fv=v('fob').trim(); q.fob=fv===''?null:parseFloat(fv);
+  LOG_PLAZO_K.forEach(k=>{ const n=parseFloat(v(k)); q[k]=isNaN(n)?null:n; });
   if(v('cod')) q.codigo=v('cod');
   return q;
 }
@@ -7042,7 +7146,7 @@ function logFichaRefrescar(){
   b.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#F4F8E8;border:1px solid #D9E4B8;border-radius:var(--radius);padding:8px 12px">'
     +'<span style="font-size:20px">🏭</span><div><div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Fábrica / marca</div><div style="font-size:18px;font-weight:800;line-height:1.1">'+_escRes(fab||'—')+(q.codigo?' <span style="font-weight:600;color:var(--text2)">· '+_escRes(q.codigo)+'</span>':'')+'</div>'+(marcas.length?'<div style="font-size:11px;color:var(--text2)">Marcas de las máquinas: '+_escRes(marcas.join(', '))+'</div>':'')+'</div>'
     +'<span style="margin-left:auto;background:'+fz.bg+';color:'+fz.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">'+_escRes(fz.txt)+' · '+Math.round(fz.av.total*100)+'%</span></div>';
-  g.innerHTML=logPanelAvance(q);
+  g.innerHTML=logPanelAvance(q,true);
 }
 // ── qué cambió (antes → después) ──
 function logDiff(old,nw,nuevo){
@@ -7054,6 +7158,7 @@ function logDiff(old,nw,nuevo){
   });
   ['ciudad','pOrigen','pDestino','buque','tipoCont','numCont','transp','especial'].forEach(k=>{ const a=old[k]||'', b=nw[k]||''; if(a!==b&&!(nuevo&&!b)) L.push('• '+LOG_ETQ[k]+': '+(a||'—')+' → '+(b||'—')); });
   { const a=old.fob==null?'':String(old.fob), b=nw.fob==null||isNaN(nw.fob)?'':String(nw.fob); if(a!==b&&!(nuevo&&!b)) L.push('• Precio FOB: '+(a?'USD '+Number(a).toLocaleString('es-CO'):'—')+' → '+(b?'USD '+Number(b).toLocaleString('es-CO'):'—')); }
+  LOG_PLAZO_K.forEach(k=>{ const a=old[k]==null?'':String(old[k]), b=nw[k]==null?'':String(nw[k]); if(a!==b&&!(nuevo&&!b)) L.push('• '+LOG_ETQ[k]+': '+(a||'—')+' → '+(b||'—')); });
   if((old.notas||'')!==(nw.notas||'')&&!(nuevo&&!nw.notas)) L.push('• Notas generales editadas');
   if(!nuevo){ const a=logAvance(old).idx, b=logAvance(nw).idx; if(a!==b) L.push('• Fase: '+LOG_FASES[a].nom+' → '+LOG_FASES[b].nom); }
   return L;
@@ -7233,7 +7338,7 @@ const LOG_DIAS_ENTREGA=7;   // días calendario entre la llegada a AYJ y la entr
 const LOG_EST_CLI=['En fabricación','Lista y embarcada, en camino a Colombia','En Colombia: nacionalización y transporte a AYJ','Disponible en AYJ'];
 function logEstCli(u){
   const p=u.codigo?LOG.pedidos.find(x=>x.codigo===u.codigo):null, enStock=/stock/i.test(u.estadoStock||'');
-  if(p&&!p.ayjReal){ /* si el pedido sigue en camino, manda el pedido aunque la columna ESTADO de la máquina diga En Stock */ const av=logAvance(p); return {txt:LOG_EST_CLI[av.idx],idx:av.idx,pct:av.total,eta:p.ayjEst,ped:p.titulo||p.codigo,esp:p.especial}; }
+  if(p&&!p.ayjReal){ /* si el pedido sigue en camino, manda el pedido aunque la columna ESTADO de la máquina diga En Stock */ const av=logAvance(p); return {txt:LOG_EST_CLI[av.idx],idx:av.idx,pct:av.total,eta:logEta(p),ped:p.titulo||p.codigo,esp:p.especial}; }
   if(enStock||(p&&p.ayjReal)) return {txt:'En AYJ, lista para entrega',idx:3,pct:1,eta:null,ped:p?(p.titulo||p.codigo):''};
   return {txt:'Pedido en trámite',idx:-1,pct:0,eta:null,ped:u.codigo||''};
 }
@@ -7370,7 +7475,7 @@ function logPosicion(p){
   if(p.ayjReal) return {pos:T.ayj,etapa:'AYJ',t:1,T};
   if(p.puertoReal&&T.pd){ const t3=logAvance(p).f[2], a=logAlongIdx(T.pts.slice(T.finMar),t3); return {pos:t3<0.02?T.pd:a.pos,etapa:t3<0.02?'Puerto':'Transporte local',t:t3,T}; }
   if(p.zarpeReal&&T.mar){
-    const fin=(p.puertoEst||new Date(p.zarpeReal.getTime()+30*86400000)).getTime(), ini=p.zarpeReal.getTime();
+    const fin=((logVigentes(p).puerto||{}).vig||p.puertoEst||new Date(p.zarpeReal.getTime()+30*86400000)).getTime(), ini=p.zarpeReal.getTime();
     const t=Math.max(0.03,Math.min(0.97,(ahora-ini)/Math.max(1,fin-ini)));
     const a=logAlongIdx(T.mar,t); return {pos:a.pos,seg:a.seg,f:a.f,etapa:'En el mar',t,T};
   }
@@ -7533,7 +7638,7 @@ function logValOrd(p,k){
     case 'desp': return fe('despReal','despEst');
     case 'zarpe': return fe('zarpeReal','zarpeEst');
     case 'puerto': return fe('puertoReal','puertoEst');
-    default: return fe('ayjReal','ayjEst');
+    default: return logEta(p);
   }
 }
 function logCmp(a,b){
@@ -7604,24 +7709,24 @@ function logRender(){
       +'<select onchange="LOG.cli=this.value;logRender()" title="Ver los pedidos de un solo cliente" style="max-width:220px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todos los clientes</option>'+clientes.map(c=>'<option value="'+_escRes(c)+'"'+(LOG.cli===c?' selected':'')+'>'+_escRes(c)+'</option>').join('')+'</select>'
       +'<select onchange="LOG.fab=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="">Todas las fábricas</option>'+fabs.map(f=>'<option'+(LOG.fab===f?' selected':'')+'>'+_escRes(f)+'</option>').join('')+'</select>'
       +'<select onchange="LOG.ver=this.value;logRender()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit"><option value="activos"'+(LOG.ver==='activos'?' selected':'')+'>Pedidos activos</option><option value="recibidos"'+(LOG.ver==='recibidos'?' selected':'')+'>Ya recibidos en AYJ</option><option value="todos"'+(LOG.ver==='todos'?' selected':'')+'>Todos</option></select>'
-      +'<span style="flex:1"></span><button class="btn-sec" onclick="logRepClienteAbrir()" title="Estado de las máquinas de un cliente, listo para enviárselo">👤 Reporte para el cliente</button><button class="btn-sec" onclick="logReporteAbrir()" title="Reporte del estado de los pedidos con fechas estimadas y reales y notas, para comunicar al equipo">📄 Reporte</button><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
-    +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.map(k=>k==='transp'?'Transportista (texto)':k).join(', ')+'</div>':'')
+      +'<span style="flex:1"></span><button class="btn-sec" onclick="logPrecisionAbrir()" title="Qué tan acertados son los plazos estimados frente a lo que realmente pasó">📊 Precisión</button><button class="btn-sec" onclick="logRepClienteAbrir()" title="Estado de las máquinas de un cliente, listo para enviárselo">👤 Reporte para el cliente</button><button class="btn-sec" onclick="logReporteAbrir()" title="Reporte del estado de los pedidos con fechas estimadas y reales y notas, para comunicar al equipo">📄 Reporte</button><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
+    +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.map(k=>k==='transp'?'Transportista (texto)':(LOG_COL_NOM[k]||k)).join(', ')+'</div>':'')
     +(LOG.sinCodigo.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">ℹ Hay máquinas con N° de PEDIDO de marcas sin código de fábrica: <b>'+_escRes(LOG.sinCodigo.join(', '))+'</b>. Agrega su código en <code>LOG_FAB</code> (index.html) para que se alineen con la lista de pedidos.</div>':'')
-    +bannerCli+'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr>'+logTh('pedido','Pedido')+logTh('avance','Fase y avance total')+logTh('fase','Avance por fases')+logTh('maq','Máquinas')+logTh('creado','Creado')+logTh('fab','Fabricación')+logTh('desp','Despacho')+logTh('zarpe','Zarpe')+logTh('puerto','Llegada a puerto')+logTh('ayj','Llegada a AYJ')+'<th></th></tr></thead><tbody>'
+    +bannerCli+'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr>'+logTh('pedido','Pedido')+logTh('avance','Avance del pedido')+logTh('maq','Máquinas')+logTh('ayj','Llegada a AYJ')+'<th></th></tr></thead><tbody>'
     +(lista.map(p=>{
       const fz=logFaseInfo(p), av=fz.av, at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, ncli=hayCli?p.units.filter(logMatchCli).length:0, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
       const dias=eta&&!p.ayjReal?Math.round((eta-hoy)/86400000):null;
       return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
         +'<td><strong style="font-size:14px">'+_escRes(p.titulo||p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
-        +'<td style="min-width:150px"><span style="background:'+fz.bg+';color:'+fz.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(fz.txt)+'</span><div style="display:flex;align-items:center;gap:6px;margin-top:6px" title="Avance total del pedido: de la creación a la llegada a AYJ">'+logBarra(av.total,'#575756',9)+'<b style="font-size:11px;min-width:32px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:2px">atrasado '+at+' d</div>':'')+logDesvUltima(p)+'</td><td style="min-width:230px">'+logBarrasFases(av)+'</td>'
+        +'<td style="min-width:320px;width:42%"><span style="background:'+fz.bg+';color:'+fz.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(fz.txt)+'</span><div style="display:flex;align-items:center;gap:6px;margin-top:6px" title="Cada tramo va de 0 a 100 % y su ancho es proporcional a los días planeados">'+logBarraSeg(p,9)+'<b style="font-size:11px;min-width:32px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:2px">atrasado '+at+' d</div>':'')+logRetrasoChip(p)+logDesvUltima(p)+'</td>'
         +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(ncli?'<div style="font-size:10px;color:#1D4ED8;font-weight:700">👤 '+ncli+' del cliente</div>':'')+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
-        +'<td style="font-size:12px;white-space:nowrap">'+(p.creado?logF(p.creado):'—')+'</td>'
-        +'<td style="font-size:12px">'+logCelda(p.fabEst,p.fabReal)+'</td><td style="font-size:12px">'+logCelda(p.despEst,p.despReal)+'</td><td style="font-size:12px">'+logCelda(p.zarpeEst,p.zarpeReal)+'</td>'
-        +'<td style="font-size:12px">'+logCelda(p.puertoEst,p.puertoReal)+(p.pDestino?'<div style="font-size:10px;color:var(--text2)">'+_escRes(p.pDestino)+'</div>':'')+'</td>'
-        +'<td style="font-size:12px">'+logCelda(p.ayjEst,p.ayjReal)+(dias!=null?'<div style="font-size:10px;font-weight:700;color:'+(dias<0?'#DC2626':'var(--text2)')+'">'+(dias<0?'hace '+(-dias)+' d':'en '+dias+' d')+'</div>':'')+'</td>'
+        +''
+        +''
+        +''
+        +'<td style="font-size:12px">'+logCeldaEta(p)+'</td>'
         +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="btn-sec" style="font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎</button> '+(logActivo(p)?'<button class="btn-sec" style="font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</td></tr>'
-        +(es?'<tr><td colspan="11" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
-    }).join('')||'<tr><td colspan="11" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
+        +(es?'<tr><td colspan="5" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
+    }).join('')||'<tr><td colspan="5" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
     +'</tbody></table></div>';
   logIniciarGlobo();
   if(LOG.sel&&document.getElementById('lgU_det')) logUpdPintar('lgU_det',LOG.sel,'detalle');
@@ -7683,7 +7788,8 @@ function logEditar(codigo){
   const nuevo=!codigo, p=nuevo?{codigo:'',units:[],especial:''}:LOG.pedidos.find(x=>x.codigo===codigo); if(!p) return;
   const inp='padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:13px;width:100%;box-sizing:border-box';
   const fec=(k,t)=>'<div><label style="font-size:11px;font-weight:700">'+t+'</label><input type="date" id="lgE_'+k+'" value="'+logInput(p[k])+'" oninput="logFichaRefrescar()" style="'+inp+'"></div>';
-  const hito=(h)=>'<div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">'+h.nom+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fec(h.est,'Estimada')+fec(h.real,'Real (ya ocurrió)')+'</div></div>';
+  const bloq=!nuevo&&!(typeof ucPermiso==='function'&&ucPermiso()), fecE=(k,t)=>{ const ro=bloq&&p[k]; return '<div><label style="font-size:11px;font-weight:700">'+t+(ro?' 🔒':'')+'</label><input type="date" id="lgE_'+k+'" value="'+logInput(p[k])+'"'+(ro?' readonly title="Estimada fija: solo Gerencia puede cambiarla"':'')+' oninput="logFichaRefrescar()" style="'+inp+(ro?';background:#F3F4F6':'')+'"></div>'; };
+  const hito=(h)=>'<div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">'+h.nom+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fecE(h.est,'Estimada (fija)')+fec(h.real,'Real (ya ocurrió)')+'</div></div>';
   const opcFab=Object.values(LOG_FAB_NOMBRE).map(n=>'<option'+(p.fabrica&&logNorm(p.fabrica)===logNorm(n)?' selected':'')+'>'+n+'</option>').join('');
   const dl=id=>'<datalist id="'+id+'">'+LOG_PUERTOS_ORIGEN.map(x=>'<option value="'+x+'">').join('')+'</datalist>';
   const m=document.createElement('div'); m.id='logModal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:580;display:flex;align-items:center;justify-content:center;padding:12px';
@@ -7691,9 +7797,9 @@ function logEditar(codigo){
     +'<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:15px">'+(nuevo?'＋ Nuevo pedido a fábrica':'✎ Pedido '+_escRes(p.codigo))+'</strong><button onclick="document.getElementById(\'logModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button></div>'
     +'<div style="padding:14px 18px;overflow-y:auto;flex:1;display:grid;gap:10px"><div id="lgE_banner"></div><div id="lgE_graf"></div>'
       +(nuevo?'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Fábrica</label><select id="lgE_fab" onchange="logSugerirNumero()" style="'+inp+'">'+opcFab+'</select></div><div><label style="font-size:11px;font-weight:700">Número de pedido</label><input type="number" id="lgE_num" min="1" style="'+inp+'" oninput="logSugerirNumero(true)"></div><div><label style="font-size:11px;font-weight:700">Código</label><input type="text" id="lgE_cod" readonly style="'+inp+';background:#F3F4F6;font-weight:700"></div></div>'
-        :'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Código</label><input type="text" value="'+_escRes(p.codigo)+'" readonly style="'+inp+';background:#F3F4F6;font-weight:700"></div>'+fec('creado','Fecha de creación del pedido')+'</div>')
-      +(nuevo?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fec('creado','Fecha de creación del pedido')+'<div></div></div>':'')
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+LOG_HITOS.map(hito).join('')+'</div>'
+        :'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Código</label><input type="text" value="'+_escRes(p.codigo)+'" readonly style="'+inp+';background:#F3F4F6;font-weight:700"></div>'+fec('creado','Fecha del pedido')+'</div>')
+      +(nuevo?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fec('creado','Fecha del pedido')+'<div></div></div>':'')
+      +logPlazosHTML(p,inp,nuevo)+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+LOG_HITOS.map(hito).join('')+'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Ciudad de origen (fábrica)</label><input type="text" id="lgE_ciudad" value="'+_escRes(p.ciudad||'')+'" list="lgDL3" placeholder="Ej. Foshan" style="'+inp+'"></div>'
         +'<div><label style="font-size:11px;font-weight:700">Puerto de origen</label>'+logCampoLista('pOrigen',p.pOrigen,'lgDL1',inp)+'</div>'
         +'<div><label style="font-size:11px;font-weight:700">Puerto de destino</label>'+logCampoLista('pDestino',p.pDestino,'lgDL2',inp)+'</div></div>'
@@ -7704,9 +7810,10 @@ function logEditar(codigo){
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div><label style="font-size:11px;font-weight:700">Precio FOB del contenedor (USD)</label><input type="number" id="lgE_fob" min="0" step="0.01" value="'+(p.fob!=null?p.fob:'')+'" style="'+inp+'"></div>'
         +'<div><label style="font-size:11px;font-weight:700">Estado especial</label><select id="lgE_especial" style="'+inp+'"><option value=""></option>'+['Cancelado','Retenido en aduana'].map(x=>'<option'+(logNorm(p.especial)===logNorm(x)?' selected':'')+'>'+x+'</option>').join('')+'</select></div><div><label style="font-size:11px;font-weight:700">Transportista</label><input type="text" id="lgE_transp" value="'+_escRes(p.transp||'')+'" list="lgDL4" placeholder="Naviera, agente o transporte local" style="'+inp+'"></div></div><datalist id="lgDL4">'+[...new Set(LOG.pedidos.map(x=>x.transp).filter(Boolean))].map(x=>'<option value="'+_escRes(x)+'">').join('')+'</datalist>'
       +'<div><label style="font-size:11px;font-weight:700">Notas</label><textarea id="lgE_notas" rows="3" style="'+inp+'">'+_escRes(p.notas||'')+'</textarea></div>'
-      +'<div id="lgU_ficha"></div><div style="font-size:11px;color:var(--text2)">El estado del pedido se calcula solo con el último hito que tenga <b>fecha real</b>. Borra una fecha para quitarla.</div></div>'
+      +'<div id="lgU_ficha"></div><div style="font-size:11px;color:var(--text2)">El estado del pedido se calcula solo con el último hito que tenga <b>fecha real</b>. Borra una fecha para quitarla. Las fechas <b>estimadas</b> quedan fijas desde la creación (línea base); las <b>reales</b> corren las que faltan y miden el retraso.</div></div>'
     +'<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-primary" id="lgE_ok" onclick="logGuardar('+(nuevo?'null':'\''+p.codigo+'\'')+')">Guardar</button></div></div>';
   LOG.ficha={nuevo,p}; document.body.appendChild(m);
+  ['creado',...LOG_PLAZO_K].forEach(k=>{ const e=document.getElementById('lgE_'+k); if(e) e.addEventListener('input',()=>logAutoEst(false)); }); if(nuevo) logAutoEst(false);
   if(nuevo) logSugerirNumero();
   logFichaRefrescar(); logUpdPintar('lgU_ficha',nuevo?'':p.codigo,'ficha');
 }
@@ -7725,6 +7832,7 @@ async function logGuardar(codigo){
   const poner=(k,val)=>{ if(!LOG.map[k]){ if(val) avisos.push(k); return; } campos[LOG.map[k]]=val; };
   if(nuevo){ campos.Title=cod; const nf=LOG_FAB_NOMBRE[logPartes(cod).pref]; const op=logOpcion('fabrica',nf); if(LOG.map.fabrica){ if(op) campos[LOG.map.fabrica]=op; else avisos.push('Fabrica ("'+nf+'" no es una opción de la columna)'); } }
   LOG_FECHAS.forEach(k=>{ poner(k,logIso(v(k))); });
+  LOG_PLAZO_K.forEach(k=>{ const t=v(k).trim(); poner(k,t===''?null:parseFloat(t)); });
   ['ciudad','pOrigen','pDestino','buque','tipoCont','numCont','transp'].forEach(k=>{
     const val=v(k).trim(), d=LOG.def[k];
     if(d&&d.choice&&val&&!logOpcion(k,val)){ avisos.push(k+' (la columna es de Elección y "'+val+'" no está en sus opciones: cámbiala a "Una línea de texto")'); return; }
@@ -7737,7 +7845,7 @@ async function logGuardar(codigo){
   try{
     const r=await logEscribir(nuevo?null:LOG.pedidos.find(p=>p.codigo===cod).id,campos);
     document.getElementById('logModal')?.remove();
-    const extra=[...avisos,...r.descartadas]; showToast(extra.length?'⚠ Pedido '+cod+' guardado, pero no se pudo guardar: '+extra.join('; '):'✓ Pedido '+cod+' guardado',extra.length?'error':'success');
+    const extra=[...avisos.map(x=>LOG_ETQ[x]||x),...r.descartadas]; showToast(extra.length?'⚠ Pedido '+cod+' guardado, pero no se pudo guardar: '+extra.join('; '):'✓ Pedido '+cod+' guardado',extra.length?'error':'success');
     { const ln=logDiff(pOld,fP,nuevo); let txt=nuevo?'🆕 Pedido creado'+(ln.length?'\n'+ln.join('\n'):''):(ln.length?'Cambios:\n'+ln.join('\n'):''); if(nota) txt=(txt?'📝 '+nota+'\n'+txt:'📝 '+nota);
       if(txt){ try{ await logUpdAgregar(cod,txt); }catch(e){ showToast('Pedido guardado, pero no se pudo registrar la actualización: '+e.message,'error'); } } }
     LOG.sel=cod; await logCargar(); logFocus(cod);
@@ -7961,7 +8069,7 @@ async function logMoverOk(){
 // Para que Logística comunique al equipo: (1) reporte imprimible / PDF con novedades, fechas estimadas y reales, ruta, máquinas y notas;
 // (2) resumen en texto para pegar en Teams, WhatsApp o un correo. Se genera al momento con lo que hay en PEDIDOS_FABRICA.
 function logRepLista(alc){
-  const ord=(a,b)=>(a.ayjReal||a.ayjEst||new Date(8.64e15))-(b.ayjReal||b.ayjEst||new Date(8.64e15));
+  const ord=(a,b)=>(logEta(a)||new Date(8.64e15))-(logEta(b)||new Date(8.64e15));
   if(alc==='sel'){ const p=LOG.pedidos.find(x=>x.codigo===LOG.sel); return p?[p]:[]; }
   if(alc==='vista') return logFiltrados();
   return LOG.pedidos.filter(p=>alc==='todos'||logActivo(p)).sort(ord);
@@ -7984,7 +8092,7 @@ const logRepMaq=p=>{ const g={}; p.units.forEach(u=>{ (g[u.titulo]=g[u.titulo]||
 function logRepNovedades(ps){
   const hoy=new Date(); hoy.setHours(0,0,0,0); const d15=new Date(hoy.getTime()+15*86400000), h15=new Date(hoy.getTime()-15*86400000);
   return {atras:ps.filter(p=>logActivo(p)&&logAtraso(p)>0).sort((a,b)=>logAtraso(b)-logAtraso(a)),
-    prox:ps.filter(p=>logActivo(p)&&!p.ayjReal&&p.ayjEst&&p.ayjEst>=hoy&&p.ayjEst<=d15).sort((a,b)=>a.ayjEst-b.ayjEst),
+    prox:ps.filter(p=>logActivo(p)&&!p.ayjReal&&logEta(p)&&logEta(p)>=hoy&&logEta(p)<=d15).sort((a,b)=>logEta(a)-logEta(b)),
     puerto:ps.filter(p=>logActivo(p)&&logAvance(p).idx===2),
     recib:LOG.pedidos.filter(p=>p.ayjReal&&p.ayjReal>=h15).sort((a,b)=>b.ayjReal-a.ayjReal)};
 }
@@ -7995,9 +8103,9 @@ function logReporteHTML(ps,o){
   const nom=p=>esc(p.titulo||p.codigo)+' ('+esc(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+')';
   const li=(arr,fn)=>arr.length?'<ul>'+arr.map(p=>'<li>'+fn(p)+'</li>').join('')+'</ul>':'<div class="s">Sin novedades.</div>';
   const nov=o.nov?'<div class="nov"><h3>Novedades</h3><div class="g">'
-    +'<div><b style="color:#B91C1C">⚠ Atrasados ('+N.atras.length+')</b>'+li(N.atras,p=>nom(p)+' — llegada a AYJ estimada '+logF(p.ayjEst||p.puertoEst)+', <b>'+logAtraso(p)+' d de atraso</b>')+'</div>'
-    +'<div><b style="color:#1D4ED8">🚢 Llegan a AYJ en ≤ 15 días ('+N.prox.length+')</b>'+li(N.prox,p=>nom(p)+' — '+logF(p.ayjEst)+(p.pDestino?' · puerto '+esc(p.pDestino):''))+'</div>'
-    +'<div><b style="color:#6D28D9">⚓ Nacionalizada · transporte local ('+N.puerto.length+')</b>'+li(N.puerto,p=>nom(p)+' — llegó a puerto '+logF(p.puertoReal)+(p.ayjEst?' · a AYJ est. '+logF(p.ayjEst):''))+'</div>'
+    +'<div><b style="color:#B91C1C">⚠ Atrasados ('+N.atras.length+')</b>'+li(N.atras,p=>nom(p)+' — llegada a AYJ estimada '+logF(logEta(p)||p.puertoEst)+', <b>'+logAtraso(p)+' d de atraso</b>')+'</div>'
+    +'<div><b style="color:#1D4ED8">🚢 Llegan a AYJ en ≤ 15 días ('+N.prox.length+')</b>'+li(N.prox,p=>nom(p)+' — '+logF(logEta(p))+(p.pDestino?' · puerto '+esc(p.pDestino):''))+'</div>'
+    +'<div><b style="color:#6D28D9">⚓ Nacionalizada · transporte local ('+N.puerto.length+')</b>'+li(N.puerto,p=>nom(p)+' — llegó a puerto '+logF(p.puertoReal)+(logEta(p)?' · a AYJ est. '+logF(logEta(p)):''))+'</div>'
     +'<div><b style="color:#166534">✅ Recibidos en los últimos 15 días ('+N.recib.length+')</b>'+li(N.recib,p=>nom(p)+' — '+logF(p.ayjReal))+'</div></div></div>':'';
   const filas=ps.map(p=>{
     const fz=logFaseInfo(p), at=logAtraso(p), ruta=[[p.ciudad,p.pOrigen].filter(Boolean).join(' · '),p.pDestino&&'→ '+p.pDestino].filter(Boolean).join(' '), cont=[p.tipoCont,p.numCont].filter(Boolean).join(' ');
@@ -8035,13 +8143,13 @@ function logRepTextoPlano(ps,o){
   const f=(est,real)=>real?logF(real)+' ✓':est?logF(est)+' (est.)':'—';
   const lin=p=>{
     const fz=logFaseInfo(p), at=logAtraso(p);
-    const hitos=[['fabricación',p.fabEst,p.fabReal],['despacho',p.despEst,p.despReal],['zarpe',p.zarpeEst,p.zarpeReal],['puerto'+(p.pDestino?' '+p.pDestino:''),p.puertoEst,p.puertoReal],['llegada a AYJ',p.ayjEst,p.ayjReal]].filter(h=>h[1]||h[2]).map(h=>h[0]+' '+f(h[1],h[2])).join(' · ');
+    const hitos=[['fabricación',p.fabEst,p.fabReal],['despacho',p.despEst,p.despReal],['zarpe',p.zarpeEst,p.zarpeReal],['puerto'+(p.pDestino?' '+p.pDestino:''),p.puertoEst,p.puertoReal],['nacionalización',p.nacEst,p.nacReal],['llegada a AYJ',p.ayjEst,p.ayjReal]].filter(h=>h[1]||h[2]).map(h=>h[0]+' '+f(h[1],h[2])).join(' · ');
     return '• '+(p.titulo||p.codigo)+' ('+fab(p)+') — '+fz.txt+' · avance '+Math.round(fz.av.total*100)+'%'+(at?' ⚠ atrasado '+at+' d':'')+'\n   '+hitos+(p.buque?'\n   Buque: '+p.buque:'')+((p.tipoCont||p.numCont)?'\n   Contenedor: '+[p.tipoCont,p.numCont].filter(Boolean).join(' '):'')+(p.transp?'\n   Transportista: '+p.transp:'')+(o.ser&&p.units.length?'\n   Máquinas: '+logRepMaq(p).join('; '):'')+(o.not&&p.notas?'\n   📝 '+p.notas.replace(/\n+/g,' · '):'');
   };
   const grupos=[['⚠ ATRASADOS',ps.filter(p=>logActivo(p)&&logAtraso(p)>0)],['🏭 FABRICACIÓN',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logAvance(p).idx===0)],['🚢 LISTA · EMBARCADA',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logAvance(p).idx===1)],['⚓ NACIONALIZADA · TRANSPORTE LOCAL',ps.filter(p=>logActivo(p)&&logAtraso(p)===0&&logAvance(p).idx===2)],['✅ RECIBIDOS EN AYJ',ps.filter(p=>!logActivo(p)&&p.ayjReal)]];
   const L=['ESTADO DE PEDIDOS A FÁBRICA — AYJ · '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),
     'Activos: '+act.length+' · Con atraso: '+N.atras.length+(fob?' · FOB en camino: USD '+Math.round(fob).toLocaleString('es-CO'):'')];
-  if(o.nov){ if(N.prox.length) L.push('','Llegan a AYJ en ≤ 15 días: '+N.prox.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjEst)+')').join(', ')); if(N.recib.length) L.push('Recibidos en los últimos 15 días: '+N.recib.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjReal)+')').join(', ')); }
+  if(o.nov){ if(N.prox.length) L.push('','Llegan a AYJ en ≤ 15 días: '+N.prox.map(p=>(p.titulo||p.codigo)+' ('+logF(logEta(p))+')').join(', ')); if(N.recib.length) L.push('Recibidos en los últimos 15 días: '+N.recib.map(p=>(p.titulo||p.codigo)+' ('+logF(p.ayjReal)+')').join(', ')); }
   grupos.forEach(([t,a])=>{ if(a.length){ L.push('','*'+t+'* ('+a.length+')'); a.forEach(p=>L.push(lin(p))); } });
   L.push('','(✓ fecha real · est. = fecha estimada)');
   return L.join('\n');
