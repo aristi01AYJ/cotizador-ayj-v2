@@ -6890,14 +6890,14 @@ function logRetraso(p){ const a=logVigentes(p).ayj; return a.est&&a.vig?Math.rou
 function logRetrasoChip(p){
   const d=logRetraso(p); if(d==null||(d===0&&!p.ayjReal)) return '';
   const c=d>0?['#B91C1C','#FEE2E2']:['#166534','#DCFCE7'];
-  return '<div style="margin-top:3px"><span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;color:'+c[0]+';background:'+c[1]+'" title="Llegada a AYJ: fecha vigente frente a la estimada original">'+(d>0?'retraso de '+d+' d vs estimado':d<0?'adelanto de '+(-d)+' d vs estimado':'según lo estimado')+'</span></div>';
+  return '<div><span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;color:'+c[0]+';background:'+c[1]+'" title="Llegada a AYJ: fecha vigente frente a la estimada original">'+(d>0?'retraso de '+d+' d vs estimado':d<0?'adelanto de '+(-d)+' d vs estimado':'según lo estimado')+'</span></div>';
 }
 function logCeldaEta(p){
   const V=logVigentes(p).ayj, hoy=new Date(); hoy.setHours(0,0,0,0);
   if(V.real) return '<div style="font-weight:700;color:#166534;white-space:nowrap">✓ '+logF(V.real)+'</div>'+(V.est?'<div style="font-size:10px;color:var(--text3)">est. '+logF(V.est)+'</div>':'');
   const f=V.vig; if(!f) return '<span style="color:var(--text3)">—</span>';
   const dias=Math.round((f-hoy)/86400000), cambio=V.est&&Math.round((f-V.est)/86400000)!==0;
-  return '<div style="font-style:italic;white-space:nowrap;color:'+(dias<0?'#DC2626':'var(--text)')+'">'+logF(f)+(dias<0?' ⚠':'')+'</div><div style="font-size:10px;font-weight:700;color:'+(dias<0?'#DC2626':'var(--text2)')+'">'+(dias<0?'hace '+(-dias)+' d':'en '+dias+' d')+'</div>'+(cambio?'<div style="font-size:10px;color:var(--text3)">orig. '+logF(V.est)+'</div>':'');
+  return '<div style="font-style:italic;white-space:nowrap;color:'+(dias<0?'#DC2626':'var(--text)')+'">'+logF(f)+(dias<0?' ⚠':'')+'</div><div style="font-size:10px;font-weight:700;color:'+(dias<0?'#DC2626':'var(--text2)')+'">'+(dias<0?'hace '+(-dias)+' d':'en '+dias+' d')+(cambio?' <span style="font-weight:400;color:var(--text3)">· orig. '+logF(V.est)+'</span>':'')+'</div>';
 }
 function logTablaHitos(p){
   const V=logVigentes(p), dif=(a,b)=>Math.round((b-a)/86400000);
@@ -6941,7 +6941,7 @@ function logPrecisionAbrir(){
     +'<div style="font-size:11px;color:var(--text2)"><b>Diferencia de la etapa</b> = duración real − plazo planeado de esa etapa (positivo: se demoró). <b>Desviación acumulada</b> = fecha real − fecha estimada fija del hito: cuánto atraso se acumula hasta ese punto. «Dentro de ±3 d» cuenta los pedidos cuya fecha real cayó a 3 días o menos de la estimada.</div></div></div>';
   document.body.appendChild(m);
 }
-(function(){ if(document.getElementById('logTabsCss')) return; const st=document.createElement('style'); st.id='logTabsCss'; st.textContent='#logisticaView .ev-tab{display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border-radius:20px;border:2px solid #ddd;background:#fff;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#888;margin-right:6px}#logisticaView .ev-tab:hover{border-color:#80A61B;color:#3d6b0a}#logisticaView .ev-tab.on{border-color:#80A61B;background:#f0f4e8;color:#3d6b0a}'; document.head.appendChild(st); })();
+(function(){ if(document.getElementById('logTabsCss')) return; const st=document.createElement('style'); st.id='logTabsCss'; st.textContent='#logisticaView .ev-tab{display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border-radius:20px;border:2px solid #ddd;background:#fff;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#888;margin-right:6px}#logisticaView .ev-tab:hover{border-color:#80A61B;color:#3d6b0a}#logisticaView .ev-tab.on{border-color:#80A61B;background:#f0f4e8;color:#3d6b0a}#logBody table.log-tabla td{padding:6px 10px;vertical-align:middle}#logBody table.log-tabla th{padding:7px 10px}'; document.head.appendChild(st); })();
 const LOG_HITOS=[{nom:'Fabricación',est:'fabEst',real:'fabReal',estado:'Fabricado'},{nom:'Despacho de fábrica',est:'despEst',real:'despReal',estado:'Despachado de fábrica'},
   {nom:'Zarpe del barco',est:'zarpeEst',real:'zarpeReal',estado:'En tránsito internacional'},{nom:'Llegada a puerto',est:'puertoEst',real:'puertoReal',estado:'En puerto / nacionalización'},{nom:'Nacionalización',est:'nacEst',real:'nacReal',estado:'Nacionalizada, en transporte a AYJ'},{nom:'Llegada a AYJ',est:'ayjEst',real:'ayjReal',estado:'Recibido en AYJ'}];
 const LOG_AYJ=[-74.1,4.65];   // Bogotá (sede y consignatario)
@@ -7102,7 +7102,7 @@ function logDesvChip(d){
 }
 function logDesvUltima(p){
   const u=logDesv(p).filter(x=>x.tipo==='real').pop(); if(!u) return '';
-  return '<div style="font-size:10px;font-weight:700;margin-top:2px;color:'+(u.dias>0?'#B91C1C':'#166534')+'">'+u.h.nom+': '+(u.dias>0?'+'+u.dias+' d tarde':u.dias<0?(-u.dias)+' d antes':'a tiempo')+'</div>';
+  return '<div style="font-size:10px;font-weight:700;color:'+(u.dias>0?'#B91C1C':'#166534')+'">'+u.h.nom+': '+(u.dias>0?'+'+u.dias+' d tarde':u.dias<0?(-u.dias)+' d antes':'a tiempo')+'</div>';
 }
 // línea de tiempo: una fila por hito con la fecha estimada (rombo) y la real (círculo), unidas por un trazo del color de la desviación; la línea gris vertical es hoy
 function logLineaHTML(p){
@@ -7712,19 +7712,19 @@ function logRender(){
       +'<span style="flex:1"></span><button class="btn-sec" onclick="logPrecisionAbrir()" title="Qué tan acertados son los plazos estimados frente a lo que realmente pasó">📊 Precisión</button><button class="btn-sec" onclick="logRepClienteAbrir()" title="Estado de las máquinas de un cliente, listo para enviárselo">👤 Reporte para el cliente</button><button class="btn-sec" onclick="logReporteAbrir()" title="Reporte del estado de los pedidos con fechas estimadas y reales y notas, para comunicar al equipo">📄 Reporte</button><button class="btn-sec" onclick="logImportar()" title="Crea en PEDIDOS_FABRICA los pedidos que ya existen en la columna PEDIDO de TODAS_2025">⤓ Importar desde TODAS</button><button class="btn-primary" onclick="logEditar(null)">＋ Nuevo pedido</button></div>'
     +(LOG.faltan.length?'<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">⚠ En la lista PEDIDOS_FABRICA no encontré estas columnas (esos datos no se guardarán): '+LOG.faltan.map(k=>k==='transp'?'Transportista (texto)':(LOG_COL_NOM[k]||k)).join(', ')+'</div>':'')
     +(LOG.sinCodigo.length?'<div style="background:#EFF6FF;border:1px solid #93C5FD;color:#1E3A8A;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px">ℹ Hay máquinas con N° de PEDIDO de marcas sin código de fábrica: <b>'+_escRes(LOG.sinCodigo.join(', '))+'</b>. Agrega su código en <code>LOG_FAB</code> (index.html) para que se alineen con la lista de pedidos.</div>':'')
-    +bannerCli+'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table"><thead><tr>'+logTh('pedido','Pedido')+logTh('avance','Avance del pedido')+logTh('maq','Máquinas')+logTh('ayj','Llegada a AYJ')+'<th></th></tr></thead><tbody>'
+    +bannerCli+'<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg)"><table class="hist-table log-tabla"><thead><tr>'+logTh('pedido','Pedido')+logTh('avance','Avance del pedido')+logTh('maq','Máquinas')+logTh('ayj','Llegada a AYJ')+'<th></th></tr></thead><tbody>'
     +(lista.map(p=>{
       const fz=logFaseInfo(p), av=fz.av, at=logAtraso(p), vend=p.units.filter(u=>u.estadoSel==='VENDIDA').length, ncli=hayCli?p.units.filter(logMatchCli).length:0, es=p.codigo===LOG.sel, eta=p.ayjReal||p.ayjEst;
       const dias=eta&&!p.ayjReal?Math.round((eta-hoy)/86400000):null;
       return '<tr onclick="logSel(\''+p.codigo+'\')" style="cursor:pointer;'+(es?'background:#F0F7E1':'')+'">'
         +'<td><strong style="font-size:14px">'+_escRes(p.titulo||p.codigo)+'</strong><div style="font-size:11px;color:var(--text2)">'+_escRes(LOG_FAB_NOMBRE[logPartes(p.codigo)?.pref]||p.fabrica||'')+'</div></td>'
-        +'<td style="min-width:320px;width:42%"><span style="background:'+fz.bg+';color:'+fz.cls+';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(fz.txt)+'</span><div style="display:flex;align-items:center;gap:6px;margin-top:6px" title="Cada tramo va de 0 a 100 % y su ancho es proporcional a los días planeados">'+logBarraSeg(p,9)+'<b style="font-size:11px;min-width:32px;text-align:right">'+Math.round(av.total*100)+'%</b></div>'+(at?'<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:2px">atrasado '+at+' d</div>':'')+logRetrasoChip(p)+logDesvUltima(p)+'</td>'
+        +'<td style="min-width:380px"><div style="display:flex;align-items:center;gap:8px"><span style="flex:none;background:'+fz.bg+';color:'+fz.cls+';padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">'+_escRes(fz.txt)+'</span><span style="display:flex;align-items:center;gap:6px;flex:1;min-width:0" title="Cada tramo va de 0 a 100 % y su ancho es proporcional a los días planeados">'+logBarraSeg(p,9)+'<b style="font-size:11px;min-width:32px;text-align:right">'+Math.round(av.total*100)+'%</b></span></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:3px">'+(at?'<span style="font-size:10.5px;color:#DC2626;font-weight:700">atrasado '+at+' d</span>':'')+logRetrasoChip(p)+logDesvUltima(p)+'</div></td>'
         +'<td style="font-size:12px"><b>'+p.units.length+'</b>'+(ncli?'<div style="font-size:10px;color:#1D4ED8;font-weight:700">👤 '+ncli+' del cliente</div>':'')+(vend?' · <span style="color:#B45309">'+vend+' vendida(s)</span>':'')+(p.fob?'<div style="font-size:10px;color:var(--text2)">FOB USD '+Math.round(p.fob).toLocaleString('es-CO')+'</div>':'')+'</td>'
         +''
         +''
         +''
         +'<td style="font-size:12px">'+logCeldaEta(p)+'</td>'
-        +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="btn-sec" style="font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎</button> '+(logActivo(p)?'<button class="btn-sec" style="font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</td></tr>'
+        +'<td style="white-space:nowrap;width:1%" onclick="event.stopPropagation()"><button class="btn-sec" style="font-size:12px;padding:3px 8px" title="Editar fechas y datos" onclick="logEditar(\''+p.codigo+'\')">✎</button> '+(logActivo(p)?'<button class="btn-sec" style="font-size:12px;padding:3px 8px;border-color:#16A34A;color:#166534" title="Recibir el pedido en AYJ: las máquinas pasan a En Stock" onclick="logRecibir(\''+p.codigo+'\')">📦 Recibir</button>':'')+'</td></tr>'
         +(es?'<tr><td colspan="5" style="background:#FAFAF7;padding:10px 16px">'+logDetalle(p)+'</td></tr>':'');
     }).join('')||'<tr><td colspan="5" style="padding:16px;color:var(--text3)">No hay pedidos con estos filtros. Si es la primera vez, usa <b>⤓ Importar desde TODAS</b> para traer los pedidos existentes.</td></tr>')
     +'</tbody></table></div>';
