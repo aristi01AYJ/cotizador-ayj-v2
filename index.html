@@ -7839,14 +7839,29 @@ function logRepClienteVer(){
   const w=window.open('','_blank'); if(!w){ showToast('El navegador bloqueó la ventana del reporte: permite las ventanas emergentes para este sitio','error'); return; }
   w.document.write(logRepClienteHTML(o.cli,o)); w.document.close(); document.getElementById('logModal')?.remove();
 }
-async function logRepClienteTexto(){
-  const o=logRepClienteOpc(); if(!o.cli){ showToast('Elige el cliente','error'); return; }
-  const {us,eta,etaCli,vend}=logRepClienteDatos(o.cli,o);
+// Texto del reporte del cliente para WhatsApp/correo: por cada pedido en camino, avance total y las 5 fases con barra y %.
+function logRepClienteTextoPlano(o){
+  const {us,eta,etaCli,vend,hoy}=logRepClienteDatos(o.cli,o);
+  const barra=f=>{ const n=Math.max(0,Math.min(10,Math.round(f*10))); return '█'.repeat(n)+'░'.repeat(10-n); };
   const L=['ESTADO DE SUS MÁQUINAS — '+o.cli,'AYJ Maquinaria · '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+(o.asesor&&vend.length?' · Su asesor: '+vend.join(' / '):''),''];
-  us.forEach(({u,e})=>{ const fe=eta(e); L.push('• '+u.titulo+(u.idMQ?' ('+u.idMQ+')':'')+(o.ped&&e.ped?' · pedido '+e.ped:'')+'\n   '+e.txt+(e.idx>=0&&e.idx<3?' · avance '+Math.round(e.pct*100)+'%':'')+(fe?' · llegada a AYJ: '+fe+' · entrega al cliente (aprox.): '+etaCli(e):'')); });
+  const grupos=[], por={};
+  us.forEach(x=>{ const p=x.u.codigo?LOG.pedidos.find(q=>q.codigo===x.u.codigo):null; if(p&&x.e.idx>=0&&x.e.idx<3&&!p.ayjReal){ if(!por[p.codigo]){ por[p.codigo]={p,us:[]}; grupos.push(por[p.codigo]); } por[p.codigo].us.push(x); } });
+  const enGrupo=new Set(); grupos.forEach(g=>g.us.forEach(x=>enGrupo.add(x)));
+  grupos.forEach(({p,us:m})=>{
+    const av=logAvance(p), E=logEtapasInfo(p), fab=LOG_FAB_NOMBRE[(logPartes(p.codigo)||{}).pref]||p.fabrica||'', etaA=logEta(p), fut=etaA&&etaA>=hoy;
+    L.push('🚢 '+(fab||'Pedido')+(o.ped&&p.codigo?' · pedido '+p.codigo:'')+' — '+LOG_EST_CLI[av.idx],'   Avance total: '+barra(av.total)+' '+Math.round(av.total*100)+'%');
+    E.forEach(e=>{ const q=Math.round(e.f*100); L.push('   '+(q>=100?'✓ ':'▫ ')+e.corto+' '+barra(e.f)+' '+q+'%'); });
+    L.push('   Máquinas: '+m.map(x=>x.u.titulo+(x.u.idMQ?' ('+x.u.idMQ+')':'')).join('; '),
+      '   Llegada a AYJ: '+(fut?logF(etaA):'por confirmar')+' · Entrega al cliente (aprox.): '+(fut?logF(new Date(etaA.getTime()+LOG_DIAS_ENTREGA*86400000)):'por confirmar'),'');
+  });
+  us.filter(x=>!enGrupo.has(x)).forEach(({u,e})=>{ const fe=eta(e); L.push('• '+u.titulo+(u.idMQ?' ('+u.idMQ+')':'')+(o.ped&&e.ped?' · pedido '+e.ped:'')+'\n   '+e.txt+(fe?' · llegada a AYJ: '+fe+' · entrega al cliente (aprox.): '+etaCli(e):'')); });
   if(!us.length) L.push('No hay máquinas de este cliente con esos criterios.');
   L.push('','Las fechas son estimadas y pueden cambiar por la fábrica, la naviera o la aduana; la entrega al cliente se coordina con su asesor. Le avisaremos cualquier novedad.');
-  const t=L.join('\n');
+  return L.join('\n');
+}
+async function logRepClienteTexto(){
+  const o=logRepClienteOpc(); if(!o.cli){ showToast('Elige el cliente','error'); return; }
+  const t=logRepClienteTextoPlano(o);
   try{ await navigator.clipboard.writeText(t); }
   catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand('copy'); }catch(x){ showToast('No se pudo copiar el texto','error'); a.remove(); return; } a.remove(); }
   document.getElementById('logModal')?.remove(); showToast('Texto copiado: pégalo en WhatsApp o en un correo','success');
