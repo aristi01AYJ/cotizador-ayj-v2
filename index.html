@@ -7785,28 +7785,54 @@ function logRepClienteAbrir(){
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sec" onclick="document.getElementById(\'logModal\').remove()">Cancelar</button><button class="btn-sec" onclick="logRepClienteTexto()">📋 Copiar texto</button><button class="btn-primary" onclick="logRepClienteVer()">📄 Abrir reporte</button></div></div>';
   document.body.appendChild(m);
 }
+// Tarjeta de un pedido para el reporte del cliente: escena (barco, robot, camión…), avance total y las 5 fases con su %. Sin datos internos (precios, desviaciones, atrasos).
+function logRepCliTarjeta(p,us,o,hoy){
+  const esc=_escRes, av=logAvance(p), E=logEtapasInfo(p), pct=Math.round(av.total*100), fz=LOG_FASES[Math.min(av.idx,2)], V=logVigentes(p);
+  const fab=LOG_FAB_NOMBRE[(logPartes(p.codigo)||{}).pref]||p.fabrica||'';
+  const barras=E.map(e=>{ const q=Math.round(e.f*100); return '<div class="fz"><span class="n">'+(q>=100?'✓ ':'')+esc(e.corto)+'</span><div class="b"><i style="width:'+q+'%;background:'+e.col+'"></i></div><b'+(q>=100?' style="color:#166534"':'')+'>'+q+'%</b></div>'; }).join('');
+  const fecha=(real,est)=>real?'<b style="color:#166534">✓ '+logF(real)+'</b>':(est&&est>=hoy)?'<i>'+logF(est)+'</i> <span class="s">estimada</span>':'<span class="s">por confirmar</span>';
+  const H=[['Fabricación',V.fab.real,V.fab.vig||V.fab.est],['Despacho de fábrica',p.despReal,p.despEst],['Zarpe del barco',V.zarpe.real,V.zarpe.vig||V.zarpe.est],['Llegada a puerto',V.puerto.real,V.puerto.vig||V.puerto.est],['Nacionalización',V.nac.real,V.nac.vig||V.nac.est],['Llegada a AYJ',V.ayj.real,V.ayj.vig||V.ayj.est]];
+  const hit=H.map(h=>'<tr><td>'+h[0]+'</td><td>'+fecha(h[1],h[2])+'</td></tr>').join('');
+  const maq=us.map(x=>'<li><b>'+esc(x.u.titulo)+'</b>'+(x.u.idMQ?' <span class="s">'+esc(x.u.idMQ)+'</span>':'')+'</li>').join('');
+  const etaA=logEta(p), llega=etaA&&etaA>=hoy?logF(etaA):'por confirmar', entrega=etaA&&etaA>=hoy?logF(new Date(etaA.getTime()+LOG_DIAS_ENTREGA*86400000)):'por confirmar';
+  return '<div class="card"><div class="ch"><div><h2>'+esc(fab||'Pedido')+(o.ped&&p.codigo?' · '+esc(p.codigo):'')+'</h2><div class="s">'+us.length+(us.length===1?' máquina':' máquinas')+' en este pedido</div></div>'
+    +'<span class="chip" style="background:'+fz.bg+';color:'+fz.tx+'">'+esc(LOG_EST_CLI[av.idx])+' · '+pct+'%</span></div>'
+    +'<div class="cb"><div>'+logEscena(p)+'<div class="fz tot"><span class="n"><b>Avance total</b></span><div class="b"><i style="width:'+pct+'%;background:#575756"></i></div><b>'+pct+'%</b></div>'+barras+'</div>'
+    +'<div><ul class="mq">'+maq+'</ul><table class="ht">'+hit+'</table><div class="ent">Llegada a AYJ: <b>'+llega+'</b><br>Entrega al cliente (aprox.): <b>'+entrega+'</b></div></div></div></div>';
+}
 function logRepClienteHTML(nombre,o){
-  const esc=_escRes, {us,eta,etaCli,vend}=logRepClienteDatos(nombre,o), ahora=new Date();
+  const esc=_escRes, {us,eta,etaCli,vend,hoy}=logRepClienteDatos(nombre,o), ahora=new Date();
   const col=['#92400E','#1E40AF','#5B21B6','#166534'], bg=['#FEF3C7','#DBEAFE','#EDE9FE','#DCFCE7'], barc=['#F59E0B','#2563EB','#7C3AED','#16A34A'];
   const cuenta=i=>us.filter(x=>x.e.idx===i).length;
   const res=[['En fabricación',0],['En camino a Colombia',1],['En Colombia, hacia AYJ',2],['En AYJ, listas para entrega',3]].map(([t,i])=>'<div><b>'+cuenta(i)+'</b><span>'+t+'</span></div>').join('');
-  const filas=us.map(({u,e})=>'<tr><td><b>'+esc(u.titulo)+'</b>'+(u.idMQ?'<div class="s">'+esc(u.idMQ)+'</div>':'')+'</td>'+(o.ped?'<td>'+esc(e.ped||'—')+'</td>':'')
+  // una tarjeta por pedido que sigue en camino (varias máquinas del mismo pedido comparten barco y avance)
+  const pedidos=[], porCod={};
+  us.forEach(x=>{ const p=x.u.codigo?LOG.pedidos.find(q=>q.codigo===x.u.codigo):null; if(p&&x.e.idx>=0&&x.e.idx<3&&!p.ayjReal){ if(!porCod[p.codigo]){ porCod[p.codigo]={p,us:[]}; pedidos.push(porCod[p.codigo]); } porCod[p.codigo].us.push(x); } });
+  const enTarjeta=new Set(); pedidos.forEach(g=>g.us.forEach(x=>enTarjeta.add(x)));
+  const tarjetas=pedidos.map(g=>logRepCliTarjeta(g.p,g.us,o,hoy)).join('');
+  const resto=us.filter(x=>!enTarjeta.has(x));
+  const filas=resto.map(({u,e})=>'<tr><td><b>'+esc(u.titulo)+'</b>'+(u.idMQ?'<div class="s">'+esc(u.idMQ)+'</div>':'')+'</td>'+(o.ped?'<td>'+esc(e.ped||'—')+'</td>':'')
     +'<td><span class="chip" style="background:'+(e.idx<0?'#F3F4F6':bg[e.idx])+';color:'+(e.idx<0?'#4B5563':col[e.idx])+'">'+esc(e.txt)+'</span></td>'
-    +'<td><div class="bar2"><i style="width:'+Math.round(e.pct*100)+'%;background:'+(e.idx<0?'#9CA3AF':barc[e.idx])+'"></i></div><div class="s">'+Math.round(e.pct*100)+'%</div></td><td>'+(e.idx<0?'<span class="s">—</span>':e.idx===3?'<div>Llegada a AYJ: <b>ya está en AYJ</b></div><div>Cliente: <b>a coordinar con su asesor</b></div>':'<div>Llegada a AYJ: <b>'+esc(eta(e))+'</b></div><div>Cliente (aprox.): <b>'+esc(etaCli(e))+'</b></div>')+'</td></tr>').join('')
-    ||'<tr><td colspan="5" style="padding:14px;color:#777">No hay máquinas de este cliente con esos criterios.</td></tr>';
-  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Estado de sus máquinas — '+esc(nombre)+'</title><style>'
-    +'@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:20px;font-size:13px}'
-    +'.top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #80A61B;padding-bottom:10px;margin-bottom:14px}.top h1{font-size:20px;margin:0}.top .s{color:#666;margin-top:3px}'
+    +'<td>'+(e.idx<0?'<span class="s">—</span>':e.idx===3?'<div>Cliente: <b>a coordinar con su asesor</b></div>':'<div>Llegada a AYJ: <b>'+esc(eta(e))+'</b></div><div>Cliente (aprox.): <b>'+esc(etaCli(e))+'</b></div>')+'</td></tr>').join('');
+  const tabla=resto.length?(pedidos.length?'<h3>Otras máquinas</h3>':'')+'<table><thead><tr><th>Máquina</th>'+(o.ped?'<th>Pedido</th>':'')+'<th>Estado</th><th>Entrega estimada</th></tr></thead><tbody>'+filas+'</tbody></table>':'';
+  const vacio=!us.length?'<div style="padding:14px;color:#777">No hay máquinas de este cliente con esos criterios.</div>':'';
+  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Estado de sus máquinas — '+esc(nombre)+'</title><style>'
+    +'@page{size:A4;margin:14mm}:root{color-scheme:light}*{box-sizing:border-box}html,body{background:#fff}body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:20px;font-size:13px}'
+    +'.top{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:3px solid #80A61B;padding-bottom:10px;margin-bottom:14px}.top h1{font-size:20px;margin:0}.top .s{color:#666;margin-top:3px}'
     +'.k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}.k div{border:1px solid #ddd;border-radius:8px;padding:8px 10px}.k b{font-size:22px;display:block}.k span{font-size:10px;text-transform:uppercase;color:#666}'
-    +'table{width:100%;border-collapse:collapse}th{background:#F3F4F6;text-align:left;font-size:10px;text-transform:uppercase;padding:7px;border-bottom:2px solid #ccc}td{padding:8px 7px;border-bottom:1px solid #e5e5e5;vertical-align:top}.s{font-size:10px;color:#777}'
-    +'.chip{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;display:inline-block}.bar2{background:#E5E7EB;border-radius:5px;height:8px;width:110px;overflow:hidden}.bar2 i{display:block;height:8px}'
-    +'.pie{margin-top:14px;font-size:11px;color:#666;line-height:1.5}.barra{position:fixed;top:8px;right:12px;display:flex;gap:6px}.barra button{padding:6px 12px;border:1px solid #80A61B;background:#80A61B;color:#fff;border-radius:6px;cursor:pointer;font-weight:700}.barra button.b{background:#fff;color:#3F5A0A}'
-    +'@media print{.barra{display:none}body{padding:0}tr{page-break-inside:avoid}}</style></head><body>'
+    +'h3{font-size:14px;margin:16px 0 8px}table{width:100%;border-collapse:collapse}th{background:#F3F4F6;text-align:left;font-size:10px;text-transform:uppercase;padding:7px;border-bottom:2px solid #ccc}td{padding:8px 7px;border-bottom:1px solid #e5e5e5;vertical-align:top}.s{font-size:10px;color:#777}'
+    +'.chip{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;display:inline-block}'
+    +'.card{border:1px solid #D9E4B8;border-radius:10px;margin:0 0 14px;overflow:hidden;page-break-inside:avoid}.ch{background:#F4F8E8;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.ch h2{font-size:16px;margin:0}'
+    +'.cb{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;padding:12px}.cb svg{margin-bottom:8px}'
+    +'.fz{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:11px}.fz .n{width:122px;white-space:nowrap;color:#444}.fz .b{flex:1;height:8px;background:#E5E7EB;border-radius:4px;overflow:hidden}.fz .b i{display:block;height:8px}.fz b{min-width:34px;text-align:right}.fz.tot{margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee}.fz.tot .b{height:10px}'
+    +'.mq{margin:0 0 8px;padding-left:18px}.mq li{margin:2px 0}.ht{margin-bottom:8px}.ht td{padding:4px 6px;font-size:12px}.ent{background:#F7FAEF;border:1px solid #D9E4B8;border-radius:8px;padding:7px 10px;line-height:1.6}'
+    +'.pie{margin-top:14px;font-size:11px;color:#666;line-height:1.5}.barra{display:flex;gap:6px;justify-content:flex-end;margin-bottom:10px}.barra button{padding:6px 12px;border:1px solid #80A61B;background:#80A61B;color:#fff;border-radius:6px;cursor:pointer;font-weight:700}.barra button.b{background:#fff;color:#3F5A0A}'
+    +'@media(max-width:640px){body{padding:12px}.k{grid-template-columns:repeat(2,1fr)}.cb{grid-template-columns:1fr}.fz .n{width:104px}}'
+    +'@media print{.barra{display:none}body{padding:0}tr{page-break-inside:avoid}.cb{grid-template-columns:1.1fr 1fr}}</style></head><body>'
     +'<div class="barra"><button onclick="window.print()">🖨 Imprimir / guardar PDF</button><button class="b" onclick="window.close()">Cerrar</button></div>'
-    +'<div class="top"><div><h1>Estado de sus máquinas</h1><div class="s"><b>'+esc(nombre)+'</b> · AYJ Maquinaria · '+ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+(o.asesor&&vend.length?' · Su asesor: '+esc(vend.join(' / ')):'')+'</div></div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:42px" onerror="this.style.display=\'none\'"></div>'
-    +'<div class="k">'+res+'</div>'
-    +'<table><thead><tr><th>Máquina</th>'+(o.ped?'<th>Pedido</th>':'')+'<th>Estado</th><th>Avance</th><th>Entrega estimada</th></tr></thead><tbody>'+filas+'</tbody></table>'
-    +'<div class="pie">Las fechas de llegada son estimadas y pueden cambiar por la fábrica, la naviera o los trámites de aduana. La fecha de entrega al cliente es aproximada y se coordina con su asesor. Le avisaremos cualquier novedad. Para cualquier duda, comuníquese con su asesor en AYJ Maquinaria.</div></body></html>';
+    +'<div class="top"><div><h1>Estado de sus máquinas</h1><div class="s"><b>'+esc(nombre)+'</b> · AYJ Maquinaria · '+ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})+(o.asesor&&vend.length?' · Su asesor: '+esc(vend.join(' / ')):'')+'</div></div><img src="https://aristi01ayj.github.io/cotizador-ayj/logo.png" alt="AYJ" style="height:42px;max-width:48%;object-fit:contain" onerror="this.style.display=\'none\'"></div>'
+    +'<div class="k">'+res+'</div>'+tarjetas+tabla+vacio
+    +'<div class="pie">Las fechas de llegada son estimadas y pueden cambiar por la fábrica, la naviera o los trámites de aduana. El avance de cada fase se calcula con las fechas del pedido. La fecha de entrega al cliente es aproximada y se coordina con su asesor. Le avisaremos cualquier novedad. Para cualquier duda, comuníquese con su asesor en AYJ Maquinaria.</div></body></html>';
 }
 function logRepClienteVer(){
   const o=logRepClienteOpc(); if(!o.cli){ showToast('Elige el cliente','error'); return; }
