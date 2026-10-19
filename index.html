@@ -167,13 +167,18 @@ body{font-family:var(--ayj-font-body);font-size:14px;color:var(--text);backgroun
 .btn-remove:hover{color:var(--red);background:var(--red-light)}
 .btn-pdf{background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px 4px;border-radius:4px;text-decoration:none;display:inline-flex;align-items:center}
 .btn-pdf:hover{background:var(--red-light)}
-.footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--m-b-ffffff);flex-wrap:nowrap;flex-shrink:0;overflow-x:auto;position:relative}
-.totales{margin-left:auto;display:flex;gap:16px;align-items:center}
-.total-item{display:flex;flex-direction:column;align-items:flex-end}
-.total-label{font-size:10px;color:var(--text2)}
-.total-val{font-size:13px;font-weight:600}
-.total-val.sub2{font-size:11px;color:var(--text2)}
-.total-val.big{font-size:20px;color:var(--green-dark);font-weight:600}
+.footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--m-b-ffffff);flex-wrap:wrap;flex-shrink:0;position:relative}
+.totales{margin-left:auto;display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;justify-content:flex-end;min-width:0}
+.totales-cifras{display:flex;align-items:stretch;flex-wrap:wrap;row-gap:8px}
+.totales-cifras .total-item{padding:0 16px;border-left:1px solid var(--border)}
+.totales-cifras .total-item:first-child{padding-left:0;border-left:0}
+.totales-cifras .total-item:last-child{padding-right:4px}
+.totales-acciones{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.total-item{display:flex;flex-direction:column;align-items:flex-end;flex:none;white-space:nowrap}
+.total-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)}
+.total-val{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.total-val.sub2{font-size:11px;font-weight:400;color:var(--text2)}
+.total-val.big{font-size:20px;color:var(--green-dark);font-weight:700;font-family:var(--ayj-font-display)}
 .total-val.big2{font-size:11px;color:var(--text2)}
 .btn-primary{padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--radius);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-primary:hover{background:var(--green-dark)}
@@ -752,8 +757,10 @@ h1,h2,h3,.login-logo,.topbar-logo{font-family:var(--ayj-font-display)}
       <div class="sidebar-header">
         <strong>Catálogo · TODAS_2025</strong>
         <p id="catalogoCount">Cargando...</p>
-        <button class="btn-sec" id="btnFotosCat" onclick="evToggleFotos()" title="Mostrar u ocultar las fotos de las máquinas" style="font-size:11px;padding:3px 10px;margin-top:4px">🖼 Fotos</button>
-        <button class="btn-sec" id="btnRecargarCat" onclick="catRecargar()" title="Volver a leer el catálogo de máquinas desde SharePoint, sin recargar toda la página (conserva tu búsqueda, filtros y carrito)" style="font-size:11px;padding:3px 10px;margin-top:4px;margin-left:4px"><i class="ti ti-refresh"></i> Actualizar</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <button class="btn-sec" id="btnFotosCat" onclick="evToggleFotos()" title="Mostrar u ocultar las fotos de las máquinas" style="font-size:11px;padding:3px 10px">🖼 Fotos</button>
+        <button class="btn-sec" id="btnRecargarCat" onclick="catRecargar()" title="Volver a leer el catálogo de máquinas desde SharePoint, sin recargar toda la página (conserva tu búsqueda, filtros y carrito)" style="font-size:11px;padding:3px 10px"><i class="ti ti-refresh"></i> Actualizar</button>
+        </div>
         <div class="search-wrap">
           <i class="ti ti-search"></i>
           <input type="text" id="searchInput" placeholder="Buscar nombre, marca, tipología..." oninput="renderCatalogo()">
@@ -1028,14 +1035,9 @@ h1,h2,h3,.login-logo,.topbar-logo{font-family:var(--ayj-font-display)}
             Base de cálculo: <strong id="mgBaseUSD">USD 0</strong> (subtotal antes de IVA y flete)
           </div>
         </div>
-        <div class="field-group">
-          <label>Flete nacional (COP)</label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <input type="number" id="fleteVal" value="0" min="0" style="width:120px" oninput="calcTotales()">
-            <span id="fleteUSDLabel" style="font-size:11px;color:var(--text2);white-space:nowrap"></span>
-          </div>
-        </div>
+        <input type="hidden" id="fleteVal" value="0">   <!-- el flete nacional ahora se maneja en el Liquidador; el campo queda oculto en 0 para no tocar los totales -->
         <div class="totales">
+          <div class="totales-cifras">
           <div class="total-item">
             <span class="total-label">Subtotal</span>
             <span class="total-val" id="tSubUSD">USD 0</span>
@@ -1046,7 +1048,7 @@ h1,h2,h3,.login-logo,.topbar-logo{font-family:var(--ayj-font-display)}
             <span class="total-val" id="tDescUSD" style="color:#e24b4a">-USD 0</span>
             <span class="total-val sub2" id="tDescCOP" style="color:#e24b4a">-COP 0</span>
           </div>
-          <div class="total-item" id="tBaseIvaWrap" style="border-top:1px dashed var(--border);padding-top:4px;margin-top:2px">
+          <div class="total-item" id="tBaseIvaWrap">
             <span class="total-label" style="color:var(--text);font-weight:600">Precio antes de IVA</span>
             <span class="total-val" id="tBaseIvaUSD" style="color:var(--text);font-weight:600">USD 0</span>
             <span class="total-val sub2" id="tBaseIvaCOP" style="color:var(--text2)">COP 0</span>
@@ -1057,21 +1059,19 @@ h1,h2,h3,.login-logo,.topbar-logo{font-family:var(--ayj-font-display)}
             <span class="total-val sub2" id="tIVACOP" style="color:#666">COP 0</span>
           </div>
           <div class="total-item">
-            <span class="total-label">Flete nacional</span>
-            <span class="total-val" id="tFleteUSD" style="color:#666">USD 0</span>
-            <span class="total-val sub2" id="tFleteCOP" style="color:#999">COP 0</span>
-          </div>
-          <div class="total-item">
             <span class="total-label">Total oferta</span>
             <span class="total-val big" id="tTotalUSD">USD 0</span>
             <span class="total-val big2" id="tTotalCOP">COP 0</span>
           </div>
+          </div>
+          <div class="totales-acciones">
           <button class="btn-sec" onclick="nuevaCotizacion()"><i class="ti ti-plus"></i> Nueva Cotización</button>
           <button class="btn-sec" onclick="abrirItemLibre()" style="border-color:var(--amber);color:#92400E" title="Agregar ítem personalizado"><i class="ti ti-pencil-plus"></i> Ítem libre</button>
           <label title="Incluir la foto de cada máquina en el PDF de la oferta" style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="chkFotosPdf"> 🖼 Fotos en el PDF</label>
           <button class="btn-primary" id="btnGuardar" onclick="guardarCotizacion()"><i class="ti ti-device-floppy"></i> Guardar y PDF</button>
           <button class="btn-sec" id="btnPedidoActual" onclick="convertirEnPedidoActual()" title="Convertir esta oferta (ya guardada) en pedido: elegir seriales y cerrar" style="border-color:#3B82F6;color:#1D4ED8;display:none"><i class="ti ti-package-export"></i> Pedido</button>
           <button id="btnMargenes" onclick="pedirClaveMargenes()" style="display:none;background:#575756;border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;gap:5px;align-items:center"><i class="ti ti-lock"></i> MG</button>
+          </div>
         </div>
       </div>
     </div>
