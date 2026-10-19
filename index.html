@@ -2143,9 +2143,21 @@ async function getToken(){
   try{const r=await msalInstance.acquireTokenSilent({...loginRequest,account:accounts[0]});return r.accessToken;}
   catch(e){await msalInstance.acquireTokenRedirect(loginRequest);return null;}
 }
+// Lecturas a Graph con reintento: si Microsoft limita las peticiones (429) o está saturado (503/504) se espera lo que indique Retry-After (máx. 30 s) y se vuelve a intentar, hasta 5 veces.
+async function graphFetchReintento(url,opts){
+  for(let n=0;;n++){
+    const r=await fetch(url,opts);
+    if((r.status===429||r.status===503||r.status===504)&&n<5){
+      const seg=parseInt(r.headers.get('Retry-After'));
+      await new Promise(x=>setTimeout(x,Math.min(seg>0?seg:Math.pow(2,n),30)*1000));
+      continue;
+    }
+    return r;
+  }
+}
 async function graphGet(url){
   const token=await getToken();
-  const r=await fetch('https://graph.microsoft.com/v1.0'+url,{headers:{Authorization:'Bearer '+token}});
+  const r=await graphFetchReintento('https://graph.microsoft.com/v1.0'+url,{headers:{Authorization:'Bearer '+token}});
   if(!r.ok)throw new Error('Graph '+r.status);
   return r.json();
 }
@@ -2159,7 +2171,7 @@ async function graphGetAll(url,extra){
   let results=[],nextUrl='https://graph.microsoft.com/v1.0'+url;
   while(nextUrl){
     const token=await getToken();
-    const r=await fetch(nextUrl,{headers:{Authorization:'Bearer '+token,...(extra||{})}});
+    const r=await graphFetchReintento(nextUrl,{headers:{Authorization:'Bearer '+token,...(extra||{})}});
     if(!r.ok)throw new Error('Graph '+r.status);
     const data=await r.json();
     results=results.concat(data.value||[]);
