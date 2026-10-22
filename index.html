@@ -1,6 +1,61 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script id="candado-cot1">
+/* CANDADO · COT_1 apagado a solo lectura (22-oct-2026): ya se trabaja en Savia (https://savia.ayj.com.co).
+   Un solo interruptor para las 5 apps (máquinas V1 y V2, software, adhesivos y servicios): el archivo candado.json del repo cotizador-ayj-v2. Para cambiarlo basta editar ese archivo y subirlo (push):
+     {"modo":"solo_lectura"}  todos entran a CONSULTAR; ninguna escritura llega a SharePoint (guardar, editar, borrar, subir archivos)
+     {"modo":"solo_adolfo"}   solo entra Adolfo, y también a consultar; los demás ven «cerrado» y la dirección de Savia
+     {"modo":"normal"}        como antes (por si hay que volver atrás)
+   Si el interruptor no se puede leer, queda en solo lectura. El respaldo (leer las listas) sigue funcionando. */
+(function () {
+  var INTERRUPTOR = 'https://aristi01ayj.github.io/cotizador-ayj-v2/candado.json', ADMIN = 'adolfojose@ayj.com.co', SAVIA = 'https://savia.ayj.com.co';
+  var estado = { modo: 'solo_lectura', listo: null }, nativo = window.fetch.bind(window), avisado = 0;
+  function esEscritura(entrada, opts) {
+    var m = String((opts && opts.method) || (entrada && entrada.method) || 'GET').toUpperCase(), u = String((entrada && entrada.url) || entrada);
+    return m !== 'GET' && m !== 'HEAD' && /graph\.microsoft\.com|\.sharepoint\.com/i.test(u);
+  }
+  function aviso() {
+    if (Date.now() - avisado < 4000) return; avisado = Date.now();
+    var d = document.createElement('div'); d.style.cssText = 'position:fixed;left:50%;top:60px;transform:translateX(-50%);z-index:2147483647;background:#7f1d1d;color:#fff;padding:12px 18px;border-radius:8px;font:600 14px Segoe UI,Arial,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+    d.innerHTML = '🔒 COT_1 está en SOLO LECTURA: no guarda cambios.<br><span style="font-weight:400">Ahora todo se hace en <a href="' + SAVIA + '" style="color:#fde68a" target="_blank" rel="noopener">Savia</a>.</span>';
+    document.body.appendChild(d); setTimeout(function () { d.remove(); }, 6000);
+  }
+  // toda escritura a Graph/SharePoint se frena aquí, sin importar qué parte de la app la pida
+  window.fetch = function (entrada, opts) {
+    if (estado.modo !== 'normal' && esEscritura(entrada, opts)) {
+      aviso();
+      return Promise.resolve(new Response(JSON.stringify({ error: { code: 'soloLectura', message: 'COT_1 está en solo lectura: ahora se trabaja en Savia' } }), { status: 403, headers: { 'Content-Type': 'application/json' } }));
+    }
+    return nativo(entrada, opts);
+  };
+  estado.listo = Promise.race([
+    nativo(INTERRUPTOR + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }),
+    new Promise(function (ok) { setTimeout(function () { ok(null); }, 6000); })
+  ]).then(function (j) { if (j && /^(normal|solo_lectura|solo_adolfo)$/.test(j.modo)) estado.modo = j.modo; }).catch(function () { /* sin interruptor: solo lectura */ });
+  function cerrado(titulo, cuerpo) {
+    document.body.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;background:#111;color:#eee;font-family:Segoe UI,Arial,sans-serif;padding:20px"><div style="max-width:460px;text-align:center"><div style="font-size:42px">🔒</div><h2 style="margin:8px 0">' + titulo + '</h2><p style="color:#bbb;line-height:1.5">' + cuerpo + '</p><p><a href="' + SAVIA + '" style="background:#80A61B;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Ir a Savia</a></p><p><button id="candadoSalir" style="background:none;border:1px solid #555;color:#bbb;padding:6px 14px;border-radius:8px;cursor:pointer">Cerrar sesión</button></p></div></div>';
+    document.getElementById('candadoSalir').onclick = function () { try { logout(); } catch (e) { location.reload(); } };
+  }
+  // se llama al principio de showApp(account): true = no dejar entrar
+  window.CANDADO = {
+    estado: estado,
+    cerrar: async function (cuenta) {
+      await estado.listo;
+      var yo = String((cuenta && (cuenta.username || '')) || '').toLowerCase();
+      if (estado.modo === 'solo_adolfo' && yo !== ADMIN) { cerrado('COT_1 está cerrado', 'Ya no se trabaja aquí: todo el equipo usa Savia.'); return true; }
+      if (estado.modo !== 'normal') {
+        var b = document.createElement('div'); b.id = 'candadoBanda'; b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483646;background:#7f1d1d;color:#fff;padding:6px 12px;text-align:center;font:600 13px Segoe UI,Arial,sans-serif';
+        b.innerHTML = '🔒 SOLO LECTURA · COT_1 ya no guarda cambios (solo consulta). Trabaja en <a href="' + SAVIA + '" style="color:#fde68a" target="_blank" rel="noopener">Savia</a>' + (estado.modo === 'solo_adolfo' ? ' · acceso solo para Adolfo' : '');
+        document.body.appendChild(b);
+      }
+      return false;
+    }
+  };
+})();
+</script>
+
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2181,6 +2236,7 @@ async function graphGetAll(url,extra){
 }
 
 async function showApp(account){
+  if(await window.CANDADO.cerrar(account))return;   // candado de solo lectura (ver el bloque candado-cot1)
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='flex';
   // Bloquea toda la app hasta que el catálogo (y clientes/TRM) terminen de cargar — antes se
